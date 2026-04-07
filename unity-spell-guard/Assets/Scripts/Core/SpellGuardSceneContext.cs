@@ -15,6 +15,7 @@ namespace SpellGuard.Core
         [SerializeField] private NativeMediapipeGestureProvider nativeMediapipeProvider;
         [SerializeField] private NativeMediapipeGestureRunner nativeMediapipeRunner;
         [SerializeField] private ExternalGestureBridgeProvider externalBridge;
+        [SerializeField] private ExternalMotionGestureRecognizer externalMotionGestureRecognizer;
         [SerializeField] private UdpGestureReceiver udpGestureReceiver;
         [SerializeField] private WebcamFeedController webcamFeed;
 
@@ -41,6 +42,7 @@ namespace SpellGuard.Core
         public NativeMediapipeGestureProvider NativeMediapipeProvider => nativeMediapipeProvider;
         public NativeMediapipeGestureRunner NativeMediapipeRunner => nativeMediapipeRunner;
         public ExternalGestureBridgeProvider ExternalBridge => externalBridge;
+        public ExternalMotionGestureRecognizer ExternalMotionGestureRecognizer => externalMotionGestureRecognizer;
         public UdpGestureReceiver UdpGestureReceiver => udpGestureReceiver;
         public WebcamFeedController WebcamFeed => webcamFeed;
         public Transform PlayerRoot => playerRoot;
@@ -68,6 +70,7 @@ namespace SpellGuard.Core
             nativeMediapipeProvider ??= FindObjectOfType<NativeMediapipeGestureProvider>(true);
             nativeMediapipeRunner ??= FindObjectOfType<NativeMediapipeGestureRunner>(true);
             externalBridge ??= FindObjectOfType<ExternalGestureBridgeProvider>(true);
+            externalMotionGestureRecognizer ??= FindObjectOfType<ExternalMotionGestureRecognizer>(true);
             udpGestureReceiver ??= FindObjectOfType<UdpGestureReceiver>(true);
             webcamFeed ??= FindObjectOfType<WebcamFeedController>(true);
             fpsMotor ??= FindObjectOfType<FpsGestureMotor>(true);
@@ -82,6 +85,11 @@ namespace SpellGuard.Core
             if (inputProvider == null)
             {
                 inputProvider = inputRouter != null ? inputRouter : FindObjectOfType<GestureInputProviderBase>(true);
+            }
+
+            if (externalMotionGestureRecognizer == null && externalBridge != null)
+            {
+                externalMotionGestureRecognizer = GetOrAddComponent<ExternalMotionGestureRecognizer>(externalBridge.gameObject);
             }
 
             if (playerRoot == null && fpsMotor != null)

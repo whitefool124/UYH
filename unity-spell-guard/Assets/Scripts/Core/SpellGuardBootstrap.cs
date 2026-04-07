@@ -63,6 +63,10 @@ namespace SpellGuard.Core
                 sceneContext.UdpGestureReceiver.Configure(sceneContext.ExternalBridge, sceneContext.WebcamFeed);
                 sceneContext.UdpGestureReceiver.StopReceiver();
             }
+            if (sceneContext.ExternalMotionGestureRecognizer != null)
+            {
+                sceneContext.ExternalMotionGestureRecognizer.Configure(sceneContext.ExternalBridge);
+            }
             sceneContext.DebugHud.Configure(
                 sceneContext.InputProvider,
                 sceneContext.InputRouter,

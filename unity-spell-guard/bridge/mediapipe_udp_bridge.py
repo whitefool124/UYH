@@ -48,6 +48,21 @@ def classify_gesture(landmarks):
     return "unknown"
 
 
+def serialize_landmarks(landmarks):
+    if not landmarks:
+        return []
+
+    return [
+        {
+            "x": landmark.x,
+            "y": landmark.y,
+            "z": landmark.z,
+            "visibility": 1.0,
+        }
+        for landmark in landmarks
+    ]
+
+
 class GestureStabilizer:
     def __init__(self):
         self.candidate = "none"
@@ -80,13 +95,24 @@ def parse_args():
     return parser.parse_args()
 
 
-def build_packet(hand_present, gesture, x=0.5, y=0.5, confidence=0.0):
+def build_packet(hand_present, gesture, x=0.5, y=0.5, confidence=0.0, landmarks=None):
     return {
         "handPresent": hand_present,
         "gesture": gesture,
         "x": max(0.0, min(1.0, x)),
         "y": max(0.0, min(1.0, y)),
         "confidence": max(0.0, min(1.0, confidence)),
+        "trackingConfidence": max(0.0, min(1.0, confidence)),
+        "timestamp": time.time(),
+        "source": "mediapipeHandsBridge",
+        "pointer": {
+            "x": max(0.0, min(1.0, x)),
+            "y": max(0.0, min(1.0, y)),
+            "z": 0.0,
+            "visibility": 1.0 if hand_present else 0.0,
+        },
+        "handLandmarks": serialize_landmarks(landmarks),
+        "poseLandmarks": [],
     }
 
 
@@ -138,7 +164,7 @@ def main():
                 raw = classify_gesture(landmarks)
                 stable = stabilizer.push(raw)
                 pointer = landmarks[8]
-                packet = build_packet(True, stable, pointer.x, pointer.y, 0.95 if stable != "unknown" else 0.5)
+                packet = build_packet(True, stable, pointer.x, pointer.y, 0.95 if stable != "unknown" else 0.5, landmarks)
                 label = stable
 
                 if args.show_preview:

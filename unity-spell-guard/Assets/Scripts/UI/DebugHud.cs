@@ -154,12 +154,12 @@ namespace SpellGuard.UI
 
         private void DrawHandSkeleton(Rect textureRect)
         {
-            if (nativeMediapipeProvider == null || !nativeMediapipeProvider.HasHandLandmarks)
+            var landmarks = GetAvailableHandLandmarks();
+            if (landmarks == null || landmarks.Count == 0)
             {
                 return;
             }
 
-            var landmarks = nativeMediapipeProvider.HandLandmarks;
             foreach (var (from, to) in HandConnections)
             {
                 if (from >= landmarks.Count || to >= landmarks.Count)
@@ -180,6 +180,21 @@ namespace SpellGuard.UI
             }
 
             GUI.color = Color.white;
+        }
+
+        private System.Collections.Generic.IReadOnlyList<Vector2> GetAvailableHandLandmarks()
+        {
+            if (nativeMediapipeProvider != null && nativeMediapipeProvider.HasHandLandmarks)
+            {
+                return nativeMediapipeProvider.HandLandmarks;
+            }
+
+            if (externalBridge != null && externalBridge.HasHandLandmarks)
+            {
+                return externalBridge.HandLandmarks;
+            }
+
+            return null;
         }
 
         private static Vector2 ToPreviewPoint(Vector2 normalizedPoint, Rect rect)

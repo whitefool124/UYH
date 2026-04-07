@@ -9,16 +9,6 @@ namespace SpellGuard.InputSystem
 {
     public class UdpGestureReceiver : MonoBehaviour
     {
-        [Serializable]
-        private class GesturePacket
-        {
-            public bool handPresent;
-            public string gesture;
-            public float x = 0.5f;
-            public float y = 0.5f;
-            public float confidence;
-        }
-
         [SerializeField] private ExternalGestureBridgeProvider bridgeProvider;
         [SerializeField] private WebcamFeedController webcamFeed;
         [SerializeField] private bool autoStart = false;
@@ -26,7 +16,7 @@ namespace SpellGuard.InputSystem
         [SerializeField] private int listenPort = 5053;
 
         private readonly object packetLock = new object();
-        private GesturePacket latestPacket;
+        private ExternalVisionFrame latestPacket;
         private UdpClient udpClient;
         private Thread receiveThread;
         private volatile bool running;
@@ -45,7 +35,7 @@ namespace SpellGuard.InputSystem
 
         private void Update()
         {
-            GesturePacket packet = null;
+            ExternalVisionFrame packet = null;
 
             lock (packetLock)
             {
@@ -58,7 +48,7 @@ namespace SpellGuard.InputSystem
 
             if (packet != null && bridgeProvider != null)
             {
-                bridgeProvider.PushGesture(packet.gesture, packet.x, packet.y, packet.confidence, packet.handPresent);
+                bridgeProvider.PushFrame(packet);
                 StatusText = packet.handPresent
                     ? $"UDP已接收：{packet.gesture} ({packet.confidence:F2})"
                     : "UDP已接收：无手";
@@ -144,7 +134,7 @@ namespace SpellGuard.InputSystem
                     var endpoint = new IPEndPoint(IPAddress.Any, listenPort);
                     var bytes = udpClient.Receive(ref endpoint);
                     var json = Encoding.UTF8.GetString(bytes);
-                    var packet = JsonUtility.FromJson<GesturePacket>(json);
+                    var packet = JsonUtility.FromJson<ExternalVisionFrame>(json);
 
                     if (packet == null)
                     {
