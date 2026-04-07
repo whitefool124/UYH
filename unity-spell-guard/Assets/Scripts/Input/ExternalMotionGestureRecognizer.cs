@@ -14,6 +14,13 @@ namespace SpellGuard.InputSystem
             public bool HasSnapData;
         }
 
+        private struct PoseSample
+        {
+            public float Time;
+            public Vector2 ShoulderCenter;
+            public float ShoulderVisibility;
+        }
+
         [SerializeField] private ExternalGestureBridgeProvider bridgeProvider;
         [SerializeField] private float historySeconds = 0.45f;
         [SerializeField] private float swipeMinDistance = 0.18f;
@@ -23,11 +30,17 @@ namespace SpellGuard.InputSystem
         [SerializeField] private float snapReleaseDistance = 0.11f;
         [SerializeField] private float snapMaxDuration = 0.18f;
         [SerializeField] private float snapCooldownSeconds = 0.45f;
+        [SerializeField] private float bodyShiftMinDistance = 0.1f;
+        [SerializeField] private float bodyShiftMaxVerticalDrift = 0.12f;
+        [SerializeField] private float bodyShiftCooldownSeconds = 0.45f;
+        [SerializeField] private float minPoseVisibility = 0.45f;
 
-        private readonly Queue<HandSample> history = new Queue<HandSample>();
+        private readonly Queue<HandSample> handHistory = new Queue<HandSample>();
+        private readonly Queue<PoseSample> poseHistory = new Queue<PoseSample>();
         private int lastProcessedFrameVersion = -1;
         private float lastSwipeTime = -999f;
         private float lastSnapTime = -999f;
+        private float lastBodyShiftTime = -999f;
         private bool snapPrimed;
         private float snapPrimedTime;
 
@@ -45,31 +58,65 @@ namespace SpellGuard.InputSystem
 
             lastProcessedFrameVersion = bridgeProvider.FrameVersion;
             var frame = bridgeProvider.CurrentFrame;
-            if (frame == null || !frame.handPresent || !bridgeProvider.HasHandLandmarks)
+            if (frame == null)
             {
                 ResetState();
                 return;
             }
 
-            var landmarks = bridgeProvider.HandLandmarks;
-            var sample = BuildSample(landmarks, frame.ResolveViewportPosition());
-            history.Enqueue(sample);
-            TrimHistory(sample.Time);
+            var processedAnyInput = false;
 
-            if (TryDetectSwipe(out var swipe))
+            if (frame.handPresent && bridgeProvider.HasHandLandmarks)
             {
-                bridgeProvider.PushMotionGesture(swipe, sample.Palm, 0.92f);
-                ResetHistoryKeepingLatest(sample);
-                return;
+                processedAnyInput = true;
+                var landmarks = bridgeProvider.HandLandmarks;
+                var sample = BuildHandSample(landmarks, frame.ResolveViewportPosition());
+                handHistory.Enqueue(sample);
+                TrimHistory(handHistory, sample.Time);
+
+                if (TryDetectSwipe(out var swipe))
+                {
+                    bridgeProvider.PushMotionGesture(swipe, sample.Palm, 0.92f);
+                    ResetHandHistoryKeepingLatest(sample);
+                    return;
+                }
+
+                if (TryDetectSnap(sample, out var snap))
+                {
+                    bridgeProvider.PushMotionGesture(snap, sample.Palm, 0.9f);
+                    return;
+                }
+            }
+            else
+            {
+                ResetHandState();
             }
 
-            if (TryDetectSnap(sample, out var snap))
+            if (TryBuildPoseSample(bridgeProvider.PoseLandmarks, out var poseSample))
             {
-                bridgeProvider.PushMotionGesture(snap, sample.Palm, 0.9f);
+                processedAnyInput = true;
+                poseHistory.Enqueue(poseSample);
+                TrimHistory(poseHistory, poseSample.Time);
+
+                if (TryDetectBodyShift(out var bodyShift))
+                {
+                    bridgeProvider.PushMotionGesture(bodyShift, poseSample.ShoulderCenter, poseSample.ShoulderVisibility);
+                    ResetPoseHistoryKeepingLatest(poseSample);
+                    return;
+                }
+            }
+            else
+            {
+                poseHistory.Clear();
+            }
+
+            if (!processedAnyInput)
+            {
+                ResetState();
             }
         }
 
-        private HandSample BuildSample(IReadOnlyList<Vector2> landmarks, Vector2 fallbackPalm)
+        private HandSample BuildHandSample(IReadOnlyList<Vector2> landmarks, Vector2 fallbackPalm)
         {
             var palm = fallbackPalm;
             if (landmarks.Count > 17)
@@ -88,10 +135,66 @@ namespace SpellGuard.InputSystem
             return sample;
         }
 
-        private void TrimHistory(float currentTime)
+        private bool TryBuildPoseSample(IReadOnlyList<Vector2> landmarks, out PoseSample sample)
         {
-            while (history.Count > 0 && currentTime - history.Peek().Time > historySeconds)
+            sample = default;
+            if (landmarks == null || landmarks.Count <= 24 || bridgeProvider?.CurrentFrame?.poseLandmarks == null || bridgeProvider.CurrentFrame.poseLandmarks.Length <= 24)
             {
+                return false;
+            }
+
+            var leftShoulder = landmarks[11];
+            var rightShoulder = landmarks[12];
+            var leftHip = landmarks[23];
+            var rightHip = landmarks[24];
+            var framePose = bridgeProvider.CurrentFrame.poseLandmarks;
+            var visibility = Mathf.Min(
+                framePose[11].visibility,
+                framePose[12].visibility,
+                framePose[23].visibility,
+                framePose[24].visibility
+            );
+
+            if (visibility < minPoseVisibility)
+            {
+                return false;
+            }
+
+            var shoulderCenter = (leftShoulder + rightShoulder) * 0.5f;
+            var hipCenter = (leftHip + rightHip) * 0.5f;
+            sample = new PoseSample
+            {
+                Time = Time.time,
+                ShoulderCenter = (shoulderCenter + hipCenter) * 0.5f,
+                ShoulderVisibility = visibility
+            };
+            return true;
+        }
+
+        private void TrimHistory<T>(Queue<T> history, float currentTime) where T : struct
+        {
+            while (history.Count > 0)
+            {
+                float time;
+                var peek = history.Peek();
+                if (peek is HandSample handSample)
+                {
+                    time = handSample.Time;
+                }
+                else if (peek is PoseSample poseSample)
+                {
+                    time = poseSample.Time;
+                }
+                else
+                {
+                    break;
+                }
+
+                if (currentTime - time <= historySeconds)
+                {
+                    break;
+                }
+
                 history.Dequeue();
             }
         }
@@ -99,12 +202,12 @@ namespace SpellGuard.InputSystem
         private bool TryDetectSwipe(out MotionGestureType gesture)
         {
             gesture = MotionGestureType.None;
-            if (history.Count < 3)
+            if (handHistory.Count < 3)
             {
                 return false;
             }
 
-            var samples = history.ToArray();
+            var samples = handHistory.ToArray();
             var first = samples[0];
             var last = samples[samples.Length - 1];
             var duration = Mathf.Max(0.0001f, last.Time - first.Time);
@@ -124,6 +227,37 @@ namespace SpellGuard.InputSystem
 
             lastSwipeTime = Time.time;
             gesture = horizontalDelta > 0f ? MotionGestureType.SwipeLeftToRight : MotionGestureType.SwipeRightToLeft;
+            return true;
+        }
+
+        private bool TryDetectBodyShift(out MotionGestureType gesture)
+        {
+            gesture = MotionGestureType.None;
+            if (poseHistory.Count < 3)
+            {
+                return false;
+            }
+
+            var samples = poseHistory.ToArray();
+            var first = samples[0];
+            var last = samples[samples.Length - 1];
+            var duration = Mathf.Max(0.0001f, last.Time - first.Time);
+            var horizontalDelta = last.ShoulderCenter.x - first.ShoulderCenter.x;
+            var verticalDrift = Mathf.Abs(last.ShoulderCenter.y - first.ShoulderCenter.y);
+            var speed = Mathf.Abs(horizontalDelta) / duration;
+
+            if (verticalDrift > bodyShiftMaxVerticalDrift || Mathf.Abs(horizontalDelta) < bodyShiftMinDistance || speed < 0.28f)
+            {
+                return false;
+            }
+
+            if (Time.time - lastBodyShiftTime < bodyShiftCooldownSeconds)
+            {
+                return false;
+            }
+
+            lastBodyShiftTime = Time.time;
+            gesture = horizontalDelta > 0f ? MotionGestureType.BodyShiftRight : MotionGestureType.BodyShiftLeft;
             return true;
         }
 
@@ -165,15 +299,28 @@ namespace SpellGuard.InputSystem
             return true;
         }
 
-        private void ResetHistoryKeepingLatest(HandSample latest)
+        private void ResetHandHistoryKeepingLatest(HandSample latest)
         {
-            history.Clear();
-            history.Enqueue(latest);
+            handHistory.Clear();
+            handHistory.Enqueue(latest);
+        }
+
+        private void ResetPoseHistoryKeepingLatest(PoseSample latest)
+        {
+            poseHistory.Clear();
+            poseHistory.Enqueue(latest);
+        }
+
+        private void ResetHandState()
+        {
+            handHistory.Clear();
+            snapPrimed = false;
         }
 
         private void ResetState()
         {
-            history.Clear();
+            handHistory.Clear();
+            poseHistory.Clear();
             snapPrimed = false;
         }
     }

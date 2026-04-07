@@ -205,6 +205,10 @@ namespace SpellGuard.InputSystem
                     return "右到左挥动";
                 case MotionGestureType.Snap:
                     return "打响指";
+                case MotionGestureType.BodyShiftLeft:
+                    return "身体左移";
+                case MotionGestureType.BodyShiftRight:
+                    return "身体右移";
                 default:
                     return "无";
             }

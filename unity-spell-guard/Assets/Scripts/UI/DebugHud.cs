@@ -18,6 +18,15 @@ namespace SpellGuard.UI
             (0, 17)
         };
 
+        private static readonly (int from, int to)[] PoseConnections =
+        {
+            (11, 12), (11, 13), (13, 15),
+            (12, 14), (14, 16),
+            (11, 23), (12, 24), (23, 24),
+            (23, 25), (25, 27),
+            (24, 26), (26, 28)
+        };
+
         [SerializeField] private GestureInputProviderBase inputProvider;
         [SerializeField] private GestureInputRouter inputRouter;
         [SerializeField] private WebcamFeedController webcamFeed;
@@ -87,6 +96,8 @@ namespace SpellGuard.UI
             GUILayout.Label($"原生识别：{(nativeMediapipeProvider != null ? nativeMediapipeProvider.StatusText : "未绑定")}", labelStyle);
             GUILayout.Label($"识别桥：{(externalBridge != null ? externalBridge.BridgeStatus : "未绑定")}", labelStyle);
             GUILayout.Label($"UDP：{(udpGestureReceiver != null ? udpGestureReceiver.StatusText : "未绑定")}", labelStyle);
+            GUILayout.Label($"动态事件：{GetMotionGestureLabel()}", labelStyle);
+            GUILayout.Label($"Pose 点数：{GetPoseLandmarkCount()}", labelStyle);
 
             GUILayout.Space(10f);
             GUILayout.Label("F1 切换输入模式：Mock / NativeMediapipe / ExternalBridge", labelStyle);
@@ -146,9 +157,14 @@ namespace SpellGuard.UI
             {
                 var marker = new Vector2(textureRect.x + snapshot.ViewportPosition.x * textureRect.width, textureRect.y + (1f - snapshot.ViewportPosition.y) * textureRect.height);
                 DrawHandSkeleton(textureRect);
+                DrawPoseSkeleton(textureRect);
                 GUI.color = Color.yellow;
                 GUI.DrawTexture(new Rect(marker.x - 6f, marker.y - 6f, 12f, 12f), Texture2D.whiteTexture);
                 GUI.color = Color.white;
+            }
+            else
+            {
+                DrawPoseSkeleton(textureRect);
             }
         }
 
@@ -195,6 +211,63 @@ namespace SpellGuard.UI
             }
 
             return null;
+        }
+
+        private System.Collections.Generic.IReadOnlyList<Vector2> GetAvailablePoseLandmarks()
+        {
+            if (externalBridge != null && externalBridge.PoseLandmarks != null && externalBridge.PoseLandmarks.Count > 0)
+            {
+                return externalBridge.PoseLandmarks;
+            }
+
+            return null;
+        }
+
+        private void DrawPoseSkeleton(Rect textureRect)
+        {
+            var landmarks = GetAvailablePoseLandmarks();
+            if (landmarks == null || landmarks.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var (from, to) in PoseConnections)
+            {
+                if (from >= landmarks.Count || to >= landmarks.Count)
+                {
+                    continue;
+                }
+
+                var start = ToPreviewPoint(landmarks[from], textureRect);
+                var end = ToPreviewPoint(landmarks[to], textureRect);
+                DrawLine(start, end, new Color(1f, 0.68f, 0.28f, 0.9f), 2f);
+            }
+
+            for (var index = 0; index < landmarks.Count; index++)
+            {
+                var point = ToPreviewPoint(landmarks[index], textureRect);
+                GUI.color = new Color(1f, 0.75f, 0.35f, 0.9f);
+                GUI.DrawTexture(new Rect(point.x - 2f, point.y - 2f, 4f, 4f), Texture2D.whiteTexture);
+            }
+
+            GUI.color = Color.white;
+        }
+
+        private string GetMotionGestureLabel()
+        {
+            if (externalBridge == null)
+            {
+                return "未绑定";
+            }
+
+            var motion = externalBridge.LatestMotionGesture;
+            return motion.IsValid ? motion.Gesture.ToChinese() : "无";
+        }
+
+        private int GetPoseLandmarkCount()
+        {
+            var landmarks = GetAvailablePoseLandmarks();
+            return landmarks?.Count ?? 0;
         }
 
         private static Vector2 ToPreviewPoint(Vector2 normalizedPoint, Rect rect)
