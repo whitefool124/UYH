@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>符印守卫</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">毕业设计 · 体感施法游戏 MVP</p>
+          <h1>符印守卫</h1>
+          <p class="hero-copy">
+            玩家无需键盘和鼠标，仅通过摄像头前的手势完成菜单导航、设置切换与结印施法。在三路线结界战场中，用指向手势操作界面，再以火焰印、冰霜印与护盾印守住防线。
+          </p>
+        </div>
+        <div class="hero-badge">
+          <span class="hero-badge-label">交互模式</span>
+          <strong>全手势驱动</strong>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="stage-card game-card">
+          <div class="card-title-row">
+            <h2>游戏场景</h2>
+            <span id="hand-status" class="pill pending">未检测到手</span>
+          </div>
+          <canvas id="game-canvas" width="960" height="540"></canvas>
+        </section>
+
+        <div class="support-column">
+          <section class="stage-card camera-card">
+            <div class="card-title-row compact-title-row">
+              <h2>手部跟踪</h2>
+              <span id="camera-status" class="pill pending">等待摄像头</span>
+            </div>
+            <div class="camera-stack compact-camera-stack">
+              <video id="camera-feed" class="camera-layer" playsinline muted></video>
+              <canvas id="tracking-overlay" class="camera-layer overlay"></canvas>
+              <div id="camera-hint" class="camera-hint">
+                请允许浏览器访问摄像头，然后把手伸进镜头聚能施法。
+              </div>
+            </div>
+          </section>
+
+          <aside class="sidebar">
+            <section class="info-card status-card">
+              <h3>实时状态</h3>
+              <dl class="stats-grid compact-stats-grid">
+                <div>
+                  <dt>分数</dt>
+                  <dd id="score-value">0</dd>
+                </div>
+                <div>
+                  <dt>结界受损</dt>
+                  <dd id="miss-value">0 / 6</dd>
+                </div>
+                <div>
+                  <dt>当前法术</dt>
+                  <dd id="control-value">--</dd>
+                </div>
+                <div>
+                  <dt>刷新率</dt>
+                  <dd id="fps-value">0 FPS</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section class="info-card compact-info-card">
+              <h3>手势速览</h3>
+              <ul class="tips-list compact-list">
+                <li>食指指向 = 焦点移动与停留确认</li>
+                <li>握拳 = 火焰印，V = 冰霜印，张掌 = 护盾印</li>
+                <li>先练训练场，再进正式战斗会更稳</li>
+              </ul>
+            </section>
+
+            <section class="info-card compact-info-card secondary-info-card">
+              <h3>流程</h3>
+              <ol class="flow-list compact-list">
+                <li>入镜激活菜单</li>
+                <li>手势选择模式</li>
+                <li>稳定结印触发反馈</li>
+              </ol>
+            </section>
+          </aside>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
