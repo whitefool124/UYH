@@ -17,6 +17,7 @@ namespace SpellGuard.Core
         }
 
         [SerializeField] private GestureInputProviderBase inputProvider;
+        [SerializeField] private ExternalGestureBridgeProvider externalBridge;
         [SerializeField] private SpellGuardGameSettings settings;
         [SerializeField] private FpsGestureMotor motor;
         [SerializeField] private GestureSpellCaster spellCaster;
@@ -44,12 +45,14 @@ namespace SpellGuard.Core
         private int trainingShieldCasts;
         private SpellType lastTrainingSpell = SpellType.None;
         private bool subscribed;
+        private float lastHandledMotionTime = -999f;
 
         public SpellGuardScreen Screen => screen;
         public string HintText { get; private set; } = "菜单指令：食指指向移动焦点，停留确认。";
 
         public void Configure(
             GestureInputProviderBase provider,
+            ExternalGestureBridgeProvider bridge,
             SpellGuardGameSettings gameSettings,
             FpsGestureMotor fpsMotor,
             GestureSpellCaster gestureSpellCaster,
@@ -60,6 +63,7 @@ namespace SpellGuard.Core
             Camera cameraRef)
         {
             inputProvider = provider;
+            externalBridge = bridge;
             settings = gameSettings;
             motor = fpsMotor;
             spellCaster = gestureSpellCaster;
@@ -147,6 +151,11 @@ namespace SpellGuard.Core
             }
 
             focusedKey = region.Value.key;
+            if (HandleMotionGesture(region.Value.key))
+            {
+                return;
+            }
+
             if (dwellKey != focusedKey)
             {
                 dwellKey = focusedKey;
@@ -159,6 +168,73 @@ namespace SpellGuard.Core
                 dwellKey = null;
                 focusedKey = null;
             }
+        }
+
+        private bool HandleMotionGesture(string focusedRegionKey)
+        {
+            if (externalBridge == null)
+            {
+                return false;
+            }
+
+            var motion = externalBridge.LatestMotionGesture;
+            if (!motion.IsValid || motion.TriggeredTime <= lastHandledMotionTime)
+            {
+                return false;
+            }
+
+            switch (motion.Gesture)
+            {
+                case MotionGestureType.SwipeRightToLeft:
+                    lastHandledMotionTime = motion.TriggeredTime;
+                    if (screen == SpellGuardScreen.Settings)
+                    {
+                        if (focusedRegionKey == "confirm")
+                        {
+                            settings.CycleConfirm();
+                            HintText = $"设置已切换：施法确认 {settings.ConfirmLabel}";
+                            dwellKey = null;
+                            return true;
+                        }
+
+                        if (focusedRegionKey == "difficulty")
+                        {
+                            settings.CycleDifficulty();
+                            HintText = $"设置已切换：敌人节奏 {settings.DifficultyLabel}";
+                            dwellKey = null;
+                            return true;
+                        }
+                    }
+
+                    if (screen != SpellGuardScreen.Menu && screen != SpellGuardScreen.Playing)
+                    {
+                        ReturnToMenu();
+                        return true;
+                    }
+                    break;
+
+                case MotionGestureType.SwipeLeftToRight:
+                    if (screen == SpellGuardScreen.Settings && (focusedRegionKey == "confirm" || focusedRegionKey == "difficulty"))
+                    {
+                        lastHandledMotionTime = motion.TriggeredTime;
+                        if (focusedRegionKey == "confirm")
+                        {
+                            settings.CycleConfirm();
+                            HintText = $"设置已切换：施法确认 {settings.ConfirmLabel}";
+                        }
+                        else
+                        {
+                            settings.CycleDifficulty();
+                            HintText = $"设置已切换：敌人节奏 {settings.DifficultyLabel}";
+                        }
+
+                        dwellKey = null;
+                        return true;
+                    }
+                    break;
+            }
+
+            return false;
         }
 
         private Region? GetFocusedRegion(Vector2 cursor)

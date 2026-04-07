@@ -40,6 +40,7 @@ namespace SpellGuard.Core
             sceneContext.GameFlowManager.Configure(sceneContext.PlayerHealth, sceneContext.EnemySpawner);
             sceneContext.FlowController.Configure(
                 sceneContext.InputProvider,
+                sceneContext.ExternalBridge,
                 sceneContext.GameSettings,
                 sceneContext.FpsMotor,
                 sceneContext.SpellCaster,
