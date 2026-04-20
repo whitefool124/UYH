@@ -13,12 +13,18 @@ namespace SpellGuard.Player
         [SerializeField] private float confirmSeconds = 0.4f;
         [SerializeField] private float castDistance = 50f;
         [SerializeField] private float shieldDuration = 3f;
+        [SerializeField] private float castStatusHoldSeconds = 0.75f;
         [SerializeField] private LayerMask hitMask = Physics.DefaultRaycastLayers;
+        [SerializeField] private bool debugLogs = true;
 
         private SpellType pendingSpell = SpellType.None;
         private float pendingStartTime;
         private SpellType lastCastSpell = SpellType.None;
+        private float lastHandledMotionTime = -999f;
+        private float statusHoldUntil;
         private bool castingEnabled = true;
+
+        private string LastCastSourceLabel => lastHandledMotionTime > Time.time - 0.05f ? "dynamic-motion" : "static-snapshot";
 
         public SpellType PendingSpell => pendingSpell;
         public float PendingProgress { get; private set; }
@@ -46,6 +52,7 @@ namespace SpellGuard.Player
                 pendingSpell = SpellType.None;
                 PendingProgress = 0f;
                 lastCastSpell = SpellType.None;
+                statusHoldUntil = 0f;
                 StatusText = "施法已暂停";
             }
         }
@@ -58,10 +65,22 @@ namespace SpellGuard.Player
             }
 
             var snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
+            var motion = inputProvider != null ? inputProvider.CurrentMotionGesture : MotionGestureEvent.None;
+
+            if (TryCastFromMotion(motion))
+            {
+                return;
+            }
+
             var spell = MapGestureToSpell(snapshot.Gesture);
 
             if (!snapshot.HandPresent || spell == SpellType.None)
             {
+                if (Time.time < statusHoldUntil)
+                {
+                    return;
+                }
+
                 pendingSpell = SpellType.None;
                 PendingProgress = 0f;
                 lastCastSpell = SpellType.None;
@@ -82,6 +101,7 @@ namespace SpellGuard.Player
                 pendingSpell = spell;
                 pendingStartTime = Time.time;
                 PendingProgress = 0f;
+
             }
             else
             {
@@ -122,6 +142,39 @@ namespace SpellGuard.Player
             }
 
             SpellResolved?.Invoke(spell, hitCount);
+            statusHoldUntil = Time.time + castStatusHoldSeconds;
+
+            if (debugLogs)
+            {
+                Debug.Log($"[Gesture][GameplayReaction] spellCast={spell} hitCount={hitCount} source={LastCastSourceLabel}", this);
+            }
+        }
+
+        private bool TryCastFromMotion(MotionGestureEvent motion)
+        {
+            if (!motion.IsValid || motion.TriggeredTime <= lastHandledMotionTime)
+            {
+                return false;
+            }
+
+            var spell = MapMotionToSpell(motion.Gesture);
+            if (spell == SpellType.None)
+            {
+                return false;
+            }
+
+            lastHandledMotionTime = motion.TriggeredTime;
+            if (debugLogs)
+            {
+                Debug.Log($"[Gesture][SpellInput] motionGesture={motion.Gesture} mappedSpell={spell} confidence={motion.Confidence:F2}", this);
+            }
+            pendingSpell = SpellType.None;
+            PendingProgress = 0f;
+            lastCastSpell = spell;
+            Cast(spell);
+            StatusText = $"{spell.ToChinese()}已通过动态手势释放";
+            statusHoldUntil = Time.time + castStatusHoldSeconds;
+            return true;
         }
 
         private int TryHitEnemy(System.Action<SimpleEnemyController> effect)
@@ -153,6 +206,24 @@ namespace SpellGuard.Player
                 case GestureType.VSign:
                     return SpellType.Ice;
                 case GestureType.OpenPalm:
+                    return SpellType.Shield;
+                default:
+                    return SpellType.None;
+            }
+        }
+
+        private static SpellType MapMotionToSpell(MotionGestureType gesture)
+        {
+            switch (gesture)
+            {
+                case MotionGestureType.Snap:
+                case MotionGestureType.PointToFist:
+                    return SpellType.Fire;
+                case MotionGestureType.SwipeLeftToRight:
+                case MotionGestureType.OpenPalmSlapLeftToRight:
+                    return SpellType.Ice;
+                case MotionGestureType.SwipeRightToLeft:
+                case MotionGestureType.OpenPalmSlapRightToLeft:
                     return SpellType.Shield;
                 default:
                     return SpellType.None;

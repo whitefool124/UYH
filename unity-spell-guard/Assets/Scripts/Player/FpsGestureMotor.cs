@@ -16,7 +16,6 @@ namespace SpellGuard.Player
         [SerializeField] private float gravity = -18f;
         [SerializeField] private float minPitch = -45f;
         [SerializeField] private float maxPitch = 55f;
-
         private CharacterController characterController;
         private float verticalVelocity;
         private float pitch;
@@ -82,6 +81,7 @@ namespace SpellGuard.Player
             moveVector.y = verticalVelocity;
 
             characterController.Move(moveVector * Time.deltaTime);
+
         }
 
         private static float ApplyDeadZone(float value, float deadZone)

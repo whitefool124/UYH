@@ -26,6 +26,8 @@ namespace SpellGuard.Core
         [SerializeField] private EnemySpawner enemySpawner;
         [SerializeField] private GameFlowManager gameFlow;
         [SerializeField] private Camera mainCamera;
+        [SerializeField] private bool debugLogs = true;
+        [SerializeField] private float trainingMenuHoldSeconds = 1.6f;
 
         private SpellGuardScreen screen = SpellGuardScreen.Menu;
         private string focusedKey;
@@ -116,7 +118,7 @@ namespace SpellGuard.Core
             RebuildRegions();
 
             var snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
-            if (snapshot.HandPresent && snapshot.Gesture == GestureType.OpenPalm && screen != SpellGuardScreen.Menu && screen != SpellGuardScreen.Playing)
+            if (snapshot.HandPresent && snapshot.Gesture == GestureType.OpenPalm && screen != SpellGuardScreen.Menu && screen != SpellGuardScreen.Playing && screen != SpellGuardScreen.Training)
             {
                 if (backStartedAt <= 0f)
                 {
@@ -162,7 +164,7 @@ namespace SpellGuard.Core
                 dwellStartedAt = Time.time;
             }
 
-            if (Time.time - dwellStartedAt >= settings.MenuDwellSeconds)
+            if (Time.time - dwellStartedAt >= GetRequiredHoldSeconds(region.Value.key))
             {
                 ActivateRegion(region.Value.key);
                 dwellKey = null;
@@ -186,6 +188,7 @@ namespace SpellGuard.Core
             switch (motion.Gesture)
             {
                 case MotionGestureType.SwipeRightToLeft:
+                case MotionGestureType.OpenPalmSlapRightToLeft:
                     lastHandledMotionTime = motion.TriggeredTime;
                     if (screen == SpellGuardScreen.Settings)
                     {
@@ -194,6 +197,7 @@ namespace SpellGuard.Core
                             settings.CycleConfirm();
                             HintText = $"设置已切换：施法确认 {settings.ConfirmLabel}";
                             dwellKey = null;
+                            LogFlowEvent($"motion settings cycle confirm via {motion.Gesture}");
                             return true;
                         }
 
@@ -202,18 +206,21 @@ namespace SpellGuard.Core
                             settings.CycleDifficulty();
                             HintText = $"设置已切换：敌人节奏 {settings.DifficultyLabel}";
                             dwellKey = null;
+                            LogFlowEvent($"motion settings cycle difficulty via {motion.Gesture}");
                             return true;
                         }
                     }
 
-                    if (screen != SpellGuardScreen.Menu && screen != SpellGuardScreen.Playing)
+                    if (screen == SpellGuardScreen.Settings || screen == SpellGuardScreen.Tutorial || screen == SpellGuardScreen.Results)
                     {
+                        LogFlowEvent($"motion return to menu via {motion.Gesture} from {screen}");
                         ReturnToMenu();
                         return true;
                     }
                     break;
 
                 case MotionGestureType.SwipeLeftToRight:
+                case MotionGestureType.OpenPalmSlapLeftToRight:
                     if (screen == SpellGuardScreen.Settings && (focusedRegionKey == "confirm" || focusedRegionKey == "difficulty"))
                     {
                         lastHandledMotionTime = motion.TriggeredTime;
@@ -221,11 +228,13 @@ namespace SpellGuard.Core
                         {
                             settings.CycleConfirm();
                             HintText = $"设置已切换：施法确认 {settings.ConfirmLabel}";
+                            LogFlowEvent($"motion settings cycle confirm via {motion.Gesture}");
                         }
                         else
                         {
                             settings.CycleDifficulty();
                             HintText = $"设置已切换：敌人节奏 {settings.DifficultyLabel}";
+                            LogFlowEvent($"motion settings cycle difficulty via {motion.Gesture}");
                         }
 
                         dwellKey = null;
@@ -291,7 +300,7 @@ namespace SpellGuard.Core
             enemySpawner?.ApplySettings(settings.Difficulty);
             ResetPlayerPose();
             screen = SpellGuardScreen.Playing;
-            HintText = "战斗指令：Point转向并抬高手位前进；握拳/ V / 张掌施法。";
+            HintText = "战斗指令：Point转向并抬高手位前进；握拳/V/张掌或打响指/左右扇手施法。";
         }
 
         private void StartTraining()
@@ -302,7 +311,7 @@ namespace SpellGuard.Core
             gameFlow?.ResetGameOver();
             ResetPlayerPose();
             screen = SpellGuardScreen.Training;
-            HintText = "训练指令：直接切换握拳 / V / 张掌，不必先收势。";
+            HintText = $"训练指令：可用握拳/V/张掌，也可用打响指/左右扇手直接施法；返回主菜单需停留 {trainingMenuHoldSeconds:F1} 秒。";
         }
 
         private void ReturnToMenu()
@@ -388,13 +397,23 @@ namespace SpellGuard.Core
             lastTrainingSpell = SpellType.None;
         }
 
+        private void LogFlowEvent(string message)
+        {
+            if (!debugLogs)
+            {
+                return;
+            }
+
+            Debug.Log($"[Gesture][FlowReaction] {message}", this);
+        }
+
         public string BuildOverlayText()
         {
             return screen switch
             {
                 SpellGuardScreen.Menu => $"主菜单\n开始守卫 / 手势训练场 / 调整设置 / 查看教程\n{HintText}",
                 SpellGuardScreen.Settings => $"设置\n结印确认：{settings.ConfirmLabel}\n敌人节奏：{settings.DifficultyLabel}\n{HintText}",
-                SpellGuardScreen.Tutorial => "教程\nPoint：转向与前进\nFist：火焰\nV：冰霜\nOpenPalm：护盾",
+                SpellGuardScreen.Tutorial => "教程\nPoint：转向与前进\nFist 或 Snap：火焰\nV 或 左右扇手：冰霜/护盾\nOpenPalm：护盾",
                 SpellGuardScreen.Training => $"训练场\n总训练：{trainingCasts}\n指向确认：{trainingPointerChecks}\n火焰/冰霜/护盾：{trainingFireCasts}/{trainingIceCasts}/{trainingShieldCasts}\n最近一次：{lastTrainingSpell.ToChinese()}",
                 SpellGuardScreen.Results => $"结果页\n得分：{combatScore}\n命中：{combatHits}\n施法：{combatCasts}\n命中率：{GetHitRate()}%",
                 _ => $"战斗中\n得分：{combatScore}  命中：{combatHits} / 施法：{combatCasts}\n{HintText}",
@@ -451,7 +470,7 @@ namespace SpellGuard.Core
                 case SpellGuardScreen.Training:
                     AddRegion("pointer-check", "指向确认练习", new Rect(40, 170, 180, 40));
                     AddRegion("reset-training", "重置训练计数", new Rect(230, 170, 180, 40));
-                    AddRegion("menu", "返回主菜单", new Rect(40, 220, 370, 40));
+                    AddRegion("menu", $"长按返回主菜单（{trainingMenuHoldSeconds:F1}秒）", new Rect(40, 220, 240, 40));
                     break;
                 case SpellGuardScreen.Results:
                     AddRegion("restart", "再来一局", new Rect(210, 250, 160, 48));
@@ -492,7 +511,7 @@ namespace SpellGuard.Core
             GUI.Label(new Rect(40, 60, 380, 100), BuildOverlayText());
             DrawRegion("pointer-check", "指向确认练习", new Rect(40, 170, 180, 40));
             DrawRegion("reset-training", "重置训练计数", new Rect(230, 170, 180, 40));
-            DrawRegion("menu", "返回主菜单", new Rect(40, 220, 370, 40));
+            DrawRegion("menu", $"长按返回主菜单（{trainingMenuHoldSeconds:F1}秒）", new Rect(40, 220, 240, 40));
         }
 
         private void DrawResults()
@@ -508,7 +527,7 @@ namespace SpellGuard.Core
             var text = label;
             if (focusedKey == key && dwellKey == key)
             {
-                var progress = Mathf.Clamp01((Time.time - dwellStartedAt) / settings.MenuDwellSeconds);
+                var progress = Mathf.Clamp01((Time.time - dwellStartedAt) / GetRequiredHoldSeconds(key));
                 text = $"> {label} {Mathf.RoundToInt(progress * 100f)}%";
             }
             else if (focusedKey == key)
@@ -563,12 +582,23 @@ namespace SpellGuard.Core
 
             if (progress > 0f)
             {
-                GUI.Box(new Rect(x + 16f, y - 8f, 80f, 22f), $"{Mathf.RoundToInt(progress * 100f)}%");
+                var requiredHold = GetRequiredHoldSeconds(dwellKey);
+                GUI.Box(new Rect(x + 16f, y - 8f, 120f, 22f), $"{Mathf.RoundToInt(progress * 100f)}% / {requiredHold:F1}s");
             }
             else if (!isPointing)
             {
                 GUI.Box(new Rect(x + 16f, y - 8f, 110f, 22f), snapshot.Gesture.ToChinese());
             }
+        }
+
+        private float GetRequiredHoldSeconds(string key)
+        {
+            if (screen == SpellGuardScreen.Training && key == "menu")
+            {
+                return trainingMenuHoldSeconds;
+            }
+
+            return settings != null ? settings.MenuDwellSeconds : 0.8f;
         }
 
         private int GetHitRate()

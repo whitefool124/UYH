@@ -95,8 +95,10 @@ namespace SpellGuard.UI
             GUILayout.Label($"设备：{(webcamFeed != null ? webcamFeed.ActiveDeviceName : "无")}", labelStyle);
             GUILayout.Label($"原生识别：{(nativeMediapipeProvider != null ? nativeMediapipeProvider.StatusText : "未绑定")}", labelStyle);
             GUILayout.Label($"识别桥：{(externalBridge != null ? externalBridge.BridgeStatus : "未绑定")}", labelStyle);
+            GUILayout.Label($"桥接源：{(externalBridge != null ? externalBridge.SourceLabel : "未绑定")}", labelStyle);
             GUILayout.Label($"UDP：{(udpGestureReceiver != null ? udpGestureReceiver.StatusText : "未绑定")}", labelStyle);
             GUILayout.Label($"动态事件：{GetMotionGestureLabel()}", labelStyle);
+            GUILayout.Label($"动态捕捉：{GetMotionCaptureSignal()}", titleStyle);
             GUILayout.Label($"Pose 点数：{GetPoseLandmarkCount()}", labelStyle);
 
             GUILayout.Space(10f);
@@ -104,6 +106,7 @@ namespace SpellGuard.UI
             GUILayout.Label("Mock 输入：Tab 检测手 / 1 Point / 2 Fist / 3 V / 4 Palm / IJKL 移动虚拟手", labelStyle);
             GUILayout.Label("原生优先：导入 MediaPipe Unity 插件后由 NativeMediapipeProvider 在 Unity 内直接驱动玩法。", labelStyle);
             GUILayout.Label("兼容方案：ExternalGestureBridgeProvider 仍可接外部识别结果。", labelStyle);
+            GUILayout.Label("离线测试：先切到 ExternalBridge，再运行 bridge/start_offline_gesture_test.py --video <本地视频路径>。", labelStyle);
             GUILayout.Label("Point 控制转向，Point 抬高到屏幕上部时前进；Fist/V/Palm 分别施放火焰/冰霜/护盾。", labelStyle);
 
             if (flowController != null)
@@ -166,6 +169,8 @@ namespace SpellGuard.UI
             {
                 DrawPoseSkeleton(textureRect);
             }
+
+            DrawMotionCaptureBanner(textureRect);
         }
 
         private void DrawHandSkeleton(Rect textureRect)
@@ -264,10 +269,43 @@ namespace SpellGuard.UI
             return motion.IsValid ? motion.Gesture.ToChinese() : "无";
         }
 
+        private string GetMotionCaptureSignal()
+        {
+            if (externalBridge == null)
+            {
+                return "未绑定";
+            }
+
+            var motion = externalBridge.LatestMotionGesture;
+            return motion.IsValid ? $"已捕捉 {motion.Gesture.ToChinese()}" : "等待动态手势";
+        }
+
         private int GetPoseLandmarkCount()
         {
             var landmarks = GetAvailablePoseLandmarks();
             return landmarks?.Count ?? 0;
+        }
+
+        private void DrawMotionCaptureBanner(Rect textureRect)
+        {
+            if (externalBridge == null)
+            {
+                return;
+            }
+
+            var motion = externalBridge.LatestMotionGesture;
+            if (!motion.IsValid)
+            {
+                return;
+            }
+
+            var bannerRect = new Rect(textureRect.x + 8f, textureRect.y + 8f, textureRect.width - 16f, 34f);
+            var previousColor = GUI.color;
+            GUI.color = new Color(1f, 0.45f, 0.12f, 0.92f);
+            GUI.Box(bannerRect, GUIContent.none);
+            GUI.color = Color.white;
+            GUI.Label(new Rect(bannerRect.x + 10f, bannerRect.y + 6f, bannerRect.width - 20f, bannerRect.height - 12f), $"已捕捉动态手势：{motion.Gesture.ToChinese()}", titleStyle);
+            GUI.color = previousColor;
         }
 
         private static Vector2 ToPreviewPoint(Vector2 normalizedPoint, Rect rect)
