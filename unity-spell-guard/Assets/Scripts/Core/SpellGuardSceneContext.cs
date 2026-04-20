@@ -14,6 +14,7 @@ namespace SpellGuard.Core
         [SerializeField] private MockGestureInputProvider mockProvider;
         [SerializeField] private NativeMediapipeGestureProvider nativeMediapipeProvider;
         [SerializeField] private NativeMediapipeGestureRunner nativeMediapipeRunner;
+        [SerializeField] private NativeMotionGestureRecognizer nativeMotionGestureRecognizer;
         [SerializeField] private ExternalGestureBridgeProvider externalBridge;
         [SerializeField] private ExternalMotionGestureRecognizer externalMotionGestureRecognizer;
         [SerializeField] private UdpGestureReceiver udpGestureReceiver;
@@ -36,11 +37,15 @@ namespace SpellGuard.Core
         [Header("UI")]
         [SerializeField] private DebugHud debugHud;
 
+        [Header("Feedback")]
+        [SerializeField] private MotionGestureFeedbackBoard motionGestureFeedbackBoard;
+
         public GestureInputProviderBase InputProvider => inputProvider;
         public GestureInputRouter InputRouter => inputRouter;
         public MockGestureInputProvider MockProvider => mockProvider;
         public NativeMediapipeGestureProvider NativeMediapipeProvider => nativeMediapipeProvider;
         public NativeMediapipeGestureRunner NativeMediapipeRunner => nativeMediapipeRunner;
+        public NativeMotionGestureRecognizer NativeMotionGestureRecognizer => nativeMotionGestureRecognizer;
         public ExternalGestureBridgeProvider ExternalBridge => externalBridge;
         public ExternalMotionGestureRecognizer ExternalMotionGestureRecognizer => externalMotionGestureRecognizer;
         public UdpGestureReceiver UdpGestureReceiver => udpGestureReceiver;
@@ -56,6 +61,7 @@ namespace SpellGuard.Core
         public SpellGuardGameSettings GameSettings => gameSettings;
         public SpellGuardFlowController FlowController => flowController;
         public DebugHud DebugHud => debugHud;
+        public MotionGestureFeedbackBoard MotionGestureFeedbackBoard => motionGestureFeedbackBoard;
 
         public void AutoBindMissingReferences()
         {
@@ -69,6 +75,7 @@ namespace SpellGuard.Core
             mockProvider ??= FindObjectOfType<MockGestureInputProvider>(true);
             nativeMediapipeProvider ??= FindObjectOfType<NativeMediapipeGestureProvider>(true);
             nativeMediapipeRunner ??= FindObjectOfType<NativeMediapipeGestureRunner>(true);
+            nativeMotionGestureRecognizer ??= FindObjectOfType<NativeMotionGestureRecognizer>(true);
             externalBridge ??= FindObjectOfType<ExternalGestureBridgeProvider>(true);
             externalMotionGestureRecognizer ??= FindObjectOfType<ExternalMotionGestureRecognizer>(true);
             udpGestureReceiver ??= FindObjectOfType<UdpGestureReceiver>(true);
@@ -81,6 +88,7 @@ namespace SpellGuard.Core
             gameSettings ??= FindObjectOfType<SpellGuardGameSettings>(true);
             flowController ??= FindObjectOfType<SpellGuardFlowController>(true);
             debugHud ??= FindObjectOfType<DebugHud>(true);
+            motionGestureFeedbackBoard ??= FindObjectOfType<MotionGestureFeedbackBoard>(true);
 
             if (inputProvider == null)
             {
@@ -90,6 +98,11 @@ namespace SpellGuard.Core
             if (externalMotionGestureRecognizer == null && externalBridge != null)
             {
                 externalMotionGestureRecognizer = GetOrAddComponent<ExternalMotionGestureRecognizer>(externalBridge.gameObject);
+            }
+
+            if (nativeMotionGestureRecognizer == null && nativeMediapipeProvider != null)
+            {
+                nativeMotionGestureRecognizer = GetOrAddComponent<NativeMotionGestureRecognizer>(nativeMediapipeProvider.gameObject);
             }
 
             if (playerRoot == null && fpsMotor != null)

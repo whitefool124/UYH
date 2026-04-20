@@ -7,18 +7,35 @@ namespace SpellGuard.InputSystem
         [SerializeField] private WebcamFeedController webcamFeed;
         [SerializeField] private bool mirrorX = false;
         [SerializeField] private bool mirrorY = true;
-
+        [SerializeField] private float motionEventTimeout = 1.2f;
         private GestureSnapshot snapshot = GestureSnapshot.Missing;
         private string statusText = "原生识别未启动";
         private Vector2[] handLandmarks = System.Array.Empty<Vector2>();
+        private MotionGestureEvent latestMotionGesture = MotionGestureEvent.None;
+        private int frameVersion;
+        private float lastSampleTime = -999f;
 
         public string StatusText => statusText;
 
         public override GestureSnapshot CurrentSnapshot => snapshot;
+        public override MotionGestureEvent CurrentMotionGesture
+        {
+            get
+            {
+                if (latestMotionGesture.IsValid && Time.time - latestMotionGesture.TriggeredTime > motionEventTimeout)
+                {
+                    latestMotionGesture = MotionGestureEvent.None;
+                }
+
+                return latestMotionGesture;
+            }
+        }
 
         public WebcamFeedController WebcamFeed => webcamFeed;
         public System.Collections.Generic.IReadOnlyList<Vector2> HandLandmarks => handLandmarks;
         public bool HasHandLandmarks => handLandmarks != null && handLandmarks.Length > 0;
+        public int FrameVersion => frameVersion;
+        public float LastSampleTime => lastSampleTime;
 
         public void Configure(WebcamFeedController feed)
         {
@@ -52,7 +69,11 @@ namespace SpellGuard.InputSystem
             if (!handPresent)
             {
                 ClearHandLandmarks();
+                latestMotionGesture = MotionGestureEvent.None;
             }
+
+            frameVersion += 1;
+            lastSampleTime = Time.time;
         }
 
         public void SetHandLandmarks(Vector2[] normalizedLandmarks)
@@ -83,6 +104,22 @@ namespace SpellGuard.InputSystem
         public void ClearHandLandmarks()
         {
             handLandmarks = System.Array.Empty<Vector2>();
+        }
+
+        public void PushMotionGesture(MotionGestureType gesture, Vector2 viewportPosition, float confidence)
+        {
+            latestMotionGesture = new MotionGestureEvent
+            {
+                Gesture = gesture,
+                ViewportPosition = new Vector2(Mathf.Clamp01(viewportPosition.x), Mathf.Clamp01(viewportPosition.y)),
+                Confidence = Mathf.Clamp01(confidence),
+                TriggeredTime = Time.time
+            };
+        }
+
+        public void ClearMotionGesture()
+        {
+            latestMotionGesture = MotionGestureEvent.None;
         }
 
         private void Update() { }

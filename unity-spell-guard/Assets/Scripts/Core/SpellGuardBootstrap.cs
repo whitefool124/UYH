@@ -1,3 +1,4 @@
+using SpellGuard.InputSystem;
 using UnityEngine;
 
 namespace SpellGuard.Core
@@ -7,6 +8,8 @@ namespace SpellGuard.Core
         [SerializeField] private SpellGuardSceneContext sceneContext;
         [SerializeField] private bool bootstrapOnAwake = true;
 
+        private GestureInputRouter subscribedInputRouter;
+
         public bool IsBootstrapped { get; private set; }
 
         private void Awake()
@@ -15,6 +18,11 @@ namespace SpellGuard.Core
             {
                 Bootstrap();
             }
+        }
+
+        private void OnDisable()
+        {
+            UnsubscribeFromInputRouter();
         }
 
         [ContextMenu("Bootstrap Now")]
@@ -50,19 +58,18 @@ namespace SpellGuard.Core
                 sceneContext.GameFlowManager,
                 sceneContext.MainCamera
             );
+
             if (sceneContext.NativeMediapipeProvider != null)
             {
                 sceneContext.NativeMediapipeProvider.Configure(sceneContext.WebcamFeed);
             }
-            if (sceneContext.NativeMediapipeRunner != null)
+            if (sceneContext.NativeMotionGestureRecognizer != null)
             {
-                sceneContext.NativeMediapipeRunner.Configure(sceneContext.NativeMediapipeProvider, sceneContext.WebcamFeed);
-                sceneContext.NativeMediapipeRunner.StartRunner();
+                sceneContext.NativeMotionGestureRecognizer.Configure(sceneContext.NativeMediapipeProvider);
             }
             if (sceneContext.UdpGestureReceiver != null)
             {
                 sceneContext.UdpGestureReceiver.Configure(sceneContext.ExternalBridge, sceneContext.WebcamFeed);
-                sceneContext.UdpGestureReceiver.StopReceiver();
             }
             if (sceneContext.ExternalMotionGestureRecognizer != null)
             {
@@ -83,7 +90,77 @@ namespace SpellGuard.Core
                 sceneContext.FlowController
             );
 
+            if (sceneContext.MotionGestureFeedbackBoard != null)
+            {
+                sceneContext.MotionGestureFeedbackBoard.Configure(sceneContext.InputProvider, sceneContext.MainCamera);
+            }
+
+            SubscribeToInputRouter();
+            SyncInputBackendLifecycle();
+
             IsBootstrapped = true;
+        }
+
+        private void SubscribeToInputRouter()
+        {
+            UnsubscribeFromInputRouter();
+            if (sceneContext?.InputRouter == null)
+            {
+                return;
+            }
+
+            subscribedInputRouter = sceneContext.InputRouter;
+            subscribedInputRouter.ModeChanged += HandleInputModeChanged;
+        }
+
+        private void UnsubscribeFromInputRouter()
+        {
+            if (subscribedInputRouter == null)
+            {
+                return;
+            }
+
+            subscribedInputRouter.ModeChanged -= HandleInputModeChanged;
+            subscribedInputRouter = null;
+        }
+
+        private void HandleInputModeChanged(GestureInputRouter.InputMode _)
+        {
+            SyncInputBackendLifecycle();
+        }
+
+        private void SyncInputBackendLifecycle()
+        {
+            if (sceneContext == null)
+            {
+                return;
+            }
+
+            var useExternalBridge = sceneContext.InputProvider == sceneContext.ExternalBridge ||
+                                    (sceneContext.InputRouter != null && sceneContext.InputRouter.Mode == GestureInputRouter.InputMode.ExternalBridge);
+
+            if (sceneContext.NativeMediapipeRunner != null && !useExternalBridge)
+            {
+                sceneContext.NativeMediapipeRunner.Configure(sceneContext.NativeMediapipeProvider, sceneContext.WebcamFeed);
+                sceneContext.NativeMediapipeRunner.StartRunner();
+            }
+
+            if (sceneContext.UdpGestureReceiver != null)
+            {
+                if (useExternalBridge)
+                {
+                    sceneContext.UdpGestureReceiver.StartReceiver();
+                }
+                else
+                {
+                    sceneContext.UdpGestureReceiver.StopReceiver();
+                }
+            }
+
+            if (!useExternalBridge && sceneContext.WebcamFeed != null && !sceneContext.WebcamFeed.IsRunning)
+            {
+                sceneContext.WebcamFeed.StartCamera();
+            }
         }
     }
 }

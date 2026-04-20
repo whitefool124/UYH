@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace SpellGuard.InputSystem
@@ -17,6 +18,8 @@ namespace SpellGuard.InputSystem
         [SerializeField] private NativeMediapipeGestureProvider nativeMediapipeProvider;
         [SerializeField] private ExternalGestureBridgeProvider externalBridgeProvider;
 
+        public event Action<InputMode> ModeChanged;
+
         public override GestureSnapshot CurrentSnapshot
         {
             get
@@ -34,6 +37,23 @@ namespace SpellGuard.InputSystem
             }
         }
 
+        public override MotionGestureEvent CurrentMotionGesture
+        {
+            get
+            {
+                switch (mode)
+                {
+                    case InputMode.NativeMediapipe:
+                        return nativeMediapipeProvider != null ? nativeMediapipeProvider.CurrentMotionGesture : MotionGestureEvent.None;
+                    case InputMode.ExternalBridge:
+                        return externalBridgeProvider != null ? externalBridgeProvider.CurrentMotionGesture : MotionGestureEvent.None;
+                    case InputMode.Mock:
+                    default:
+                        return MotionGestureEvent.None;
+                }
+            }
+        }
+
         public InputMode Mode => mode;
 
         private void Update()
@@ -43,16 +63,27 @@ namespace SpellGuard.InputSystem
                 switch (mode)
                 {
                     case InputMode.Mock:
-                        mode = InputMode.NativeMediapipe;
+                        SetMode(InputMode.NativeMediapipe);
                         break;
                     case InputMode.NativeMediapipe:
-                        mode = InputMode.ExternalBridge;
+                        SetMode(InputMode.ExternalBridge);
                         break;
                     default:
-                        mode = InputMode.Mock;
+                        SetMode(InputMode.Mock);
                         break;
                 }
             }
+        }
+
+        public void SetMode(InputMode nextMode)
+        {
+            if (mode == nextMode)
+            {
+                return;
+            }
+
+            mode = nextMode;
+            ModeChanged?.Invoke(mode);
         }
     }
 }
