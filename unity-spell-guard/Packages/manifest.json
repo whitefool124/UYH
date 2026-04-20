@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.besty.unity-skills": "file:../../Unity-Skills/SkillsForUnity",
     "com.github.homuler.mediapipe": "file:com.github.homuler.mediapipe-0.16.3.tgz",
     "com.unity.modules.assetbundle": "1.0.0",
     "com.unity.collab-proxy": "2.0.3",
