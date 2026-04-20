@@ -23,6 +23,10 @@ namespace SpellGuard.Tests.EditMode
             CreatePrototypeScene.CreateScene();
 
             var playerRoot = GameObject.Find("PlayerRoot");
+            var ritualLane = GameObject.Find("RitualLane");
+            var spellDais = GameObject.Find("SpellDais");
+            var arenaSign = GameObject.Find("ArenaSign");
+            var ritualGate = GameObject.Find("RitualGate");
             var nativeRecognizer = playerRoot != null ? playerRoot.GetComponent<NativeMotionGestureRecognizer>() : null;
             var recognizer = playerRoot != null ? playerRoot.GetComponent<ExternalMotionGestureRecognizer>() : null;
             var nativeProvider = playerRoot != null ? playerRoot.GetComponent<NativeMediapipeGestureProvider>() : null;
@@ -32,6 +36,10 @@ namespace SpellGuard.Tests.EditMode
             var feedbackBoard = Object.FindObjectOfType<MotionGestureFeedbackBoard>(true);
 
             Assert.That(playerRoot, Is.Not.Null, "PlayerRoot should exist in the generated prototype scene.");
+            Assert.That(ritualLane, Is.Not.Null, "Generated scene should include a ritual lane for arena composition.");
+            Assert.That(spellDais, Is.Not.Null, "Generated scene should include a central spell dais.");
+            Assert.That(arenaSign, Is.Not.Null, "Generated scene should include an arena sign.");
+            Assert.That(ritualGate, Is.Not.Null, "Generated scene should include a ritual gate focal structure.");
             Assert.That(nativeRecognizer, Is.Not.Null, "Generated scene should explicitly include NativeMotionGestureRecognizer.");
             Assert.That(recognizer, Is.Not.Null, "Generated scene should explicitly include ExternalMotionGestureRecognizer.");
             Assert.That(sceneContext, Is.Not.Null, "SceneContext should exist in the generated prototype scene.");
