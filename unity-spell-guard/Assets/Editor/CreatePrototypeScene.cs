@@ -16,8 +16,17 @@ namespace SpellGuard.EditorTools
         [MenuItem("Spell Guard/Create Prototype Scene")]
         public static void CreateScene()
         {
-            var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             scene.name = "SpellGuardPrototype";
+
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.32f, 0.34f, 0.38f);
+
+            var directionalLightObject = new GameObject("Directional Light");
+            directionalLightObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            var directionalLight = directionalLightObject.AddComponent<Light>();
+            directionalLight.type = LightType.Directional;
+            directionalLight.intensity = 1.15f;
 
             var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
             ground.name = "Ground";
@@ -51,7 +60,9 @@ namespace SpellGuard.EditorTools
             var mockProvider = player.AddComponent<MockGestureInputProvider>();
             var nativeMediapipeProvider = player.AddComponent<NativeMediapipeGestureProvider>();
             var nativeMediapipeRunner = player.AddComponent<NativeMediapipeGestureRunner>();
+            var nativeMotionGestureRecognizer = player.AddComponent<NativeMotionGestureRecognizer>();
             var externalBridge = player.AddComponent<ExternalGestureBridgeProvider>();
+            var externalMotionGestureRecognizer = player.AddComponent<ExternalMotionGestureRecognizer>();
             var udpReceiver = player.AddComponent<UdpGestureReceiver>();
             var inputRouter = player.AddComponent<GestureInputRouter>();
             var health = player.AddComponent<PlayerHealth>();
@@ -67,6 +78,26 @@ namespace SpellGuard.EditorTools
             cameraObject.transform.SetParent(cameraPivot, false);
             var camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.Skybox;
+
+            var motionGestureFeedbackBoard = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            motionGestureFeedbackBoard.name = "MotionGestureFeedbackBoard";
+            motionGestureFeedbackBoard.transform.position = new Vector3(0f, 2.15f, 3.25f);
+            motionGestureFeedbackBoard.transform.localScale = new Vector3(2.1f, 0.95f, 1f);
+            motionGestureFeedbackBoard.GetComponent<Renderer>().sharedMaterial.color = new Color(0.16f, 0.18f, 0.22f);
+
+            var motionGestureFeedbackLabel = new GameObject("Label").AddComponent<TextMesh>();
+            motionGestureFeedbackLabel.transform.SetParent(motionGestureFeedbackBoard.transform, false);
+            motionGestureFeedbackLabel.transform.localPosition = new Vector3(0f, 0f, 0.02f);
+            motionGestureFeedbackLabel.anchor = TextAnchor.MiddleCenter;
+            motionGestureFeedbackLabel.alignment = TextAlignment.Center;
+            motionGestureFeedbackLabel.fontSize = 64;
+            motionGestureFeedbackLabel.characterSize = 0.06f;
+            motionGestureFeedbackLabel.color = Color.white;
+            motionGestureFeedbackLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            motionGestureFeedbackLabel.text = "动态手势：等待中";
+            motionGestureFeedbackLabel.GetComponent<Renderer>().sortingOrder = 10;
+
+            var motionGestureFeedbackBoardComponent = motionGestureFeedbackBoard.AddComponent<MotionGestureFeedbackBoard>();
 
             var flow = new GameObject("GameFlow");
             var sceneContext = flow.AddComponent<SpellGuardSceneContext>();
@@ -86,7 +117,9 @@ namespace SpellGuard.EditorTools
             SetField(sceneContext, "mockProvider", mockProvider);
             SetField(sceneContext, "nativeMediapipeProvider", nativeMediapipeProvider);
             SetField(sceneContext, "nativeMediapipeRunner", nativeMediapipeRunner);
+            SetField(sceneContext, "nativeMotionGestureRecognizer", nativeMotionGestureRecognizer);
             SetField(sceneContext, "externalBridge", externalBridge);
+            SetField(sceneContext, "externalMotionGestureRecognizer", externalMotionGestureRecognizer);
             SetField(sceneContext, "udpGestureReceiver", udpReceiver);
             SetField(sceneContext, "webcamFeed", webcamFeed);
             SetField(sceneContext, "playerRoot", player.transform);
@@ -100,12 +133,20 @@ namespace SpellGuard.EditorTools
             SetField(sceneContext, "gameSettings", settings);
             SetField(sceneContext, "flowController", flowController);
             SetField(sceneContext, "debugHud", hud);
+            SetField(sceneContext, "motionGestureFeedbackBoard", motionGestureFeedbackBoardComponent);
 
             SetField(udpReceiver, "bridgeProvider", externalBridge);
             SetField(udpReceiver, "webcamFeed", webcamFeed);
+            SetField(externalMotionGestureRecognizer, "bridgeProvider", externalBridge);
             SetField(nativeMediapipeProvider, "webcamFeed", webcamFeed);
             SetField(nativeMediapipeRunner, "targetProvider", nativeMediapipeProvider);
             SetField(nativeMediapipeRunner, "webcamFeed", webcamFeed);
+            SetField(nativeMotionGestureRecognizer, "nativeProvider", nativeMediapipeProvider);
+
+            SetField(motionGestureFeedbackBoardComponent, "inputProvider", inputRouter);
+            SetField(motionGestureFeedbackBoardComponent, "faceCamera", camera);
+            SetField(motionGestureFeedbackBoardComponent, "boardRenderer", motionGestureFeedbackBoard.GetComponent<Renderer>());
+            SetField(motionGestureFeedbackBoardComponent, "labelText", motionGestureFeedbackLabel);
 
             SetField(bootstrap, "sceneContext", sceneContext);
 
