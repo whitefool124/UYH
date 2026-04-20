@@ -14,9 +14,8 @@ namespace SpellGuard.InputSystem
         [SerializeField] private bool autoStart = false;
         [SerializeField] private bool externalBridgeOwnsCamera = true;
         [SerializeField] private int listenPort = 5053;
-
         private readonly object packetLock = new object();
-        private ExternalVisionFrame latestPacket;
+        private readonly System.Collections.Generic.Queue<ExternalVisionFrame> pendingPackets = new System.Collections.Generic.Queue<ExternalVisionFrame>();
         private UdpClient udpClient;
         private Thread receiveThread;
         private volatile bool running;
@@ -35,23 +34,28 @@ namespace SpellGuard.InputSystem
 
         private void Update()
         {
-            ExternalVisionFrame packet = null;
+            if (bridgeProvider == null)
+            {
+                return;
+            }
 
+            var processedAnyPacket = false;
             lock (packetLock)
             {
-                if (latestPacket != null)
+                while (pendingPackets.Count > 0)
                 {
-                    packet = latestPacket;
-                    latestPacket = null;
+                    var packet = pendingPackets.Dequeue();
+                    bridgeProvider.PushFrame(packet);
+                    processedAnyPacket = true;
+                    StatusText = packet.handPresent
+                        ? $"UDP已接收：{packet.gesture} ({packet.confidence:F2})"
+                        : "UDP已接收：无手";
                 }
             }
 
-            if (packet != null && bridgeProvider != null)
+            if (!processedAnyPacket && running && StatusText.StartsWith("UDP已接收"))
             {
-                bridgeProvider.PushFrame(packet);
-                StatusText = packet.handPresent
-                    ? $"UDP已接收：{packet.gesture} ({packet.confidence:F2})"
-                    : "UDP已接收：无手";
+                StatusText = $"UDP桥运行中：127.0.0.1:{listenPort}";
             }
         }
 
@@ -116,7 +120,7 @@ namespace SpellGuard.InputSystem
 
             lock (packetLock)
             {
-                latestPacket = null;
+                pendingPackets.Clear();
             }
 
             if (StatusText.StartsWith("UDP桥运行中") || StatusText.StartsWith("UDP已接收"))
@@ -143,7 +147,11 @@ namespace SpellGuard.InputSystem
 
                     lock (packetLock)
                     {
-                        latestPacket = packet;
+                        pendingPackets.Enqueue(packet);
+                        while (pendingPackets.Count > 180)
+                        {
+                            pendingPackets.Dequeue();
+                        }
                     }
                 }
                 catch (SocketException)

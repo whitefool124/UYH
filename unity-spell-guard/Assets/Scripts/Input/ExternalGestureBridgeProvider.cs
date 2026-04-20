@@ -8,15 +8,18 @@ namespace SpellGuard.InputSystem
     {
         [SerializeField] private float snapshotTimeout = 0.25f;
         [SerializeField] private bool clearWhenTimedOut = true;
-        [SerializeField] private float motionEventTimeout = 0.4f;
+        [SerializeField] private float motionEventTimeout = 1.2f;
+        [SerializeField] private bool debugLogs = true;
 
         private GestureSnapshot snapshot = GestureSnapshot.Missing;
         private ExternalVisionFrame currentFrame;
         private Vector2[] handLandmarks = Array.Empty<Vector2>();
         private Vector2[] poseLandmarks = Array.Empty<Vector2>();
         private MotionGestureEvent latestMotionGesture = MotionGestureEvent.None;
+        private readonly Queue<ExternalVisionFrame> pendingFrames = new Queue<ExternalVisionFrame>();
         private float lastPushTime = -999f;
         private int frameVersion;
+        private string lastLoggedMotionKey;
 
         public override GestureSnapshot CurrentSnapshot
         {
@@ -25,6 +28,15 @@ namespace SpellGuard.InputSystem
                 RefreshTimeoutState();
 
                 return snapshot;
+            }
+        }
+
+        public override MotionGestureEvent CurrentMotionGesture
+        {
+            get
+            {
+                RefreshTimeoutState();
+                return latestMotionGesture;
             }
         }
 
@@ -44,6 +56,20 @@ namespace SpellGuard.InputSystem
             }
         }
 
+        public string SourceLabel
+        {
+            get
+            {
+                RefreshTimeoutState();
+                if (currentFrame == null || string.IsNullOrWhiteSpace(currentFrame.source))
+                {
+                    return "无";
+                }
+
+                return currentFrame.source;
+            }
+        }
+
         public ExternalVisionFrame CurrentFrame
         {
             get
@@ -56,16 +82,22 @@ namespace SpellGuard.InputSystem
         public IReadOnlyList<Vector2> HandLandmarks => handLandmarks;
         public IReadOnlyList<Vector2> PoseLandmarks => poseLandmarks;
         public bool HasHandLandmarks => handLandmarks != null && handLandmarks.Length > 0;
-        public MotionGestureEvent LatestMotionGesture
-        {
-            get
-            {
-                RefreshTimeoutState();
-                return latestMotionGesture;
-            }
-        }
+        public MotionGestureEvent LatestMotionGesture => CurrentMotionGesture;
 
         public int FrameVersion => frameVersion;
+
+        public bool TryDequeuePendingFrame(out ExternalVisionFrame frame)
+        {
+            RefreshTimeoutState();
+            if (pendingFrames.Count > 0)
+            {
+                frame = pendingFrames.Dequeue();
+                return true;
+            }
+
+            frame = null;
+            return false;
+        }
 
         public void PushSnapshot(bool handPresent, GestureType gesture, Vector2 viewportPosition, float confidence)
         {
@@ -90,6 +122,7 @@ namespace SpellGuard.InputSystem
 
             currentFrame = frame;
             frameVersion++;
+            pendingFrames.Enqueue(frame);
 
             SetLandmarks(frame.handLandmarks, ref handLandmarks);
             SetLandmarks(frame.poseLandmarks, ref poseLandmarks);
@@ -118,6 +151,16 @@ namespace SpellGuard.InputSystem
                 Confidence = Mathf.Clamp01(confidence),
                 TriggeredTime = Time.time
             };
+
+            if (debugLogs)
+            {
+                var key = $"{gesture}:{latestMotionGesture.TriggeredTime:F3}";
+                if (lastLoggedMotionKey != key)
+                {
+                    lastLoggedMotionKey = key;
+                    Debug.Log($"[Gesture][MotionCaptured] gesture={gesture} position={latestMotionGesture.ViewportPosition} confidence={confidence:F2}", this);
+                }
+            }
         }
 
         public void ClearSnapshot()
@@ -127,6 +170,7 @@ namespace SpellGuard.InputSystem
             handLandmarks = Array.Empty<Vector2>();
             poseLandmarks = Array.Empty<Vector2>();
             latestMotionGesture = MotionGestureEvent.None;
+            pendingFrames.Clear();
             lastPushTime = -999f;
         }
 
@@ -138,6 +182,7 @@ namespace SpellGuard.InputSystem
                 currentFrame = null;
                 handLandmarks = Array.Empty<Vector2>();
                 poseLandmarks = Array.Empty<Vector2>();
+                pendingFrames.Clear();
             }
 
             if (latestMotionGesture.IsValid && Time.time - latestMotionGesture.TriggeredTime > motionEventTimeout)
@@ -203,8 +248,14 @@ namespace SpellGuard.InputSystem
                     return "左到右挥动";
                 case MotionGestureType.SwipeRightToLeft:
                     return "右到左挥动";
+                case MotionGestureType.OpenPalmSlapLeftToRight:
+                    return "张掌左到右扇手";
+                case MotionGestureType.OpenPalmSlapRightToLeft:
+                    return "张掌右到左扇手";
                 case MotionGestureType.Snap:
                     return "打响指";
+                case MotionGestureType.PointToFist:
+                    return "指向变握拳";
                 case MotionGestureType.BodyShiftLeft:
                     return "身体左移";
                 case MotionGestureType.BodyShiftRight:

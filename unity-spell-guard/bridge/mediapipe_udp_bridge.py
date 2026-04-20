@@ -3,6 +3,7 @@ import json
 import socket
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -177,6 +178,8 @@ def parse_args():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=5053)
     parser.add_argument("--camera-index", type=int, default=0)
+    parser.add_argument("--input-video", default="", help="Read frames from a local video file instead of the camera.")
+    parser.add_argument("--loop-video", action="store_true", help="Loop the input video when it reaches the end.")
     parser.add_argument("--width", type=int, default=960)
     parser.add_argument("--height", type=int, default=540)
     parser.add_argument("--min-detection-confidence", type=float, default=0.65)
@@ -212,6 +215,13 @@ def build_packet(hand_present, gesture, x=0.5, y=0.5, confidence=0.0, landmarks=
     }
 
 
+def describe_bridge_source(base_source, input_video_path):
+    if not input_video_path:
+        return base_source
+
+    return f"{base_source} | offline:{Path(input_video_path).name}"
+
+
 def main():
     args = parse_args()
 
@@ -224,12 +234,16 @@ def main():
         return 1
 
     socket_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    capture = cv2.VideoCapture(args.camera_index)
-    capture.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
-    capture.set(cv2.CAP_PROP_FRAME_HEIGHT, args.height)
+    using_video_file = bool(args.input_video)
+    capture_source = args.input_video if using_video_file else args.camera_index
+    capture = cv2.VideoCapture(capture_source)
+    if not using_video_file:
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, args.height)
 
     if not capture.isOpened():
-        print("无法打开摄像头", file=sys.stderr)
+        input_source_label = args.input_video if using_video_file else f"摄像头 {args.camera_index}"
+        print(f"无法打开输入源：{input_source_label}", file=sys.stderr)
         return 1
 
     stabilizer = GestureStabilizer()
@@ -250,6 +264,8 @@ def main():
     if args.enable_pose and bridge_source == "mediapipeHandsBridge":
         bridge_source = "mediapipePoseHandsBridge"
 
+    packet_source = describe_bridge_source(bridge_source, args.input_video if using_video_file else "")
+
     with mp_hands.Hands(
         max_num_hands=1,
         model_complexity=1,
@@ -263,10 +279,15 @@ def main():
         while True:
             success, frame = capture.read()
             if not success:
-                time.sleep(0.01)
-                continue
+                if using_video_file and args.loop_video:
+                    capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    continue
 
-            frame = cv2.flip(frame, 1)
+                time.sleep(0.01)
+                break
+
+            if not using_video_file:
+                frame = cv2.flip(frame, 1)
             frame_height, frame_width = frame.shape[:2]
             person_box = None
             yolo_confidence = 0.0
@@ -282,7 +303,7 @@ def main():
             hand_results = hands.process(rgb_processing_frame)
             pose_results = pose.process(rgb_processing_frame) if args.enable_pose else None
 
-            packet = build_packet(False, "none")
+            packet = build_packet(False, "none", source=packet_source)
             label = "none"
             pose_landmarks = []
 
@@ -309,7 +330,7 @@ def main():
                     0.95 if stable != "unknown" else 0.5,
                     frame_landmarks,
                     pose_landmarks,
-                    bridge_source,
+                    packet_source,
                     tracking_confidence=tracking_confidence,
                 )
                 label = stable
@@ -338,7 +359,9 @@ def main():
             if args.show_preview:
                 cv2.putText(frame, f"Gesture: {label}", (20, 34), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 180), 2)
                 cv2.putText(frame, f"UDP: {args.host}:{args.port}", (20, 68), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 220, 120), 2)
-                cv2.putText(frame, f"Source: {bridge_source}", (20, 98), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (180, 220, 255), 2)
+                cv2.putText(frame, f"Source: {packet_source}", (20, 98), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (180, 220, 255), 2)
+                input_label = args.input_video if using_video_file else f"camera:{args.camera_index}"
+                cv2.putText(frame, f"Input: {input_label}", (20, 128), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (180, 255, 180), 2)
                 cv2.imshow("Spell Guard MediaPipe Bridge", frame)
 
                 key = cv2.waitKey(1) & 0xFF
