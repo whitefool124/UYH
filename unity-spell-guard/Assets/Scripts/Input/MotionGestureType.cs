@@ -5,7 +5,10 @@ namespace SpellGuard.InputSystem
         None,
         SwipeLeftToRight,
         SwipeRightToLeft,
+        OpenPalmSlapLeftToRight,
+        OpenPalmSlapRightToLeft,
         Snap,
+        PointToFist,
         BodyShiftLeft,
         BodyShiftRight
     }
