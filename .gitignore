@@ -21,6 +21,13 @@ Thumbs.db
 __pycache__/
 *.pyc
 
+# Local agent/tooling
+.agents/
+.claude/
+Unity-Skills/
+skills/
+skills-lock.json
+
 # Unity generated folders
 unity-spell-guard/[Ll]ibrary/
 unity-spell-guard/[Tt]emp/
@@ -31,6 +38,7 @@ unity-spell-guard/[Ll]ogs/
 unity-spell-guard/[Uu]ser[Ss]ettings/
 unity-spell-guard/[Mm]emoryCaptures/
 unity-spell-guard/[Rr]ecordings/
+unity-spell-guard/[Tt]est[Rr]esults/
 unity-spell-guard/[Pp]ackages/packages-lock.json
 unity-spell-guard/Assets/AssetStoreTools*
 
