@@ -166,3 +166,58 @@ python mediapipe_udp_bridge.py --show-preview
 - 张掌（openPalm）：护盾术
 
 说明：为了避免摄像头冲突，`UdpGestureReceiver` 默认会让外部识别桥独占摄像头，因此真实游玩时应以 Python 预览窗口作为调试画面。
+
+## 离线视频测试入口（推荐远程调试）
+
+如果你人不在电脑前，或者当前机器没有可用摄像头，建议优先走这条链路：
+
+- Unity 继续跑 `ExternalBridge`
+- Python 识别桥改为读取本地视频文件
+- 识别结果仍然通过 UDP 推给 Unity
+
+这样你可以把录好的手势视频、公开测试集视频片段，或者从网上下载到本地的样例视频，当成“可重复回放”的输入源。
+
+### 1. 在 Unity 中切到外部桥接
+
+1. 打开并运行 `Assets/Scenes/SpellGuardPrototype.unity`
+2. 按 `F1` 切到 `ExternalBridge`
+3. 确认左上角 HUD 里看到 UDP 状态
+
+### 2. 启动离线视频测试入口
+
+在 `unity-spell-guard/bridge/` 目录执行：
+
+```bash
+python start_offline_gesture_test.py --video "C:/path/to/gesture-test.mp4"
+```
+
+默认行为：
+
+- 自动把结果发到 `127.0.0.1:5053`
+- 自动打开预览窗口
+- 自动循环播放视频，方便反复调试
+
+常用参数：
+
+```bash
+python start_offline_gesture_test.py --video "C:/path/to/gesture-test.mp4" --once
+python start_offline_gesture_test.py --video "C:/path/to/gesture-test.mp4" --no-preview
+python start_offline_gesture_test.py --video "C:/path/to/gesture-test.mp4" --enable-pose
+```
+
+### 3. HUD 里如何判断是否接通
+
+切到 `ExternalBridge` 后，左上角 HUD 会显示：
+
+- `识别桥`：是否已经收到外部识别结果
+- `桥接源`：当前输入源；离线视频模式下会带上 `offline:<文件名>`
+- `动态事件` / `动态捕捉`：是否已经识别到挥动、打响指等动态动作
+
+### 4. 推荐的本地素材来源
+
+离线测试时，优先使用这两类素材：
+
+- **你自己录制的标准动作视频**：最适合对照当前项目里的 `point / fist / v / openPalm / swipe / snap`
+- **公开动态手势数据集拆出来的单段视频**：更适合做回归和鲁棒性验证
+
+如果只是验证玩法、UI、状态切换，而不是验证识别本身，继续优先用 `Mock` 模式；如果要验证真实动态识别链路，则优先用这里的离线视频入口。
