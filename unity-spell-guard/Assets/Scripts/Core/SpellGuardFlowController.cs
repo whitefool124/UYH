@@ -36,6 +36,25 @@ namespace SpellGuard.Core
         private float backStartedAt;
         private readonly Region[] regions = new Region[8];
         private int regionCount;
+        private GUIStyle overlayTitleStyle;
+        private GUIStyle overlayBodyStyle;
+        private GUIStyle overlayHintStyle;
+        private GUIStyle overlayButtonStyle;
+        private GUIStyle overlayPanelStyle;
+        private float cachedOverlayScale = -1f;
+
+        private struct OverlayLayout
+        {
+            public Rect Panel;
+            public Rect Content;
+            public Rect Title;
+            public Rect Body;
+            public Rect Hint;
+            public Rect ButtonsRow;
+            public float Scale;
+            public float Padding;
+            public float Gap;
+        }
 
         private int combatScore;
         private int combatHits;
@@ -411,12 +430,12 @@ namespace SpellGuard.Core
         {
             return screen switch
             {
-                SpellGuardScreen.Menu => $"主菜单\n开始守卫 / 手势训练场 / 调整设置 / 查看教程\n{HintText}",
-                SpellGuardScreen.Settings => $"设置\n结印确认：{settings.ConfirmLabel}\n敌人节奏：{settings.DifficultyLabel}\n{HintText}",
-                SpellGuardScreen.Tutorial => "教程\nPoint：转向与前进\nFist 或 Snap：火焰\nV 或 左右扇手：冰霜/护盾\nOpenPalm：护盾",
-                SpellGuardScreen.Training => $"训练场\n总训练：{trainingCasts}\n指向确认：{trainingPointerChecks}\n火焰/冰霜/护盾：{trainingFireCasts}/{trainingIceCasts}/{trainingShieldCasts}\n最近一次：{lastTrainingSpell.ToChinese()}",
-                SpellGuardScreen.Results => $"结果页\n得分：{combatScore}\n命中：{combatHits}\n施法：{combatCasts}\n命中率：{GetHitRate()}%",
-                _ => $"战斗中\n得分：{combatScore}  命中：{combatHits} / 施法：{combatCasts}\n{HintText}",
+                SpellGuardScreen.Menu => $"开始守卫 / 手势训练场 / 调整设置 / 查看教程\n{HintText}",
+                SpellGuardScreen.Settings => $"结印确认：{settings.ConfirmLabel}\n敌人节奏：{settings.DifficultyLabel}\n{HintText}",
+                SpellGuardScreen.Tutorial => "Point：转向与前进\nFist 或 Snap：火焰\nV 或 左右扇手：冰霜\nOpenPalm：护盾",
+                SpellGuardScreen.Training => $"总训练：{trainingCasts}\n指向确认：{trainingPointerChecks}\n火焰/冰霜/护盾：{trainingFireCasts}/{trainingIceCasts}/{trainingShieldCasts}\n最近一次：{lastTrainingSpell.ToChinese()}",
+                SpellGuardScreen.Results => $"得分：{combatScore}\n命中：{combatHits}\n施法：{combatCasts}\n命中率：{GetHitRate()}%",
+                _ => $"得分：{combatScore}  命中：{combatHits} / 施法：{combatCasts}\n{HintText}",
             };
         }
 
@@ -449,77 +468,98 @@ namespace SpellGuard.Core
         {
             regionCount = 0;
 
+            var layout = GetOverlayLayout();
+
             switch (screen)
             {
                 case SpellGuardScreen.Menu:
-                    AddRegion("start", "开始守卫", new Rect(150, 150, 460, 48));
-                    AddRegion("training", "手势训练场", new Rect(150, 208, 460, 48));
-                    AddRegion("settings", "调整设置", new Rect(150, 266, 460, 48));
-                    AddRegion("tutorial", "查看教程", new Rect(150, 324, 460, 48));
+                    AddRegion("start", "开始守卫", MakeButtonRect(layout, 0, 0, 4));
+                    AddRegion("training", "手势训练场", MakeButtonRect(layout, 1, 0, 4));
+                    AddRegion("settings", "调整设置", MakeButtonRect(layout, 2, 0, 4));
+                    AddRegion("tutorial", "查看教程", MakeButtonRect(layout, 3, 0, 4));
                     break;
                 case SpellGuardScreen.Settings:
-                    AddRegion("confirm", $"结印确认时长：{settings.ConfirmLabel}", new Rect(150, 160, 460, 48));
-                    AddRegion("difficulty", $"敌人节奏：{settings.DifficultyLabel}", new Rect(150, 218, 460, 48));
-                    AddRegion("back", "返回主菜单", new Rect(150, 276, 460, 48));
+                    AddRegion("confirm", $"结印确认时长：{settings.ConfirmLabel}", MakeButtonRect(layout, 0, 0, 3));
+                    AddRegion("difficulty", $"敌人节奏：{settings.DifficultyLabel}", MakeButtonRect(layout, 1, 0, 3));
+                    AddRegion("back", "返回主菜单", MakeButtonRect(layout, 2, 0, 3));
                     break;
                 case SpellGuardScreen.Tutorial:
-                    AddRegion("play", "开始守卫", new Rect(110, 300, 170, 48));
-                    AddRegion("training", "进入训练场", new Rect(305, 300, 170, 48));
-                    AddRegion("back", "返回主菜单", new Rect(500, 300, 170, 48));
+                    AddRegion("play", "开始守卫", MakeButtonRect(layout, 0, 0, 3));
+                    AddRegion("training", "进入训练场", MakeButtonRect(layout, 1, 0, 3));
+                    AddRegion("back", "返回主菜单", MakeButtonRect(layout, 2, 0, 3));
                     break;
                 case SpellGuardScreen.Training:
-                    AddRegion("pointer-check", "指向确认练习", new Rect(40, 170, 180, 40));
-                    AddRegion("reset-training", "重置训练计数", new Rect(230, 170, 180, 40));
-                    AddRegion("menu", $"长按返回主菜单（{trainingMenuHoldSeconds:F1}秒）", new Rect(40, 220, 240, 40));
+                    AddRegion("pointer-check", "指向确认练习", MakeTrainingRect(layout, 0, 0));
+                    AddRegion("reset-training", "重置训练计数", MakeTrainingRect(layout, 1, 0));
+                    AddRegion("menu", $"长按返回主菜单（{trainingMenuHoldSeconds:F1}秒）", MakeTrainingRect(layout, 0, 1));
                     break;
                 case SpellGuardScreen.Results:
-                    AddRegion("restart", "再来一局", new Rect(210, 250, 160, 48));
-                    AddRegion("menu", "返回主菜单", new Rect(390, 250, 160, 48));
+                    AddRegion("restart", "再来一局", MakeButtonRect(layout, 0, 0, 2));
+                    AddRegion("menu", "返回主菜单", MakeButtonRect(layout, 1, 0, 2));
                     break;
             }
         }
 
         private void DrawMenu()
         {
-            GUI.Box(new Rect(120, 100, 520, 300), "符印守卫");
-            DrawRegion("start", "开始守卫", new Rect(150, 150, 460, 48));
-            DrawRegion("training", "手势训练场", new Rect(150, 208, 460, 48));
-            DrawRegion("settings", "调整设置", new Rect(150, 266, 460, 48));
-            DrawRegion("tutorial", "查看教程", new Rect(150, 324, 460, 48));
+            var layout = GetOverlayLayout();
+            EnsureOverlayStyles(layout.Scale);
+            DrawPanel(layout.Panel, new Color(0.06f, 0.08f, 0.13f, 0.94f), new Color(0.95f, 0.68f, 0.25f, 0.92f));
+            GUI.Label(layout.Title, "SPELL GUARD", overlayTitleStyle);
+            GUI.Label(layout.Body, "Gesture-driven ritual defense\n选择模式并进入训练或战斗。", overlayBodyStyle);
+            DrawRegion("start", "开始守卫", MakeButtonRect(layout, 0, 0, 4));
+            DrawRegion("training", "手势训练场", MakeButtonRect(layout, 1, 0, 4));
+            DrawRegion("settings", "调整设置", MakeButtonRect(layout, 2, 0, 4));
+            DrawRegion("tutorial", "查看教程", MakeButtonRect(layout, 3, 0, 4));
         }
 
         private void DrawSettings()
         {
-            GUI.Box(new Rect(120, 100, 520, 260), "设置");
-            DrawRegion("confirm", $"结印确认时长：{settings.ConfirmLabel}", new Rect(150, 160, 460, 48));
-            DrawRegion("difficulty", $"敌人节奏：{settings.DifficultyLabel}", new Rect(150, 218, 460, 48));
-            DrawRegion("back", "返回主菜单", new Rect(150, 276, 460, 48));
+            var layout = GetOverlayLayout();
+            EnsureOverlayStyles(layout.Scale);
+            DrawPanel(layout.Panel, new Color(0.07f, 0.09f, 0.14f, 0.95f), new Color(0.34f, 0.56f, 1f, 0.9f));
+            GUI.Label(layout.Title, "战斗设置", overlayTitleStyle);
+            GUI.Label(layout.Body, "调整施法确认与敌人节奏。", overlayBodyStyle);
+            DrawRegion("confirm", $"结印确认时长：{settings.ConfirmLabel}", MakeButtonRect(layout, 0, 0, 3));
+            DrawRegion("difficulty", $"敌人节奏：{settings.DifficultyLabel}", MakeButtonRect(layout, 1, 0, 3));
+            DrawRegion("back", "返回主菜单", MakeButtonRect(layout, 2, 0, 3));
         }
 
         private void DrawTutorial()
         {
-            GUI.Box(new Rect(80, 70, 620, 360), "手势教程");
-            GUI.Label(new Rect(110, 120, 560, 120), "食指指向：控制视角方向；抬高手位时前进。\n握拳：火焰术，直接打击前方目标。\nV 手势：冰霜术，冻结前方威胁。\n张掌：护盾术，提供一次保命护盾。\n同一手势不会连发，切到别的手势可直接续接。");
-            DrawRegion("play", "开始守卫", new Rect(110, 300, 170, 48));
-            DrawRegion("training", "进入训练场", new Rect(305, 300, 170, 48));
-            DrawRegion("back", "返回主菜单", new Rect(500, 300, 170, 48));
+            var layout = GetOverlayLayout();
+            EnsureOverlayStyles(layout.Scale);
+            DrawPanel(layout.Panel, new Color(0.06f, 0.08f, 0.13f, 0.95f), new Color(0.95f, 0.72f, 0.28f, 0.92f));
+            GUI.Label(layout.Title, "手势教程", overlayTitleStyle);
+            GUI.Label(layout.Body, "• Point：控制视角，抬高手位时前进\n• Fist 或 Snap：火焰术，正面打击目标\n• V 或 左右扇手：冰霜与节奏施法\n• OpenPalm：护盾术，提供一次防护\n• 动态动作已接入：打响指、扇手、手势切换", overlayBodyStyle);
+            GUI.Label(layout.Hint, HintText, overlayHintStyle);
+            DrawRegion("play", "开始守卫", MakeButtonRect(layout, 0, 0, 3));
+            DrawRegion("training", "进入训练场", MakeButtonRect(layout, 1, 0, 3));
+            DrawRegion("back", "返回主菜单", MakeButtonRect(layout, 2, 0, 3));
         }
 
         private void DrawTraining()
         {
-            GUI.Box(new Rect(20, 20, 420, 220), "训练场");
-            GUI.Label(new Rect(40, 60, 380, 100), BuildOverlayText());
-            DrawRegion("pointer-check", "指向确认练习", new Rect(40, 170, 180, 40));
-            DrawRegion("reset-training", "重置训练计数", new Rect(230, 170, 180, 40));
-            DrawRegion("menu", $"长按返回主菜单（{trainingMenuHoldSeconds:F1}秒）", new Rect(40, 220, 240, 40));
+            var layout = GetOverlayLayout();
+            EnsureOverlayStyles(layout.Scale);
+            DrawPanel(layout.Panel, new Color(0.05f, 0.08f, 0.13f, 0.94f), new Color(0.31f, 0.78f, 1f, 0.92f));
+            GUI.Label(layout.Title, "训练场", overlayTitleStyle);
+            GUI.Label(layout.Body, BuildOverlayText(), overlayBodyStyle);
+            GUI.Label(layout.Hint, HintText, overlayHintStyle);
+            DrawRegion("pointer-check", "指向确认练习", MakeTrainingRect(layout, 0, 0));
+            DrawRegion("reset-training", "重置训练计数", MakeTrainingRect(layout, 1, 0));
+            DrawRegion("menu", $"长按返回主菜单（{trainingMenuHoldSeconds:F1}秒）", MakeTrainingRect(layout, 0, 1));
         }
 
         private void DrawResults()
         {
-            GUI.Box(new Rect(180, 110, 420, 230), "战斗结束");
-            GUI.Label(new Rect(210, 150, 360, 80), BuildOverlayText());
-            DrawRegion("restart", "再来一局", new Rect(210, 250, 160, 48));
-            DrawRegion("menu", "返回主菜单", new Rect(390, 250, 160, 48));
+            var layout = GetOverlayLayout();
+            EnsureOverlayStyles(layout.Scale);
+            DrawPanel(layout.Panel, new Color(0.08f, 0.08f, 0.12f, 0.95f), new Color(1f, 0.48f, 0.24f, 0.92f));
+            GUI.Label(layout.Title, "战斗结束", overlayTitleStyle);
+            GUI.Label(layout.Body, BuildOverlayText(), overlayBodyStyle);
+            DrawRegion("restart", "再来一局", MakeButtonRect(layout, 0, 0, 2));
+            DrawRegion("menu", "返回主菜单", MakeButtonRect(layout, 1, 0, 2));
         }
 
         private void DrawRegion(string key, string label, Rect rect)
@@ -528,14 +568,129 @@ namespace SpellGuard.Core
             if (focusedKey == key && dwellKey == key)
             {
                 var progress = Mathf.Clamp01((Time.time - dwellStartedAt) / GetRequiredHoldSeconds(key));
-                text = $"> {label} {Mathf.RoundToInt(progress * 100f)}%";
-            }
-            else if (focusedKey == key)
-            {
-                text = $"> {label}";
+                text = $"{label}   {Mathf.RoundToInt(progress * 100f)}%";
             }
 
-            GUI.Box(rect, text);
+            var previousColor = GUI.color;
+            var isFocused = focusedKey == key;
+            var isHolding = focusedKey == key && dwellKey == key;
+            GUI.color = isHolding ? new Color(1f, 0.68f, 0.28f, 0.95f) : (isFocused ? new Color(0.38f, 0.58f, 1f, 0.95f) : new Color(0.18f, 0.22f, 0.3f, 0.92f));
+            GUI.Box(rect, GUIContent.none);
+            GUI.color = previousColor;
+            GUI.Label(new Rect(rect.x + 14f, rect.y + 9f, rect.width - 28f, rect.height - 18f), text, overlayButtonStyle);
+        }
+
+        private OverlayLayout GetOverlayLayout()
+        {
+            var width = Mathf.Max(1f, UnityEngine.Screen.width);
+            var height = Mathf.Max(1f, UnityEngine.Screen.height);
+            var scale = Mathf.Clamp(Mathf.Min(width / 1280f, height / 720f), 0.9f, 1.28f);
+            var panelWidth = Mathf.Clamp(width * 0.44f, 420f, 680f);
+            var panelHeight = Mathf.Clamp(height * 0.46f, 280f, 420f);
+            var marginX = Mathf.Clamp(width * 0.08f, 24f, 72f);
+            var marginY = Mathf.Clamp(height * 0.08f, 22f, 60f);
+            var padding = Mathf.Clamp(18f * scale, 14f, 26f);
+            var gap = Mathf.Clamp(10f * scale, 8f, 16f);
+
+            var panel = new Rect(marginX, marginY, panelWidth, panelHeight);
+            if (screen == SpellGuardScreen.Training)
+            {
+                panel = new Rect(marginX * 0.6f, marginY * 0.55f, Mathf.Clamp(width * 0.38f, 360f, 480f), Mathf.Clamp(height * 0.36f, 240f, 300f));
+            }
+
+            var content = Shrink(panel, padding, padding + 18f * scale, padding, padding);
+            var title = new Rect(content.x, content.y, content.width, 30f * scale);
+            var body = new Rect(content.x, content.y + 34f * scale, content.width, Mathf.Max(40f, content.height * 0.48f));
+            var hint = new Rect(content.x, panel.yMax - padding - 22f * scale - 4f, content.width, 22f * scale);
+            var buttonRow = new Rect(content.x, panel.yMax - padding - 48f * scale, content.width, 48f * scale);
+
+            return new OverlayLayout
+            {
+                Panel = panel,
+                Content = content,
+                Title = title,
+                Body = body,
+                Hint = hint,
+                ButtonsRow = buttonRow,
+                Scale = scale,
+                Padding = padding,
+                Gap = gap,
+            };
+        }
+
+        private void EnsureOverlayStyles(float scale)
+        {
+            if (overlayTitleStyle != null && Mathf.Abs(cachedOverlayScale - scale) < 0.01f)
+            {
+                return;
+            }
+
+            cachedOverlayScale = scale;
+
+            overlayTitleStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = Mathf.RoundToInt(24f * scale),
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = new Color(0.98f, 0.97f, 1f, 1f) }
+            };
+
+            overlayBodyStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = Mathf.RoundToInt(16f * scale),
+                wordWrap = true,
+                normal = { textColor = new Color(0.82f, 0.88f, 0.96f, 0.96f) }
+            };
+
+            overlayHintStyle = new GUIStyle(overlayBodyStyle)
+            {
+                fontSize = Mathf.RoundToInt(14f * scale),
+                normal = { textColor = new Color(1f, 0.84f, 0.46f, 0.98f) }
+            };
+
+            overlayButtonStyle = new GUIStyle(overlayBodyStyle)
+            {
+                alignment = TextAnchor.MiddleLeft,
+                fontStyle = FontStyle.Bold
+            };
+
+            overlayPanelStyle = new GUIStyle(GUI.skin.box);
+        }
+
+        private static void DrawPanel(Rect rect, Color fillColor, Color accentColor)
+        {
+            var previousColor = GUI.color;
+            GUI.color = fillColor;
+            GUI.Box(rect, GUIContent.none, null);
+            GUI.color = accentColor;
+            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, 3f), Texture2D.whiteTexture);
+            GUI.color = previousColor;
+        }
+
+        private Rect MakeButtonRect(OverlayLayout layout, int column, int row, int columns)
+        {
+            var rows = screen == SpellGuardScreen.Training ? 2 : 1;
+            var spacing = Mathf.Clamp(10f * layout.Scale, 8f, 14f);
+            var height = Mathf.Clamp(46f * layout.Scale, 40f, 54f);
+            var availableWidth = layout.Content.width;
+            var width = columns > 1 ? (availableWidth - spacing * (columns - 1)) / columns : availableWidth;
+            var y = screen == SpellGuardScreen.Training
+                ? layout.Panel.yMax - layout.Padding - (height * rows) - spacing
+                : layout.Panel.yMax - layout.Padding - height;
+            return new Rect(layout.Content.x + (width + spacing) * column, y + (height + spacing) * row, width, height);
+        }
+
+        private Rect MakeTrainingRect(OverlayLayout layout, int column, int row)
+        {
+            var spacing = Mathf.Clamp(10f * layout.Scale, 8f, 14f);
+            var width = (layout.Content.width - spacing) * 0.5f;
+            var height = Mathf.Clamp(42f * layout.Scale, 38f, 48f);
+            var baseY = layout.Panel.yMax - layout.Padding - height * 2f - spacing;
+            return new Rect(layout.Content.x + (width + spacing) * column, baseY + (height + spacing) * row, width, height);
+        }
+
+        private static Rect Shrink(Rect rect, float left, float top, float right, float bottom)
+        {
+            return new Rect(rect.x + left, rect.y + top, Mathf.Max(1f, rect.width - left - right), Mathf.Max(1f, rect.height - top - bottom));
         }
 
         private void AddRegion(string key, string label, Rect rect)

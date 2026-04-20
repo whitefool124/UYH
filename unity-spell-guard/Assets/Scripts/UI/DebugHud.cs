@@ -39,10 +39,23 @@ namespace SpellGuard.UI
         [SerializeField] private EnemySpawner enemySpawner;
         [SerializeField] private GameFlowManager gameFlow;
         [SerializeField] private SpellGuardFlowController flowController;
-        [SerializeField] private Rect previewRect = new Rect(560f, 18f, 320f, 240f);
 
         private GUIStyle labelStyle;
         private GUIStyle titleStyle;
+        private GUIStyle subTitleStyle;
+        private GUIStyle accentStyle;
+        private GUIStyle panelStyle;
+        private float cachedStyleScale = -1f;
+
+        private struct HudLayout
+        {
+            public Rect PrimaryPanel;
+            public Rect SecondaryPanel;
+            public Rect PreviewPanel;
+            public Rect PreviewContent;
+            public float Scale;
+            public float Padding;
+        }
 
         public void Configure(
             GestureInputProviderBase provider,
@@ -74,56 +87,13 @@ namespace SpellGuard.UI
 
         private void OnGUI()
         {
-            EnsureStyles();
-
-            GUILayout.BeginArea(new Rect(18f, 18f, 520f, 420f), GUI.skin.box);
-            GUILayout.Label("符印守卫 Unity MVP", titleStyle);
+            var layout = GetLayout();
+            EnsureStyles(layout.Scale);
 
             var snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
-            GUILayout.Label($"输入模式：{GetInputModeLabel()}", labelStyle);
-            GUILayout.Label($"手部检测：{snapshot.HandPresent}", labelStyle);
-            GUILayout.Label($"当前手势：{snapshot.Gesture.ToChinese()}", labelStyle);
-            GUILayout.Label($"手位：{snapshot.ViewportPosition:F2}", labelStyle);
-            GUILayout.Label($"置信度：{snapshot.Confidence:F2}", labelStyle);
-            GUILayout.Label($"前进状态：{(motor != null && motor.IsMovingForward ? "前进中" : "停止")}", labelStyle);
-            GUILayout.Label($"施法状态：{(spellCaster != null ? spellCaster.StatusText : "无")}", labelStyle);
-            GUILayout.Label($"护盾：{(playerHealth != null && playerHealth.ShieldActive ? "开启" : "关闭")}", labelStyle);
-            GUILayout.Label($"生命：{(playerHealth != null ? playerHealth.CurrentHealth : 0)}", labelStyle);
-            GUILayout.Label($"敌人：{(enemySpawner != null ? enemySpawner.AliveEnemies.Count : 0)}", labelStyle);
-            GUILayout.Label($"界面：{GetScreenLabel()}", labelStyle);
-            GUILayout.Label($"摄像头：{(webcamFeed != null ? webcamFeed.StatusText : "未绑定")}", labelStyle);
-            GUILayout.Label($"设备：{(webcamFeed != null ? webcamFeed.ActiveDeviceName : "无")}", labelStyle);
-            GUILayout.Label($"原生识别：{(nativeMediapipeProvider != null ? nativeMediapipeProvider.StatusText : "未绑定")}", labelStyle);
-            GUILayout.Label($"识别桥：{(externalBridge != null ? externalBridge.BridgeStatus : "未绑定")}", labelStyle);
-            GUILayout.Label($"桥接源：{(externalBridge != null ? externalBridge.SourceLabel : "未绑定")}", labelStyle);
-            GUILayout.Label($"UDP：{(udpGestureReceiver != null ? udpGestureReceiver.StatusText : "未绑定")}", labelStyle);
-            GUILayout.Label($"动态事件：{GetMotionGestureLabel()}", labelStyle);
-            GUILayout.Label($"动态捕捉：{GetMotionCaptureSignal()}", titleStyle);
-            GUILayout.Label($"Pose 点数：{GetPoseLandmarkCount()}", labelStyle);
-
-            GUILayout.Space(10f);
-            GUILayout.Label("F1 切换输入模式：Mock / NativeMediapipe / ExternalBridge", labelStyle);
-            GUILayout.Label("Mock 输入：Tab 检测手 / 1 Point / 2 Fist / 3 V / 4 Palm / IJKL 移动虚拟手", labelStyle);
-            GUILayout.Label("原生优先：导入 MediaPipe Unity 插件后由 NativeMediapipeProvider 在 Unity 内直接驱动玩法。", labelStyle);
-            GUILayout.Label("兼容方案：ExternalGestureBridgeProvider 仍可接外部识别结果。", labelStyle);
-            GUILayout.Label("离线测试：先切到 ExternalBridge，再运行 bridge/start_offline_gesture_test.py --video <本地视频路径>。", labelStyle);
-            GUILayout.Label("Point 控制转向，Point 抬高到屏幕上部时前进；Fist/V/Palm 分别施放火焰/冰霜/护盾。", labelStyle);
-
-            if (flowController != null)
-            {
-                GUILayout.Space(10f);
-                GUILayout.Label(flowController.BuildOverlayText(), labelStyle);
-            }
-
-            if (gameFlow != null && gameFlow.GameOver)
-            {
-                GUILayout.Space(12f);
-                GUILayout.Label("游戏结束：按 R 重开场景", titleStyle);
-            }
-
-            GUILayout.EndArea();
-
-            DrawPreview(snapshot);
+            DrawPrimaryHud(snapshot, layout);
+            DrawSecondaryHud(snapshot, layout);
+            DrawPreview(snapshot, layout);
 
             if (flowController != null)
             {
@@ -131,17 +101,100 @@ namespace SpellGuard.UI
             }
         }
 
-        private void DrawPreview(GestureSnapshot snapshot)
+        private HudLayout GetLayout()
         {
-            GUI.Box(previewRect, "摄像头预览");
+            var width = Mathf.Max(1f, UnityEngine.Screen.width);
+            var height = Mathf.Max(1f, UnityEngine.Screen.height);
+            var scale = Mathf.Clamp(Mathf.Min(width / 1280f, height / 720f), 0.88f, 1.3f);
+            var marginX = Mathf.Clamp(width * 0.022f, 16f, 36f);
+            var marginY = Mathf.Clamp(height * 0.022f, 16f, 32f);
+            var gap = Mathf.Clamp(12f * scale, 10f, 18f);
+            var padding = Mathf.Clamp(16f * scale, 12f, 22f);
+
+            var sideWidth = Mathf.Clamp(width * 0.33f, 320f, 440f);
+            var primaryHeight = Mathf.Clamp(height * 0.25f, 196f, 258f);
+            var secondaryHeight = Mathf.Clamp(height * 0.29f, 198f, 260f);
+            var previewWidth = Mathf.Clamp(width * 0.27f, 280f, 420f);
+            var previewHeight = Mathf.Clamp(previewWidth * 0.78f, 220f, 360f);
+
+            var wideLayout = width >= 1180f;
+            var primaryPanel = new Rect(marginX, marginY, sideWidth, primaryHeight);
+            var secondaryPanel = new Rect(marginX, primaryPanel.yMax + gap, sideWidth, secondaryHeight);
+            var previewPanel = wideLayout
+                ? new Rect(width - marginX - previewWidth, marginY, previewWidth, previewHeight)
+                : new Rect(marginX, secondaryPanel.yMax + gap, Mathf.Clamp(width - marginX * 2f, 280f, width - marginX * 2f), Mathf.Max(180f, height - secondaryPanel.yMax - gap - marginY));
+
+            var previewContent = Shrink(previewPanel, padding, padding + 24f * scale, padding, padding + 10f * scale);
+
+            return new HudLayout
+            {
+                PrimaryPanel = primaryPanel,
+                SecondaryPanel = secondaryPanel,
+                PreviewPanel = previewPanel,
+                PreviewContent = previewContent,
+                Scale = scale,
+                Padding = padding,
+            };
+        }
+
+        private void DrawPrimaryHud(GestureSnapshot snapshot, HudLayout layout)
+        {
+            DrawPanel(layout.PrimaryPanel, new Color(0.06f, 0.08f, 0.12f, 0.92f), new Color(0.95f, 0.68f, 0.25f, 0.96f));
+            GUILayout.BeginArea(Shrink(layout.PrimaryPanel, layout.Padding, layout.Padding + 22f * layout.Scale, layout.Padding, layout.Padding));
+            GUILayout.Label("SPELL GUARD", titleStyle);
+            GUILayout.Label(GetScreenLabel(), subTitleStyle);
+            GUILayout.Space(4f * layout.Scale);
+            GUILayout.Label($"输入模式：{GetInputModeLabel()}", accentStyle);
+            GUILayout.Label($"动态状态：{GetMotionCaptureSignal()}", labelStyle);
+            GUILayout.Label($"当前手势：{snapshot.Gesture.ToChinese()} · 置信度 {snapshot.Confidence:F2}", labelStyle);
+            GUILayout.Label($"施法反馈：{(spellCaster != null ? spellCaster.StatusText : "无")}", labelStyle);
+            GUILayout.Label($"生命 {GetHealthText()} · 护盾 {GetShieldText()} · 敌人 {GetEnemyText()}", labelStyle);
+            GUILayout.Label($"前进状态：{(motor != null && motor.IsMovingForward ? "推进中" : "待命")}", labelStyle);
+
+            if (gameFlow != null && gameFlow.GameOver)
+            {
+                GUILayout.Space(6f * layout.Scale);
+                GUILayout.Label("战斗结束 · 按 R 立即重开", accentStyle);
+            }
+
+            GUILayout.EndArea();
+        }
+
+        private void DrawSecondaryHud(GestureSnapshot snapshot, HudLayout layout)
+        {
+            DrawPanel(layout.SecondaryPanel, new Color(0.06f, 0.08f, 0.12f, 0.9f), new Color(0.32f, 0.55f, 0.96f, 0.94f));
+            GUILayout.BeginArea(Shrink(layout.SecondaryPanel, layout.Padding, layout.Padding + 22f * layout.Scale, layout.Padding, layout.Padding));
+            GUILayout.Label("识别与调试信息", subTitleStyle);
+            GUILayout.Label("F1 切换输入模式 · Point 转向前进 · Fist / V / Palm / Snap / 扇手施法", labelStyle);
+            GUILayout.Space(4f * layout.Scale);
+            GUILayout.Label($"手位：{snapshot.ViewportPosition:F2}", labelStyle);
+            GUILayout.Label($"摄像头：{(webcamFeed != null ? webcamFeed.StatusText : "未绑定")}", labelStyle);
+            GUILayout.Label($"设备：{(webcamFeed != null ? webcamFeed.ActiveDeviceName : "无")}", labelStyle);
+            GUILayout.Label($"原生识别：{(nativeMediapipeProvider != null ? nativeMediapipeProvider.StatusText : "未绑定")}", labelStyle);
+            GUILayout.Label($"识别桥：{(externalBridge != null ? externalBridge.BridgeStatus : "未绑定")}", labelStyle);
+            GUILayout.Label($"桥接源：{(externalBridge != null ? externalBridge.SourceLabel : "未绑定")}", labelStyle);
+            GUILayout.Label($"UDP：{(udpGestureReceiver != null ? udpGestureReceiver.StatusText : "未绑定")}", labelStyle);
+            GUILayout.Label($"动态事件：{GetMotionGestureLabel()}", labelStyle);
+            GUILayout.Label($"Pose 点数：{GetPoseLandmarkCount()}", labelStyle);
+            GUILayout.EndArea();
+        }
+
+        private string GetHealthText() => playerHealth != null ? playerHealth.CurrentHealth.ToString() : "0";
+        private string GetShieldText() => playerHealth != null && playerHealth.ShieldActive ? "开启" : "关闭";
+        private string GetEnemyText() => enemySpawner != null ? enemySpawner.AliveEnemies.Count.ToString() : "0";
+
+        private void DrawPreview(GestureSnapshot snapshot, HudLayout layout)
+        {
+            DrawPanel(layout.PreviewPanel, new Color(0.04f, 0.06f, 0.09f, 0.94f), new Color(0.85f, 0.65f, 0.25f, 0.92f));
+            GUI.Label(new Rect(layout.PreviewPanel.x + layout.Padding, layout.PreviewPanel.y + 6f * layout.Scale, layout.PreviewPanel.width - layout.Padding * 2f, 24f * layout.Scale), "摄像头预览", subTitleStyle);
 
             if (webcamFeed == null || webcamFeed.Texture == null)
             {
-                GUI.Label(new Rect(previewRect.x + 12f, previewRect.y + 28f, previewRect.width - 24f, 24f), "未绑定摄像头预览", labelStyle);
+                GUI.Label(new Rect(layout.PreviewContent.x, layout.PreviewContent.y + layout.PreviewContent.height * 0.45f - 12f, layout.PreviewContent.width, 24f), "未绑定摄像头预览", labelStyle);
                 return;
             }
 
-            var textureRect = new Rect(previewRect.x + 8f, previewRect.y + 28f, previewRect.width - 16f, previewRect.height - 56f);
+            var textureRect = layout.PreviewContent;
             var tex = webcamFeed.Texture;
 
             if (webcamFeed.MirrorPreview)
@@ -162,7 +215,8 @@ namespace SpellGuard.UI
                 DrawHandSkeleton(textureRect);
                 DrawPoseSkeleton(textureRect);
                 GUI.color = Color.yellow;
-                GUI.DrawTexture(new Rect(marker.x - 6f, marker.y - 6f, 12f, 12f), Texture2D.whiteTexture);
+                var markerSize = Mathf.Clamp(10f * layout.Scale, 8f, 14f);
+                GUI.DrawTexture(new Rect(marker.x - markerSize * 0.5f, marker.y - markerSize * 0.5f, markerSize, markerSize), Texture2D.whiteTexture);
                 GUI.color = Color.white;
             }
             else
@@ -252,7 +306,7 @@ namespace SpellGuard.UI
             {
                 var point = ToPreviewPoint(landmarks[index], textureRect);
                 GUI.color = new Color(1f, 0.75f, 0.35f, 0.9f);
-                GUI.DrawTexture(new Rect(point.x - 2f, point.y - 2f, 4f, 4f), Texture2D.whiteTexture);
+                GUI.DrawTexture(new Rect(point.x - 2.5f, point.y - 2.5f, 5f, 5f), Texture2D.whiteTexture);
             }
 
             GUI.color = Color.white;
@@ -299,12 +353,27 @@ namespace SpellGuard.UI
                 return;
             }
 
-            var bannerRect = new Rect(textureRect.x + 8f, textureRect.y + 8f, textureRect.width - 16f, 34f);
+            var bannerRect = new Rect(textureRect.x + 8f, textureRect.y + 8f, textureRect.width - 16f, 36f);
             var previousColor = GUI.color;
             GUI.color = new Color(1f, 0.45f, 0.12f, 0.92f);
             GUI.Box(bannerRect, GUIContent.none);
             GUI.color = Color.white;
-            GUI.Label(new Rect(bannerRect.x + 10f, bannerRect.y + 6f, bannerRect.width - 20f, bannerRect.height - 12f), $"已捕捉动态手势：{motion.Gesture.ToChinese()}", titleStyle);
+            GUI.Label(new Rect(bannerRect.x + 10f, bannerRect.y + 6f, bannerRect.width - 20f, bannerRect.height - 12f), $"已捕捉动态手势：{motion.Gesture.ToChinese()}", subTitleStyle);
+            GUI.color = previousColor;
+        }
+
+        private static Rect Shrink(Rect rect, float left, float top, float right, float bottom)
+        {
+            return new Rect(rect.x + left, rect.y + top, Mathf.Max(1f, rect.width - left - right), Mathf.Max(1f, rect.height - top - bottom));
+        }
+
+        private void DrawPanel(Rect rect, Color fillColor, Color accentColor)
+        {
+            var previousColor = GUI.color;
+            GUI.color = fillColor;
+            GUI.Box(rect, GUIContent.none, panelStyle);
+            GUI.color = accentColor;
+            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, 3f), Texture2D.whiteTexture);
             GUI.color = previousColor;
         }
 
@@ -330,24 +399,44 @@ namespace SpellGuard.UI
             GUI.color = colorBackup;
         }
 
-        private void EnsureStyles()
+        private void EnsureStyles(float scale)
         {
-            if (labelStyle != null)
+            if (labelStyle != null && Mathf.Abs(cachedStyleScale - scale) < 0.01f)
             {
                 return;
             }
 
+            cachedStyleScale = scale;
+
             labelStyle = new GUIStyle(GUI.skin.label)
             {
-                fontSize = 16,
-                wordWrap = true
+                fontSize = Mathf.RoundToInt(15f * scale),
+                wordWrap = true,
+                normal = { textColor = new Color(0.84f, 0.9f, 0.96f, 0.98f) }
             };
 
             titleStyle = new GUIStyle(labelStyle)
             {
-                fontSize = 22,
-                fontStyle = FontStyle.Bold
+                fontSize = Mathf.RoundToInt(25f * scale),
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = new Color(0.98f, 0.97f, 1f, 1f) }
             };
+
+            subTitleStyle = new GUIStyle(labelStyle)
+            {
+                fontSize = Mathf.RoundToInt(17f * scale),
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = new Color(0.96f, 0.94f, 0.98f, 1f) }
+            };
+
+            accentStyle = new GUIStyle(labelStyle)
+            {
+                fontSize = Mathf.RoundToInt(16f * scale),
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = new Color(1f, 0.84f, 0.46f, 0.98f) }
+            };
+
+            panelStyle = new GUIStyle(GUI.skin.box);
         }
 
         private string GetInputModeLabel()
