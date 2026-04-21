@@ -1,129 +1,79 @@
 # Gesture System Refactor Plan
 
-## Purpose
+## 1. Project goal
 
-This document defines the technical refactor plan for the Unity gesture pipeline used by Spell Guard.
+Spell Guard is being refactored into a Unity combat prototype that supports YOLO plus MediaPipe input, richer single-hand dynamics, ordered gesture sequences, and dual-hand composition while staying real-time and game-friendly.
 
-The target is not a small patch. The target is a full gesture runtime that remains compatible with the current YOLO plus MediaPipe direction while expanding the game from single-hand latest-state input into a richer system that supports precise finger-level dynamics, fast gesture groups, ordered combos, and dual-hand interaction.
+The goal is not only to recognize more gestures, but to turn vision output into a stable gameplay command system that can be tested, replayed, and demonstrated in a graduation project.
 
-## Refactor goals
+## 2. Current status
 
-The refactor must satisfy the following product and graduation-project goals:
+The project has already moved beyond a single latest-state input model.
 
-1. Keep compatibility with the current Unity scene, gameplay loop, and input source switching.
-2. Stay compatible with a YOLO plus MediaPipe vision stack.
-3. Support single-hand static gestures, single-hand dynamic gestures, dual-hand gestures, and gesture sequences.
-4. Preserve real-time gameplay responsiveness suitable for a Unity combat prototype.
-5. Keep external bridge replay available for offline regression and dataset-driven validation.
+Current runtime pieces include:
 
-## Current architecture summary
-
-The current production pipeline is centered around a single snapshot plus a single latest motion event.
-
-### Input side
-
-- `GestureInputProviderBase` exposes one `CurrentSnapshot` and one `CurrentMotionGesture`.
-- `GestureInputRouter` switches between `Mock`, `NativeMediapipe`, and `ExternalBridge`.
-- `NativeMediapipeGestureProvider` stores one active snapshot and one latest motion event.
-- `ExternalGestureBridgeProvider` stores one active snapshot, one latest motion event, and queued external frames.
-- `NativeMotionGestureRecognizer` and `ExternalMotionGestureRecognizer` derive dynamic motion from short landmark histories.
-
-### Consumer side
-
-- `GestureSpellCaster` consumes the latest motion event first and then falls back to the latest static snapshot.
-- `FpsGestureMotor` depends on the latest static snapshot and assumes one active pointing hand.
-- `SpellGuardFlowController` uses the latest snapshot for menu focus and the latest motion event for menu shortcuts.
-- `DebugHud` and `MotionGestureFeedbackBoard` display only the latest state rather than a richer event stream.
-
-### Why the current model is insufficient
-
-The current architecture is clean for an MVP, but its public contract is still too narrow:
-
-- one hand-oriented snapshot
-- one latest transient motion event
-- no explicit sequence history model
-- no public multi-hand state model
-- no combo or dual-hand resolution layer
-
-This is enough for point, fist, open palm, snap, swipe, and simple menu gestures. It is not enough for precise finger-level motion, ordered combos, or two-hand gesture composition.
-
-## Compatibility with YOLO plus MediaPipe
-
-This refactor remains compatible with a YOLO plus MediaPipe pipeline because it separates the system into two parts:
-
-1. detection and landmark estimation
-2. gesture interpretation and gameplay mapping
-
-YOLO is responsible for object or hand detection, ROI stabilization, and multi-target management. MediaPipe is responsible for hand landmarks and low-level pose geometry. The Unity gesture runtime is responsible for gesture semantics, motion interpretation, combo parsing, and gameplay command mapping.
-
-This split is suitable for a graduation project because the system can be presented as:
-
-- YOLO for robust target detection
-- MediaPipe for hand keypoint extraction
-- a custom Unity-side gesture runtime for dynamic understanding and interactive control
-
-## Target architecture
-
-The target runtime should be organized into five layers.
-
-### 1. Frame ingestion layer
-
-All sources should emit the same normalized frame model.
-
-Suggested core models:
-
+- `GestureInputProviderBase`
+- `GestureInputRouter`
+- `MockGestureInputProvider`
+- `NativeMediapipeGestureProvider`
+- `ExternalGestureBridgeProvider`
 - `GestureFrame`
 - `TrackedHandState`
-- `BodyState` if body-level motion remains relevant later
+- `GestureCommand`
+- `GestureCommandHistory`
+- `GestureSequenceMatcher`
 
-Each frame should include:
+Gameplay consumers are already wired to the new layer:
+
+- `GestureSpellCaster`
+- `FpsGestureMotor`
+- `SpellGuardFlowController`
+- `DebugHud`
+- `MotionGestureFeedbackBoard`
+
+This means the project is already in the integration-hardening stage, not the scaffold stage.
+
+## 3. Architecture summary
+
+The current system is split into five layers.
+
+### 3.1 Frame ingestion
+
+All sources should emit a normalized `GestureFrame`.
+
+Each frame contains:
 
 - frame id
 - timestamp
 - source kind
-- all tracked hands
-- optional body or pose context
+- one or more tracked hands
 
-Each tracked hand should include:
+Each tracked hand contains:
 
-- stable track id
+- track id
 - handedness
-- tracking confidence
+- confidence
 - 2D landmarks
 - palm center
-- wrist position
-- static pose label and confidence
+- static pose label
 
-### 2. Feature extraction layer
+### 3.2 Feature extraction
 
-This layer converts raw landmarks into reusable features.
+The next layer converts landmarks into reusable features such as:
 
-It should compute:
-
-- finger bend values
-- fingertip relative positions to the palm
-- fingertip velocities and accelerations
+- finger bend
+- fingertip position relative to palm
+- velocity
+- acceleration
 - path length
-- path curvature
-- oscillation count
-- circularity score
-- open-palm spread
-- inter-finger distance changes
+- curvature
+- circularity
 
-This feature layer is the foundation required for index beckon, directed finger wave, pinky circles, and similar complex gestures.
+These features are the basis for more precise gestures like beckon, directed finger wave, and circle-like motion.
 
-### 3. Primitive gesture recognition layer
+### 3.3 Primitive recognition
 
-Primitive recognizers should work on the extracted features instead of directly mixing raw landmark checks into gameplay code.
-
-Primitive output categories should include:
-
-- single-hand static poses
-- single-hand dynamic gestures
-- dual-hand simultaneous primitives
-- pose-transition primitives
-
-Examples:
+Primitive recognizers turn features into gesture events such as:
 
 - Point
 - Fist
@@ -131,306 +81,88 @@ Examples:
 - Snap
 - SwipeLeftToRight
 - SwipeRightToLeft
-- IndexBeckon
-- IndexDirectionalWave
-- PinkyCircleCW
-- PinkyCircleCCW
 - PointToFist
-- LeftPointRightPalm
-- DualOpenPalm
 
-### 4. Sequence and combo resolution layer
+### 3.4 Sequence and combo resolution
 
-This layer consumes primitive gesture events over a short rolling window and resolves higher-level commands.
-
-It should manage:
-
-- event history buffer
-- combo time windows
-- ordering constraints
-- cooldown policies
-- simultaneous gesture windows
-- conflict resolution between primitive and combo commands
-
-Examples:
+`GestureCommandHistory` and `GestureSequenceMatcher` make it possible to detect short ordered patterns such as:
 
 - `Point -> Fist -> Snap`
 - `IndexBeckon x2 -> OpenPalm`
 - `LeftPoint + RightOpenPalm`
-- `PinkyCircleCW -> SwipeRight`
 
-### 5. Gameplay command layer
+### 3.5 Gameplay command layer
 
-Gameplay should stop reading low-level snapshots directly where possible.
+Gameplay systems should consume resolved commands rather than raw snapshots where possible.
 
-Instead, gameplay and UI should consume:
+Current consumers already do this in varying degrees:
 
-- resolved gesture commands
-- active hand states
-- active primitive states
-- current combo state for HUD display
+- spell casting reads motion commands first
+- player motion reads the primary hand frame
+- flow control reads commands for menu shortcuts
+- HUD shows runtime source, hand count, and command history
 
-This allows gesture semantics to evolve without repeatedly rewriting gameplay code.
+## 4. What the current runtime already proves
 
-## Data model changes
+The refactor already proves the following:
 
-### Replace or deprecate current narrow models
+- mock, native, and external inputs can all produce a usable runtime frame
+- dynamic motion can be carried through the command layer
+- command history can be queried for sequence detection
+- the project can build and test cleanly in both runtime and editor assemblies
 
-The following models should be gradually deprecated as primary runtime contracts:
+## 5. Training dataset support
 
-- `GestureSnapshot`
-- `MotionGestureEvent`
+The repository now also contains a dataset validation path for graduation-project self-testing.
 
-They can remain as legacy adapter outputs during migration.
+The dataset structure under `训练集/` is:
 
-### Introduce richer models
+- `annotations*.zip`
+- `videos*.zip`
 
-Recommended new models:
+The annotations archive contains:
 
-- `GestureFrame`
-- `TrackedHandState`
-- `GesturePrimitiveEvent`
-- `GestureCommand`
-- `GestureHistoryBuffer`
+- `metadata.csv`
+- `classIdx.txt`
+- `Annot_TrainList.txt`
+- `Annot_TestList.txt`
+- `Video_TrainList.txt`
+- `Video_TestList.txt`
 
-Each event should include more than gesture kind alone. It should include:
+The video archives contain `.tgz` bundles that include `.avi` clips.
 
-- start time
-- end time if applicable
-- confidence
-- participating hand ids
-- handedness
-- optional payload such as direction, repetition count, or rotation direction
+An editor-only validator can now check the dataset structure and report missing files or malformed archives.
 
-## Consumer migration strategy
+## 6. Graduation-project fit
 
-### `GestureSpellCaster`
+This architecture is a good fit for a graduation project because it clearly separates:
 
-Current coupling:
+1. visual detection and landmark estimation
+2. gesture interpretation and command resolution
+3. Unity gameplay mapping
+4. dataset validation and regression testing
 
-- motion first
-- otherwise static pose
+That makes the project easy to explain in a thesis, easy to demo in Unity, and easy to verify with tests.
 
-Target direction:
+## 7. Recommended next work
 
-- consume resolved `GestureCommand`
-- keep support for primitive fallback during migration
-- map primitive, combo, and dual-hand commands to spells through one table
+The highest-value next steps are:
 
-### `FpsGestureMotor`
+1. use the command history to implement combo triggering
+2. add more dual-hand runtime behavior
+3. keep tuning native handedness support
+4. extend dataset-driven validation from structure checks to replay-based sample checks
 
-Current coupling:
+## 8. Verification status
 
-- assumes one pointing hand and one screen-space position
+Current verification status:
 
-Target direction:
+- Unity script diagnostics: clean
+- runtime build: clean
+- PlayMode tests: clean
+- EditMode tests: clean
+- dataset validator: available in-editor
 
-- designate a control hand
-- read per-hand tracked state
-- optionally fall back to best available hand if one hand is missing
+## 9. Summary
 
-### `SpellGuardFlowController`
-
-Current coupling:
-
-- latest snapshot for focus and dwell
-- latest motion event for settings or return actions
-
-Target direction:
-
-- keep static pointing for focus
-- allow command-driven menu shortcuts
-- remain stable even while the runtime grows richer internally
-
-### `DebugHud` and `MotionGestureFeedbackBoard`
-
-Current coupling:
-
-- latest static pose and latest motion event only
-
-Target direction:
-
-- display tracked hands count
-- display left and right hand states separately
-- display active primitive gestures
-- display combo history and current resolved command
-
-## Recommended file structure
-
-Add a dedicated gesture-system area rather than expanding the old input scripts indefinitely.
-
-Suggested structure:
-
-```text
-Assets/Scripts/GestureSystem/
-  Core/
-    GestureFrame.cs
-    TrackedHandState.cs
-    GesturePrimitiveEvent.cs
-    GestureCommand.cs
-    GestureEnums.cs
-  Sources/
-    NativeGestureFrameSource.cs
-    ExternalGestureFrameSource.cs
-  Features/
-    HandFeatureExtractor.cs
-    FingerTrajectoryAnalyzer.cs
-    MotionFeatureWindow.cs
-  Recognition/
-    PrimitiveGestureRecognizer.cs
-    SingleHandDynamicRecognizer.cs
-    DualHandGestureRecognizer.cs
-    GestureSequenceTracker.cs
-    GestureComboResolver.cs
-  Runtime/
-    GestureRuntime.cs
-    GestureEventBus.cs
-    GestureSourceRouter.cs
-  Adapters/
-    LegacySnapshotAdapter.cs
-    LegacyMotionAdapter.cs
-```
-
-## Phased implementation plan
-
-### Phase 1. Add the new runtime beside the old one
-
-Deliverables:
-
-- new frame and event models
-- a shared runtime root
-- adapters that still expose `CurrentSnapshot` and `CurrentMotionGesture`
-
-Goal:
-
-- keep the project playable while the new runtime is introduced
-
-### Phase 2. Move current primitive gestures into the new runtime
-
-Deliverables:
-
-- swipe
-- slap
-- snap
-- point to fist
-- existing static pose support
-
-Goal:
-
-- preserve current behavior inside the new architecture before adding new complexity
-
-### Phase 3. Add richer single-hand dynamics
-
-Deliverables:
-
-- index beckon
-- directional index wave
-- pinky circle
-- improved finger-level timing features
-
-Goal:
-
-- prove the new architecture can support finer dynamic gestures
-
-### Phase 4. Add sequence and combo tracking
-
-Deliverables:
-
-- rolling event history
-- command resolution rules
-- combo windows and cooldown policies
-
-Goal:
-
-- support fast gesture groups and ordered combos for gameplay
-
-### Phase 5. Add dual-hand support
-
-Deliverables:
-
-- multi-hand frame ingestion
-- stable hand identity management
-- dual-hand primitive and combo resolution
-
-Goal:
-
-- support simultaneous and relational two-hand gestures
-
-### Phase 6. Migrate consumers fully
-
-Deliverables:
-
-- `GestureSpellCaster` updated to command-driven casting
-- `FpsGestureMotor` updated to per-hand control state
-- `SpellGuardFlowController` updated to use richer command input where appropriate
-- HUD updated for multi-hand visibility and combo debugging
-
-Goal:
-
-- remove primary gameplay dependency on the old latest-snapshot and latest-motion model
-
-## Real-time gameplay considerations
-
-The architecture is compatible with real-time gameplay if the heavy vision work remains in YOLO and MediaPipe and the Unity-side runtime stays lightweight.
-
-The Unity-side recognition path should focus on:
-
-- normalized landmark ingestion
-- short sliding windows
-- feature extraction from recent frames
-- deterministic rule and state-machine evaluation
-
-This is more suitable for a real-time game than repeatedly running a second heavy model on top of the keypoints.
-
-## Validation strategy
-
-Validation should remain part of the design, not an afterthought.
-
-Recommended validation channels:
-
-- Mock input for deterministic gameplay smoke tests
-- external bridge replay for dataset-driven regression
-- real webcam play mode for latency and interaction checks
-- focused PlayMode tests for primitive gestures and combo timing
-
-Required regression coverage:
-
-- source switching between mock, native, and external bridge
-- no duplicate spell firing from hold states
-- combo timing windows
-- multi-hand identification stability
-- menu interaction continuity
-
-## Risks and mitigations
-
-### Risk 1. False positives increase as gesture count grows
-
-Mitigation:
-
-- separate feature extraction from gesture resolution
-- use family-specific cooldowns
-- enforce confidence thresholds and precedence rules
-
-### Risk 2. Dual-hand tracking instability
-
-Mitigation:
-
-- preserve handedness and track ids
-- use temporal continuity when reassigning hands
-- treat unstable frames conservatively
-
-### Risk 3. Gameplay coupling slows refactor speed
-
-Mitigation:
-
-- keep legacy adapters during migration
-- convert consumer systems one by one
-- preserve current gameplay paths until equivalent command-driven behavior is verified
-
-## Recommendation
-
-The current project already has the right seams to support this refactor: input abstraction, separate providers, separate recognizers, bootstrap wiring, and isolated gameplay consumers.
-
-The correct next step is not to keep extending `GestureSnapshot` and `MotionGestureEvent` with more special cases. The correct next step is to introduce a richer multi-hand frame and event runtime beside the current system, migrate the current gesture set into it, and then add the new dynamic, combo, and dual-hand capabilities in phases.
-
-This approach fits both the engineering need of the Unity project and the graduation-project need to present a complete YOLO plus MediaPipe plus custom gesture-runtime architecture.
+Spell Guard is now a layered Unity gesture prototype with a real runtime command pipeline, dataset validation support, and enough test scaffolding to keep expanding toward richer single-hand, combo, and dual-hand gestures without falling back to the old single-snapshot model.
