@@ -193,12 +193,12 @@ namespace SpellGuard.Core
 
         private bool HandleMotionGesture(string focusedRegionKey)
         {
-            if (externalBridge == null)
+            if (inputProvider == null)
             {
                 return false;
             }
 
-            var motion = externalBridge.LatestMotionGesture;
+            var motion = inputProvider.CurrentMotionGesture;
             if (!motion.IsValid || motion.TriggeredTime <= lastHandledMotionTime)
             {
                 return false;
@@ -585,17 +585,21 @@ namespace SpellGuard.Core
             var width = Mathf.Max(1f, UnityEngine.Screen.width);
             var height = Mathf.Max(1f, UnityEngine.Screen.height);
             var scale = Mathf.Clamp(Mathf.Min(width / 1280f, height / 720f), 0.9f, 1.28f);
-            var panelWidth = Mathf.Clamp(width * 0.44f, 420f, 680f);
-            var panelHeight = Mathf.Clamp(height * 0.46f, 280f, 420f);
-            var marginX = Mathf.Clamp(width * 0.08f, 24f, 72f);
-            var marginY = Mathf.Clamp(height * 0.08f, 22f, 60f);
+            var panelWidth = Mathf.Clamp(width * 0.34f, 340f, 520f);
+            var panelHeight = Mathf.Clamp(height * 0.28f, 220f, 320f);
+            var marginX = Mathf.Clamp(width * 0.03f, 18f, 40f);
+            var marginY = Mathf.Clamp(height * 0.05f, 16f, 40f);
             var padding = Mathf.Clamp(18f * scale, 14f, 26f);
             var gap = Mathf.Clamp(10f * scale, 8f, 16f);
 
-            var panel = new Rect(marginX, marginY, panelWidth, panelHeight);
+            var panelX = width - marginX - panelWidth;
+            var panelY = height - marginY - panelHeight;
+            var panel = new Rect(panelX, panelY, panelWidth, panelHeight);
             if (screen == SpellGuardScreen.Training)
             {
-                panel = new Rect(marginX * 0.6f, marginY * 0.55f, Mathf.Clamp(width * 0.38f, 360f, 480f), Mathf.Clamp(height * 0.36f, 240f, 300f));
+                panelWidth = Mathf.Clamp(width * 0.31f, 320f, 460f);
+                panelHeight = Mathf.Clamp(height * 0.26f, 210f, 280f);
+                panel = new Rect(width - marginX - panelWidth, height - marginY - panelHeight, panelWidth, panelHeight);
             }
 
             var content = Shrink(panel, padding, padding + 18f * scale, padding, padding);
@@ -656,11 +660,11 @@ namespace SpellGuard.Core
             overlayPanelStyle = new GUIStyle(GUI.skin.box);
         }
 
-        private static void DrawPanel(Rect rect, Color fillColor, Color accentColor)
+        private void DrawPanel(Rect rect, Color fillColor, Color accentColor)
         {
             var previousColor = GUI.color;
             GUI.color = fillColor;
-            GUI.Box(rect, GUIContent.none, null);
+            GUI.Box(rect, GUIContent.none, overlayPanelStyle ?? GUI.skin.box);
             GUI.color = accentColor;
             GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, 3f), Texture2D.whiteTexture);
             GUI.color = previousColor;

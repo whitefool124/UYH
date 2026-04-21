@@ -187,6 +187,7 @@ namespace SpellGuard.UI
         {
             DrawPanel(layout.PreviewPanel, new Color(0.04f, 0.06f, 0.09f, 0.94f), new Color(0.85f, 0.65f, 0.25f, 0.92f));
             GUI.Label(new Rect(layout.PreviewPanel.x + layout.Padding, layout.PreviewPanel.y + 6f * layout.Scale, layout.PreviewPanel.width - layout.Padding * 2f, 24f * layout.Scale), "摄像头预览", subTitleStyle);
+            var mirrorPreview = webcamFeed != null && webcamFeed.MirrorPreview;
 
             if (webcamFeed == null || webcamFeed.Texture == null)
             {
@@ -211,9 +212,9 @@ namespace SpellGuard.UI
 
             if (snapshot.HandPresent)
             {
-                var marker = new Vector2(textureRect.x + snapshot.ViewportPosition.x * textureRect.width, textureRect.y + (1f - snapshot.ViewportPosition.y) * textureRect.height);
-                DrawHandSkeleton(textureRect);
-                DrawPoseSkeleton(textureRect);
+                var marker = ToPreviewPoint(snapshot.ViewportPosition, textureRect, mirrorPreview);
+                DrawHandSkeleton(textureRect, mirrorPreview);
+                DrawPoseSkeleton(textureRect, mirrorPreview);
                 GUI.color = Color.yellow;
                 var markerSize = Mathf.Clamp(10f * layout.Scale, 8f, 14f);
                 GUI.DrawTexture(new Rect(marker.x - markerSize * 0.5f, marker.y - markerSize * 0.5f, markerSize, markerSize), Texture2D.whiteTexture);
@@ -221,13 +222,13 @@ namespace SpellGuard.UI
             }
             else
             {
-                DrawPoseSkeleton(textureRect);
+                DrawPoseSkeleton(textureRect, mirrorPreview);
             }
 
             DrawMotionCaptureBanner(textureRect);
         }
 
-        private void DrawHandSkeleton(Rect textureRect)
+        private void DrawHandSkeleton(Rect textureRect, bool mirrorPreview)
         {
             var landmarks = GetAvailableHandLandmarks();
             if (landmarks == null || landmarks.Count == 0)
@@ -242,14 +243,14 @@ namespace SpellGuard.UI
                     continue;
                 }
 
-                var start = ToPreviewPoint(landmarks[from], textureRect);
-                var end = ToPreviewPoint(landmarks[to], textureRect);
+                var start = ToPreviewPoint(landmarks[from], textureRect, mirrorPreview);
+                var end = ToPreviewPoint(landmarks[to], textureRect, mirrorPreview);
                 DrawLine(start, end, new Color(0.46f, 0.84f, 1f, 0.95f), 3f);
             }
 
             for (var index = 0; index < landmarks.Count; index++)
             {
-                var point = ToPreviewPoint(landmarks[index], textureRect);
+                var point = ToPreviewPoint(landmarks[index], textureRect, mirrorPreview);
                 GUI.color = index == 8 ? Color.yellow : new Color(0.3f, 1f, 0.72f, 0.95f);
                 GUI.DrawTexture(new Rect(point.x - 4f, point.y - 4f, 8f, 8f), Texture2D.whiteTexture);
             }
@@ -282,7 +283,7 @@ namespace SpellGuard.UI
             return null;
         }
 
-        private void DrawPoseSkeleton(Rect textureRect)
+        private void DrawPoseSkeleton(Rect textureRect, bool mirrorPreview)
         {
             var landmarks = GetAvailablePoseLandmarks();
             if (landmarks == null || landmarks.Count == 0)
@@ -297,14 +298,14 @@ namespace SpellGuard.UI
                     continue;
                 }
 
-                var start = ToPreviewPoint(landmarks[from], textureRect);
-                var end = ToPreviewPoint(landmarks[to], textureRect);
+                var start = ToPreviewPoint(landmarks[from], textureRect, mirrorPreview);
+                var end = ToPreviewPoint(landmarks[to], textureRect, mirrorPreview);
                 DrawLine(start, end, new Color(1f, 0.68f, 0.28f, 0.9f), 2f);
             }
 
             for (var index = 0; index < landmarks.Count; index++)
             {
-                var point = ToPreviewPoint(landmarks[index], textureRect);
+                var point = ToPreviewPoint(landmarks[index], textureRect, mirrorPreview);
                 GUI.color = new Color(1f, 0.75f, 0.35f, 0.9f);
                 GUI.DrawTexture(new Rect(point.x - 2.5f, point.y - 2.5f, 5f, 5f), Texture2D.whiteTexture);
             }
@@ -314,23 +315,23 @@ namespace SpellGuard.UI
 
         private string GetMotionGestureLabel()
         {
-            if (externalBridge == null)
+            if (inputProvider == null)
             {
                 return "未绑定";
             }
 
-            var motion = externalBridge.LatestMotionGesture;
+            var motion = inputProvider.CurrentMotionGesture;
             return motion.IsValid ? motion.Gesture.ToChinese() : "无";
         }
 
         private string GetMotionCaptureSignal()
         {
-            if (externalBridge == null)
+            if (inputProvider == null)
             {
                 return "未绑定";
             }
 
-            var motion = externalBridge.LatestMotionGesture;
+            var motion = inputProvider.CurrentMotionGesture;
             return motion.IsValid ? $"已捕捉 {motion.Gesture.ToChinese()}" : "等待动态手势";
         }
 
@@ -342,12 +343,12 @@ namespace SpellGuard.UI
 
         private void DrawMotionCaptureBanner(Rect textureRect)
         {
-            if (externalBridge == null)
+            if (inputProvider == null)
             {
                 return;
             }
 
-            var motion = externalBridge.LatestMotionGesture;
+            var motion = inputProvider.CurrentMotionGesture;
             if (!motion.IsValid)
             {
                 return;
@@ -377,9 +378,10 @@ namespace SpellGuard.UI
             GUI.color = previousColor;
         }
 
-        private static Vector2 ToPreviewPoint(Vector2 normalizedPoint, Rect rect)
+        private static Vector2 ToPreviewPoint(Vector2 normalizedPoint, Rect rect, bool mirrorX)
         {
-            return new Vector2(rect.x + normalizedPoint.x * rect.width, rect.y + (1f - normalizedPoint.y) * rect.height);
+            var x = mirrorX ? 1f - normalizedPoint.x : normalizedPoint.x;
+            return new Vector2(rect.x + x * rect.width, rect.y + (1f - normalizedPoint.y) * rect.height);
         }
 
         private static void DrawLine(Vector2 start, Vector2 end, Color color, float width)
