@@ -54,6 +54,57 @@ namespace SpellGuard.InputSystem
             }
         }
 
+        public override GestureFrame CurrentGestureFrame
+        {
+            get
+            {
+                switch (mode)
+                {
+                    case InputMode.NativeMediapipe:
+                        return nativeMediapipeProvider != null ? nativeMediapipeProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.NativeMediapipe);
+                    case InputMode.ExternalBridge:
+                        return externalBridgeProvider != null ? externalBridgeProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.ExternalBridge);
+                    case InputMode.Mock:
+                    default:
+                        return mockProvider != null ? mockProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.Mock);
+                }
+            }
+        }
+
+        public override GestureCommand CurrentGestureCommand
+        {
+            get
+            {
+                switch (mode)
+                {
+                    case InputMode.NativeMediapipe:
+                        return nativeMediapipeProvider != null ? nativeMediapipeProvider.CurrentGestureCommand : GestureCommand.None;
+                    case InputMode.ExternalBridge:
+                        return externalBridgeProvider != null ? externalBridgeProvider.CurrentGestureCommand : GestureCommand.None;
+                    case InputMode.Mock:
+                    default:
+                        return mockProvider != null ? mockProvider.CurrentGestureCommand : GestureCommand.None;
+                }
+            }
+        }
+
+        public override GestureCommand[] RecentGestureCommands
+        {
+            get
+            {
+                switch (mode)
+                {
+                    case InputMode.NativeMediapipe:
+                        return nativeMediapipeProvider != null ? nativeMediapipeProvider.RecentGestureCommands : System.Array.Empty<GestureCommand>();
+                    case InputMode.ExternalBridge:
+                        return externalBridgeProvider != null ? externalBridgeProvider.RecentGestureCommands : System.Array.Empty<GestureCommand>();
+                    case InputMode.Mock:
+                    default:
+                        return mockProvider != null ? mockProvider.RecentGestureCommands : System.Array.Empty<GestureCommand>();
+                }
+            }
+        }
+
         public InputMode Mode => mode;
 
         private void Update()

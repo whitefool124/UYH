@@ -65,9 +65,9 @@ namespace SpellGuard.Player
             }
 
             var snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
-            var motion = inputProvider != null ? inputProvider.CurrentMotionGesture : MotionGestureEvent.None;
+            var command = inputProvider != null ? inputProvider.CurrentGestureCommand : GestureCommand.None;
 
-            if (TryCastFromMotion(motion))
+            if (TryCastFromCommand(command))
             {
                 return;
             }
@@ -150,23 +150,23 @@ namespace SpellGuard.Player
             }
         }
 
-        private bool TryCastFromMotion(MotionGestureEvent motion)
+        private bool TryCastFromCommand(GestureCommand command)
         {
-            if (!motion.IsValid || motion.TriggeredTime <= lastHandledMotionTime)
+            if (!command.IsValid || command.Kind != GestureCommandKind.Motion || command.TriggeredTime <= lastHandledMotionTime)
             {
                 return false;
             }
 
-            var spell = MapMotionToSpell(motion.Gesture);
+            var spell = MapMotionToSpell(command.MotionGesture);
             if (spell == SpellType.None)
             {
                 return false;
             }
 
-            lastHandledMotionTime = motion.TriggeredTime;
+            lastHandledMotionTime = command.TriggeredTime;
             if (debugLogs)
             {
-                Debug.Log($"[Gesture][SpellInput] motionGesture={motion.Gesture} mappedSpell={spell} confidence={motion.Confidence:F2}", this);
+                Debug.Log($"[Gesture][SpellInput] motionGesture={command.MotionGesture} mappedSpell={spell} confidence={command.Confidence:F2}", this);
             }
             pendingSpell = SpellType.None;
             PendingProgress = 0f;

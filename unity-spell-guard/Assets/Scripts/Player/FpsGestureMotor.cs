@@ -20,9 +20,11 @@ namespace SpellGuard.Player
         private float verticalVelocity;
         private float pitch;
         private bool inputEnabled = true;
+        private GestureFrame currentGestureFrame;
 
         public GestureSnapshot Snapshot { get; private set; }
         public bool IsMovingForward { get; private set; }
+        public GestureFrame CurrentGestureFrame => currentGestureFrame;
 
         private void Awake()
         {
@@ -46,14 +48,24 @@ namespace SpellGuard.Player
 
         private void Update()
         {
-            Snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
+            currentGestureFrame = inputProvider != null ? inputProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.Unknown);
+            var activeHand = currentGestureFrame.PrimaryHand;
+            Snapshot = activeHand.IsTracked
+                ? new GestureSnapshot
+                {
+                    HandPresent = true,
+                    Gesture = activeHand.StaticGesture,
+                    ViewportPosition = activeHand.ViewportPosition,
+                    Confidence = activeHand.Confidence
+                }
+                : GestureSnapshot.Missing;
 
             var moveVector = Vector3.zero;
             IsMovingForward = false;
 
-            if (inputEnabled && Snapshot.HandPresent && Snapshot.Gesture == GestureType.Point)
+            if (inputEnabled && activeHand.IsTracked && activeHand.StaticGesture == GestureType.Point)
             {
-                var offset = Snapshot.ViewportPosition - new Vector2(0.5f, 0.5f);
+                var offset = activeHand.ViewportPosition - new Vector2(0.5f, 0.5f);
                 var yawInput = ApplyDeadZone(offset.x, turnDeadZone);
                 var pitchInput = ApplyDeadZone(offset.y, turnDeadZone);
 
@@ -65,7 +77,7 @@ namespace SpellGuard.Player
                     cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
                 }
 
-                if (Snapshot.ViewportPosition.y >= forwardThreshold)
+                if (activeHand.ViewportPosition.y >= forwardThreshold)
                 {
                     moveVector += transform.forward * moveSpeed;
                     IsMovingForward = true;

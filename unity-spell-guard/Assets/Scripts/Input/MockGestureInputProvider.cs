@@ -8,6 +8,7 @@ namespace SpellGuard.InputSystem
         [SerializeField] private GestureType gesture = GestureType.Point;
         [SerializeField] private Vector2 viewportPosition = new Vector2(0.5f, 0.7f);
         [SerializeField] private float moveSpeed = 0.65f;
+        private readonly GestureCommandHistory commandHistory = new GestureCommandHistory();
 
         public override GestureSnapshot CurrentSnapshot => new GestureSnapshot
         {
@@ -16,6 +17,26 @@ namespace SpellGuard.InputSystem
             ViewportPosition = viewportPosition,
             Confidence = handPresent ? 1f : 0f
         };
+
+        public override GestureFrame CurrentGestureFrame => LegacyGestureRuntimeAdapter.BuildSingleHandFrame(
+            CurrentSnapshot,
+            null,
+            0,
+            Time.time,
+            GestureSourceKind.Mock,
+            MotionGestureEvent.None);
+
+        public override GestureCommand CurrentGestureCommand
+        {
+            get
+            {
+                var command = ChooseGestureCommand(CurrentSnapshot, MotionGestureEvent.None);
+                commandHistory.Record(command);
+                return command;
+            }
+        }
+
+        public override GestureCommand[] RecentGestureCommands => commandHistory.Snapshot();
 
         private void Update()
         {

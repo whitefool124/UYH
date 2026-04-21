@@ -12,10 +12,14 @@ namespace SpellGuard.InputSystem
         [SerializeField] private bool debugLogs = true;
 
         private GestureSnapshot snapshot = GestureSnapshot.Missing;
+        private GestureFrame currentGestureFrame = GestureFrame.Empty(GestureSourceKind.ExternalBridge);
         private ExternalVisionFrame currentFrame;
         private Vector2[] handLandmarks = Array.Empty<Vector2>();
         private Vector2[] poseLandmarks = Array.Empty<Vector2>();
+        private GestureHandedness primaryHandedness = GestureHandedness.Unknown;
+        private int primaryTrackId;
         private MotionGestureEvent latestMotionGesture = MotionGestureEvent.None;
+        private readonly GestureCommandHistory commandHistory = new GestureCommandHistory();
         private readonly Queue<ExternalVisionFrame> pendingFrames = new Queue<ExternalVisionFrame>();
         private float lastPushTime = -999f;
         private int frameVersion;
@@ -30,6 +34,27 @@ namespace SpellGuard.InputSystem
                 return snapshot;
             }
         }
+
+        public override GestureFrame CurrentGestureFrame
+        {
+            get
+            {
+                RefreshTimeoutState();
+                return currentGestureFrame;
+            }
+        }
+
+        public override GestureCommand CurrentGestureCommand
+        {
+            get
+            {
+                var command = ChooseGestureCommand(CurrentSnapshot, CurrentMotionGesture);
+                commandHistory.Record(command);
+                return command;
+            }
+        }
+
+        public override GestureCommand[] RecentGestureCommands => commandHistory.Snapshot();
 
         public override MotionGestureEvent CurrentMotionGesture
         {
@@ -110,6 +135,7 @@ namespace SpellGuard.InputSystem
             };
 
             lastPushTime = Time.time;
+            RefreshGestureFrame();
         }
 
         public void PushFrame(ExternalVisionFrame frame)
@@ -126,6 +152,8 @@ namespace SpellGuard.InputSystem
 
             SetLandmarks(frame.handLandmarks, ref handLandmarks);
             SetLandmarks(frame.poseLandmarks, ref poseLandmarks);
+            primaryHandedness = ParseHandedness(frame.handedness);
+            primaryTrackId = 0;
 
             var viewportPosition = frame.ResolveViewportPosition();
             var confidence = frame.trackingConfidence > 0f ? frame.trackingConfidence : frame.confidence;
@@ -135,6 +163,8 @@ namespace SpellGuard.InputSystem
             {
                 latestMotionGesture = MotionGestureEvent.None;
             }
+
+            RefreshGestureFrame();
         }
 
         public void PushGesture(string gestureName, float x, float y, float confidence = 1f, bool handPresent = true)
@@ -151,6 +181,8 @@ namespace SpellGuard.InputSystem
                 Confidence = Mathf.Clamp01(confidence),
                 TriggeredTime = Time.time
             };
+
+            RefreshGestureFrame();
 
             if (debugLogs)
             {
@@ -169,9 +201,13 @@ namespace SpellGuard.InputSystem
             currentFrame = null;
             handLandmarks = Array.Empty<Vector2>();
             poseLandmarks = Array.Empty<Vector2>();
+            primaryHandedness = GestureHandedness.Unknown;
+            primaryTrackId = 0;
             latestMotionGesture = MotionGestureEvent.None;
+            commandHistory.Clear();
             pendingFrames.Clear();
             lastPushTime = -999f;
+            RefreshGestureFrame();
         }
 
         private void RefreshTimeoutState()
@@ -182,13 +218,52 @@ namespace SpellGuard.InputSystem
                 currentFrame = null;
                 handLandmarks = Array.Empty<Vector2>();
                 poseLandmarks = Array.Empty<Vector2>();
+                primaryHandedness = GestureHandedness.Unknown;
+                primaryTrackId = 0;
                 pendingFrames.Clear();
+                commandHistory.Clear();
+                RefreshGestureFrame();
             }
 
             if (latestMotionGesture.IsValid && Time.time - latestMotionGesture.TriggeredTime > motionEventTimeout)
             {
                 latestMotionGesture = MotionGestureEvent.None;
+                RefreshGestureFrame();
             }
+        }
+
+        private void RefreshGestureFrame()
+        {
+            currentGestureFrame = LegacyGestureRuntimeAdapter.BuildSingleHandFrame(
+                snapshot,
+                handLandmarks,
+                frameVersion,
+                currentFrame != null && currentFrame.timestamp > 0f ? currentFrame.timestamp : Time.time,
+                GestureSourceKind.ExternalBridge,
+                latestMotionGesture,
+                primaryHandedness,
+                primaryTrackId);
+        }
+
+        private static GestureHandedness ParseHandedness(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return GestureHandedness.Unknown;
+            }
+
+            var normalized = value.Trim().ToLowerInvariant();
+            if (normalized == "left" || normalized == "l" || normalized == "左")
+            {
+                return GestureHandedness.Left;
+            }
+
+            if (normalized == "right" || normalized == "r" || normalized == "右")
+            {
+                return GestureHandedness.Right;
+            }
+
+            return GestureHandedness.Unknown;
         }
 
         private static void SetLandmarks(ExternalVisionPoint[] source, ref Vector2[] destination)

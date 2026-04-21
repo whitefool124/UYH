@@ -78,7 +78,16 @@ namespace SpellGuard.UI
 
         private void RefreshFeedback(bool force)
         {
-            var motionGesture = inputProvider != null ? inputProvider.CurrentMotionGesture : MotionGestureEvent.None;
+            var command = inputProvider != null ? inputProvider.CurrentGestureCommand : GestureCommand.None;
+            var motionGesture = command.Kind == GestureCommandKind.Motion
+                ? new MotionGestureEvent
+                {
+                    Gesture = command.MotionGesture,
+                    Confidence = command.Confidence,
+                    TriggeredTime = command.TriggeredTime,
+                    ViewportPosition = Vector2.zero
+                }
+                : MotionGestureEvent.None;
             var isSnap = motionGesture.IsValid && motionGesture.Gesture == MotionGestureType.Snap;
             var isActive = motionGesture.IsValid;
             var message = motionGesture.IsValid

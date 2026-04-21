@@ -91,8 +91,9 @@ namespace SpellGuard.UI
             EnsureStyles(layout.Scale);
 
             var snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
-            DrawPrimaryHud(snapshot, layout);
-            DrawSecondaryHud(snapshot, layout);
+            var frame = inputProvider != null ? inputProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.Unknown);
+            DrawPrimaryHud(snapshot, frame, layout);
+            DrawSecondaryHud(snapshot, frame, layout);
             DrawPreview(snapshot, layout);
 
             if (flowController != null)
@@ -137,7 +138,7 @@ namespace SpellGuard.UI
             };
         }
 
-        private void DrawPrimaryHud(GestureSnapshot snapshot, HudLayout layout)
+        private void DrawPrimaryHud(GestureSnapshot snapshot, GestureFrame frame, HudLayout layout)
         {
             DrawPanel(layout.PrimaryPanel, new Color(0.06f, 0.08f, 0.12f, 0.92f), new Color(0.95f, 0.68f, 0.25f, 0.96f));
             GUILayout.BeginArea(Shrink(layout.PrimaryPanel, layout.Padding, layout.Padding + 22f * layout.Scale, layout.Padding, layout.Padding));
@@ -147,6 +148,7 @@ namespace SpellGuard.UI
             GUILayout.Label($"输入模式：{GetInputModeLabel()}", accentStyle);
             GUILayout.Label($"动态状态：{GetMotionCaptureSignal()}", labelStyle);
             GUILayout.Label($"当前手势：{snapshot.Gesture.ToChinese()} · 置信度 {snapshot.Confidence:F2}", labelStyle);
+            GUILayout.Label($"运行时来源：{frame.Source} · 手数 {frame.HandCount}", labelStyle);
             GUILayout.Label($"施法反馈：{(spellCaster != null ? spellCaster.StatusText : "无")}", labelStyle);
             GUILayout.Label($"生命 {GetHealthText()} · 护盾 {GetShieldText()} · 敌人 {GetEnemyText()}", labelStyle);
             GUILayout.Label($"前进状态：{(motor != null && motor.IsMovingForward ? "推进中" : "待命")}", labelStyle);
@@ -160,7 +162,7 @@ namespace SpellGuard.UI
             GUILayout.EndArea();
         }
 
-        private void DrawSecondaryHud(GestureSnapshot snapshot, HudLayout layout)
+        private void DrawSecondaryHud(GestureSnapshot snapshot, GestureFrame frame, HudLayout layout)
         {
             DrawPanel(layout.SecondaryPanel, new Color(0.06f, 0.08f, 0.12f, 0.9f), new Color(0.32f, 0.55f, 0.96f, 0.94f));
             GUILayout.BeginArea(Shrink(layout.SecondaryPanel, layout.Padding, layout.Padding + 22f * layout.Scale, layout.Padding, layout.Padding));
@@ -168,6 +170,12 @@ namespace SpellGuard.UI
             GUILayout.Label("F1 切换输入模式 · Point 转向前进 · Fist / V / Palm / Snap / 扇手施法", labelStyle);
             GUILayout.Space(4f * layout.Scale);
             GUILayout.Label($"手位：{snapshot.ViewportPosition:F2}", labelStyle);
+            if (frame.HandCount > 0)
+            {
+                var primaryHand = frame.Hands[0];
+                GUILayout.Label($"主手状态：#{primaryHand.TrackId} {primaryHand.StaticGesture.ToChinese()} · {primaryHand.Handedness}", labelStyle);
+                GUILayout.Label($"主手掌心：{primaryHand.PalmCenter:F2}", labelStyle);
+            }
             GUILayout.Label($"摄像头：{(webcamFeed != null ? webcamFeed.StatusText : "未绑定")}", labelStyle);
             GUILayout.Label($"设备：{(webcamFeed != null ? webcamFeed.ActiveDeviceName : "无")}", labelStyle);
             GUILayout.Label($"原生识别：{(nativeMediapipeProvider != null ? nativeMediapipeProvider.StatusText : "未绑定")}", labelStyle);
@@ -320,8 +328,8 @@ namespace SpellGuard.UI
                 return "未绑定";
             }
 
-            var motion = inputProvider.CurrentMotionGesture;
-            return motion.IsValid ? motion.Gesture.ToChinese() : "无";
+            var command = inputProvider.CurrentGestureCommand;
+            return command.IsValid && command.Kind == GestureCommandKind.Motion ? command.MotionGesture.ToChinese() : "无";
         }
 
         private string GetMotionCaptureSignal()
@@ -331,8 +339,8 @@ namespace SpellGuard.UI
                 return "未绑定";
             }
 
-            var motion = inputProvider.CurrentMotionGesture;
-            return motion.IsValid ? $"已捕捉 {motion.Gesture.ToChinese()}" : "等待动态手势";
+            var command = inputProvider.CurrentGestureCommand;
+            return command.IsValid && command.Kind == GestureCommandKind.Motion ? $"已捕捉 {command.MotionGesture.ToChinese()}" : "等待动态手势";
         }
 
         private int GetPoseLandmarkCount()
@@ -348,8 +356,8 @@ namespace SpellGuard.UI
                 return;
             }
 
-            var motion = inputProvider.CurrentMotionGesture;
-            if (!motion.IsValid)
+            var command = inputProvider.CurrentGestureCommand;
+            if (!command.IsValid || command.Kind != GestureCommandKind.Motion)
             {
                 return;
             }
@@ -359,7 +367,7 @@ namespace SpellGuard.UI
             GUI.color = new Color(1f, 0.45f, 0.12f, 0.92f);
             GUI.Box(bannerRect, GUIContent.none);
             GUI.color = Color.white;
-            GUI.Label(new Rect(bannerRect.x + 10f, bannerRect.y + 6f, bannerRect.width - 20f, bannerRect.height - 12f), $"已捕捉动态手势：{motion.Gesture.ToChinese()}", subTitleStyle);
+            GUI.Label(new Rect(bannerRect.x + 10f, bannerRect.y + 6f, bannerRect.width - 20f, bannerRect.height - 12f), $"已捕捉动态手势：{command.MotionGesture.ToChinese()}", subTitleStyle);
             GUI.color = previousColor;
         }
 

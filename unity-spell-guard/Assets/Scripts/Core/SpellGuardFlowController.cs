@@ -198,17 +198,17 @@ namespace SpellGuard.Core
                 return false;
             }
 
-            var motion = inputProvider.CurrentMotionGesture;
-            if (!motion.IsValid || motion.TriggeredTime <= lastHandledMotionTime)
+            var command = inputProvider.CurrentGestureCommand;
+            if (!command.IsValid || command.Kind != GestureCommandKind.Motion || command.TriggeredTime <= lastHandledMotionTime)
             {
                 return false;
             }
 
-            switch (motion.Gesture)
+            switch (command.MotionGesture)
             {
                 case MotionGestureType.SwipeRightToLeft:
                 case MotionGestureType.OpenPalmSlapRightToLeft:
-                    lastHandledMotionTime = motion.TriggeredTime;
+                    lastHandledMotionTime = command.TriggeredTime;
                     if (screen == SpellGuardScreen.Settings)
                     {
                         if (focusedRegionKey == "confirm")
@@ -216,7 +216,7 @@ namespace SpellGuard.Core
                             settings.CycleConfirm();
                             HintText = $"设置已切换：施法确认 {settings.ConfirmLabel}";
                             dwellKey = null;
-                            LogFlowEvent($"motion settings cycle confirm via {motion.Gesture}");
+                            LogFlowEvent($"motion settings cycle confirm via {command.MotionGesture}");
                             return true;
                         }
 
@@ -225,14 +225,14 @@ namespace SpellGuard.Core
                             settings.CycleDifficulty();
                             HintText = $"设置已切换：敌人节奏 {settings.DifficultyLabel}";
                             dwellKey = null;
-                            LogFlowEvent($"motion settings cycle difficulty via {motion.Gesture}");
+                            LogFlowEvent($"motion settings cycle difficulty via {command.MotionGesture}");
                             return true;
                         }
                     }
 
                     if (screen == SpellGuardScreen.Settings || screen == SpellGuardScreen.Tutorial || screen == SpellGuardScreen.Results)
                     {
-                        LogFlowEvent($"motion return to menu via {motion.Gesture} from {screen}");
+                        LogFlowEvent($"motion return to menu via {command.MotionGesture} from {screen}");
                         ReturnToMenu();
                         return true;
                     }
@@ -242,18 +242,18 @@ namespace SpellGuard.Core
                 case MotionGestureType.OpenPalmSlapLeftToRight:
                     if (screen == SpellGuardScreen.Settings && (focusedRegionKey == "confirm" || focusedRegionKey == "difficulty"))
                     {
-                        lastHandledMotionTime = motion.TriggeredTime;
+                        lastHandledMotionTime = command.TriggeredTime;
                         if (focusedRegionKey == "confirm")
                         {
                             settings.CycleConfirm();
                             HintText = $"设置已切换：施法确认 {settings.ConfirmLabel}";
-                            LogFlowEvent($"motion settings cycle confirm via {motion.Gesture}");
+                            LogFlowEvent($"motion settings cycle confirm via {command.MotionGesture}");
                         }
                         else
                         {
                             settings.CycleDifficulty();
                             HintText = $"设置已切换：敌人节奏 {settings.DifficultyLabel}";
-                            LogFlowEvent($"motion settings cycle difficulty via {motion.Gesture}");
+                            LogFlowEvent($"motion settings cycle difficulty via {command.MotionGesture}");
                         }
 
                         dwellKey = null;

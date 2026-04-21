@@ -14,6 +14,7 @@ namespace SpellGuard.InputSystem
         public float trackingConfidence;
         public float timestamp;
         public string source;
+        public string handedness;
         public ExternalVisionPoint pointer;
         public ExternalVisionPoint[] handLandmarks;
         public ExternalVisionPoint[] poseLandmarks;
