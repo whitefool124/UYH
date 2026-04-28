@@ -20,6 +20,7 @@ namespace SpellGuard.InputSystem
         private int primaryTrackId;
         private MotionGestureEvent latestMotionGesture = MotionGestureEvent.None;
         private readonly GestureCommandHistory commandHistory = new GestureCommandHistory();
+        private GestureCommand currentGestureCommand = GestureCommand.None;
         private readonly Queue<ExternalVisionFrame> pendingFrames = new Queue<ExternalVisionFrame>();
         private float lastPushTime = -999f;
         private int frameVersion;
@@ -48,9 +49,8 @@ namespace SpellGuard.InputSystem
         {
             get
             {
-                var command = ChooseGestureCommand(CurrentSnapshot, CurrentMotionGesture);
-                commandHistory.Record(command);
-                return command;
+                RefreshTimeoutState();
+                return currentGestureCommand;
             }
         }
 
@@ -136,6 +136,7 @@ namespace SpellGuard.InputSystem
 
             lastPushTime = Time.time;
             RefreshGestureFrame();
+            RefreshCurrentCommand(true);
         }
 
         public void PushFrame(ExternalVisionFrame frame)
@@ -165,6 +166,7 @@ namespace SpellGuard.InputSystem
             }
 
             RefreshGestureFrame();
+            RefreshCurrentCommand(true);
         }
 
         public void PushGesture(string gestureName, float x, float y, float confidence = 1f, bool handPresent = true)
@@ -183,6 +185,7 @@ namespace SpellGuard.InputSystem
             };
 
             RefreshGestureFrame();
+            RefreshCurrentCommand(true);
 
             if (debugLogs)
             {
@@ -208,6 +211,7 @@ namespace SpellGuard.InputSystem
             pendingFrames.Clear();
             lastPushTime = -999f;
             RefreshGestureFrame();
+            RefreshCurrentCommand(false);
         }
 
         private void RefreshTimeoutState()
@@ -223,12 +227,14 @@ namespace SpellGuard.InputSystem
                 pendingFrames.Clear();
                 commandHistory.Clear();
                 RefreshGestureFrame();
+                RefreshCurrentCommand(false);
             }
 
             if (latestMotionGesture.IsValid && Time.time - latestMotionGesture.TriggeredTime > motionEventTimeout)
             {
                 latestMotionGesture = MotionGestureEvent.None;
                 RefreshGestureFrame();
+                RefreshCurrentCommand(false);
             }
         }
 
@@ -243,6 +249,15 @@ namespace SpellGuard.InputSystem
                 latestMotionGesture,
                 primaryHandedness,
                 primaryTrackId);
+        }
+
+        private void RefreshCurrentCommand(bool record)
+        {
+            currentGestureCommand = ChooseGestureCommand(snapshot, latestMotionGesture);
+            if (record)
+            {
+                commandHistory.Record(currentGestureCommand);
+            }
         }
 
         private static GestureHandedness ParseHandedness(string value)

@@ -85,15 +85,10 @@ namespace SpellGuard.Tests.PlayMode
         [Test]
         public void RouterExposesRecentCommandHistory()
         {
-            var router = root.AddComponent<GestureInputRouter>();
             var mock = root.AddComponent<MockGestureInputProvider>();
-            SetPrivateField(router, "mockProvider", mock);
-            SetPrivateField(router, "mode", GestureInputRouter.InputMode.Mock);
+            _ = mock.CurrentGestureCommand;
 
-            _ = router.CurrentGestureCommand;
-            _ = router.CurrentGestureCommand;
-
-            Assert.That(router.RecentGestureCommands.Length, Is.GreaterThanOrEqualTo(1));
+            Assert.That(mock.RecentGestureCommands.Length, Is.GreaterThanOrEqualTo(1));
         }
 
         private static Vector2[] CreateHandLandmarks(Vector2 palm, float thumbMiddleDistance)

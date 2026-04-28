@@ -16,6 +16,7 @@ namespace SpellGuard.InputSystem
         private int primaryTrackId;
         private MotionGestureEvent latestMotionGesture = MotionGestureEvent.None;
         private readonly GestureCommandHistory commandHistory = new GestureCommandHistory();
+        private GestureCommand currentGestureCommand = GestureCommand.None;
         private int frameVersion;
         private float lastSampleTime = -999f;
 
@@ -27,9 +28,7 @@ namespace SpellGuard.InputSystem
         {
             get
             {
-                var command = ChooseGestureCommand(CurrentSnapshot, CurrentMotionGesture);
-                commandHistory.Record(command);
-                return command;
+                return currentGestureCommand;
             }
         }
 
@@ -99,6 +98,7 @@ namespace SpellGuard.InputSystem
             frameVersion += 1;
             lastSampleTime = Time.time;
             RefreshGestureFrame();
+            RefreshCurrentCommand(true);
         }
 
         public void SetHandLandmarks(Vector2[] normalizedLandmarks)
@@ -144,12 +144,14 @@ namespace SpellGuard.InputSystem
                 TriggeredTime = Time.time
             };
             RefreshGestureFrame();
+            RefreshCurrentCommand(true);
         }
 
         public void ClearMotionGesture()
         {
             latestMotionGesture = MotionGestureEvent.None;
             RefreshGestureFrame();
+            RefreshCurrentCommand(false);
         }
 
         private void RefreshGestureFrame()
@@ -163,6 +165,15 @@ namespace SpellGuard.InputSystem
                 latestMotionGesture,
                 primaryHandedness,
                 primaryTrackId);
+        }
+
+        private void RefreshCurrentCommand(bool record)
+        {
+            currentGestureCommand = ChooseGestureCommand(snapshot, latestMotionGesture);
+            if (record)
+            {
+                commandHistory.Record(currentGestureCommand);
+            }
         }
 
         private void Update() { }

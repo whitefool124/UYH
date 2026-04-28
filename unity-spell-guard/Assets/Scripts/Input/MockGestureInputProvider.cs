@@ -9,6 +9,7 @@ namespace SpellGuard.InputSystem
         [SerializeField] private Vector2 viewportPosition = new Vector2(0.5f, 0.7f);
         [SerializeField] private float moveSpeed = 0.65f;
         private readonly GestureCommandHistory commandHistory = new GestureCommandHistory();
+        private GestureCommand currentGestureCommand = GestureCommand.None;
 
         public override GestureSnapshot CurrentSnapshot => new GestureSnapshot
         {
@@ -30,16 +31,22 @@ namespace SpellGuard.InputSystem
         {
             get
             {
-                var command = ChooseGestureCommand(CurrentSnapshot, MotionGestureEvent.None);
-                commandHistory.Record(command);
-                return command;
+                return currentGestureCommand;
             }
         }
 
         public override GestureCommand[] RecentGestureCommands => commandHistory.Snapshot();
 
+        private void Awake()
+        {
+            RefreshCurrentCommand(true);
+        }
+
         private void Update()
         {
+            var previousHandPresent = handPresent;
+            var previousGesture = gesture;
+
             if (Input.GetKeyDown(KeyCode.Tab))
             {
                 handPresent = !handPresent;
@@ -62,6 +69,20 @@ namespace SpellGuard.InputSystem
             viewportPosition += delta;
             viewportPosition.x = Mathf.Clamp01(viewportPosition.x);
             viewportPosition.y = Mathf.Clamp01(viewportPosition.y);
+
+            if (previousHandPresent != handPresent || previousGesture != gesture)
+            {
+                RefreshCurrentCommand(true);
+            }
+        }
+
+        private void RefreshCurrentCommand(bool record)
+        {
+            currentGestureCommand = ChooseGestureCommand(CurrentSnapshot, MotionGestureEvent.None);
+            if (record)
+            {
+                commandHistory.Record(currentGestureCommand);
+            }
         }
     }
 }
