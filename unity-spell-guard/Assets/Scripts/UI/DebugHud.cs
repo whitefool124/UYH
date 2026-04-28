@@ -57,34 +57,6 @@ namespace SpellGuard.UI
             public float Padding;
         }
 
-        public void Configure(
-            GestureInputProviderBase provider,
-            GestureInputRouter router,
-            WebcamFeedController feed,
-            NativeMediapipeGestureProvider nativeProvider,
-            ExternalGestureBridgeProvider bridge,
-            UdpGestureReceiver receiver,
-            FpsGestureMotor fpsMotor,
-            GestureSpellCaster caster,
-            PlayerHealth health,
-            EnemySpawner spawner,
-            GameFlowManager flow,
-            SpellGuardFlowController flowUi)
-        {
-            inputProvider = provider;
-            inputRouter = router;
-            webcamFeed = feed;
-            nativeMediapipeProvider = nativeProvider;
-            externalBridge = bridge;
-            udpGestureReceiver = receiver;
-            motor = fpsMotor;
-            spellCaster = caster;
-            playerHealth = health;
-            enemySpawner = spawner;
-            gameFlow = flow;
-            flowController = flowUi;
-        }
-
         private void OnGUI()
         {
             var layout = GetLayout();
@@ -92,14 +64,11 @@ namespace SpellGuard.UI
 
             var snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
             var frame = inputProvider != null ? inputProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.Unknown);
-            DrawPrimaryHud(snapshot, frame, layout);
-            DrawSecondaryHud(snapshot, frame, layout);
+            var viewData = BuildViewData();
+            DrawPrimaryHud(snapshot, frame, viewData, layout);
+            DrawSecondaryHud(snapshot, frame, viewData, layout);
             DrawPreview(snapshot, layout);
 
-            if (flowController != null)
-            {
-                flowController.DrawOverlay();
-            }
         }
 
         private HudLayout GetLayout()
@@ -138,19 +107,19 @@ namespace SpellGuard.UI
             };
         }
 
-        private void DrawPrimaryHud(GestureSnapshot snapshot, GestureFrame frame, HudLayout layout)
+        private void DrawPrimaryHud(GestureSnapshot snapshot, GestureFrame frame, SpellGuardHudViewData viewData, HudLayout layout)
         {
             DrawPanel(layout.PrimaryPanel, new Color(0.06f, 0.08f, 0.12f, 0.92f), new Color(0.95f, 0.68f, 0.25f, 0.96f));
             GUILayout.BeginArea(Shrink(layout.PrimaryPanel, layout.Padding, layout.Padding + 22f * layout.Scale, layout.Padding, layout.Padding));
             GUILayout.Label("SPELL GUARD", titleStyle);
-            GUILayout.Label(GetScreenLabel(), subTitleStyle);
+            GUILayout.Label(viewData.ScreenLabel, subTitleStyle);
             GUILayout.Space(4f * layout.Scale);
-            GUILayout.Label($"输入模式：{GetInputModeLabel()}", accentStyle);
-            GUILayout.Label($"动态状态：{GetMotionCaptureSignal()}", labelStyle);
+            GUILayout.Label($"输入模式：{viewData.InputModeLabel}", accentStyle);
+            GUILayout.Label($"动态状态：{viewData.MotionCaptureSignal}", labelStyle);
             GUILayout.Label($"当前手势：{snapshot.Gesture.ToChinese()} · 置信度 {snapshot.Confidence:F2}", labelStyle);
             GUILayout.Label($"运行时来源：{frame.Source} · 手数 {frame.HandCount}", labelStyle);
             GUILayout.Label($"施法反馈：{(spellCaster != null ? spellCaster.StatusText : "无")}", labelStyle);
-            GUILayout.Label($"生命 {GetHealthText()} · 护盾 {GetShieldText()} · 敌人 {GetEnemyText()}", labelStyle);
+            GUILayout.Label($"生命 {viewData.HealthText} · 护盾 {viewData.ShieldText} · 敌人 {viewData.EnemyText}", labelStyle);
             GUILayout.Label($"前进状态：{(motor != null && motor.IsMovingForward ? "推进中" : "待命")}", labelStyle);
 
             if (gameFlow != null && gameFlow.GameOver)
@@ -162,7 +131,7 @@ namespace SpellGuard.UI
             GUILayout.EndArea();
         }
 
-        private void DrawSecondaryHud(GestureSnapshot snapshot, GestureFrame frame, HudLayout layout)
+        private void DrawSecondaryHud(GestureSnapshot snapshot, GestureFrame frame, SpellGuardHudViewData viewData, HudLayout layout)
         {
             DrawPanel(layout.SecondaryPanel, new Color(0.06f, 0.08f, 0.12f, 0.9f), new Color(0.32f, 0.55f, 0.96f, 0.94f));
             GUILayout.BeginArea(Shrink(layout.SecondaryPanel, layout.Padding, layout.Padding + 22f * layout.Scale, layout.Padding, layout.Padding));
@@ -182,9 +151,22 @@ namespace SpellGuard.UI
             GUILayout.Label($"识别桥：{(externalBridge != null ? externalBridge.BridgeStatus : "未绑定")}", labelStyle);
             GUILayout.Label($"桥接源：{(externalBridge != null ? externalBridge.SourceLabel : "未绑定")}", labelStyle);
             GUILayout.Label($"UDP：{(udpGestureReceiver != null ? udpGestureReceiver.StatusText : "未绑定")}", labelStyle);
-            GUILayout.Label($"动态事件：{GetMotionGestureLabel()}", labelStyle);
-            GUILayout.Label($"Pose 点数：{GetPoseLandmarkCount()}", labelStyle);
+            GUILayout.Label($"动态事件：{viewData.MotionGestureLabel}", labelStyle);
+            GUILayout.Label($"Pose 点数：{viewData.PoseLandmarkCount}", labelStyle);
             GUILayout.EndArea();
+        }
+
+        private SpellGuardHudViewData BuildViewData()
+        {
+            return new SpellGuardHudViewData(
+                GetScreenLabel(),
+                GetInputModeLabel(),
+                GetMotionCaptureSignal(),
+                GetHealthText(),
+                GetShieldText(),
+                GetEnemyText(),
+                GetMotionGestureLabel(),
+                GetPoseLandmarkCount());
         }
 
         private string GetHealthText() => playerHealth != null ? playerHealth.CurrentHealth.ToString() : "0";
