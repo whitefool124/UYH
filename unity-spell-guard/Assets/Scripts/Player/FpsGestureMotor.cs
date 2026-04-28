@@ -31,12 +31,6 @@ namespace SpellGuard.Player
             characterController = GetComponent<CharacterController>();
         }
 
-        public void Configure(GestureInputProviderBase provider, Transform pivot)
-        {
-            inputProvider = provider;
-            cameraPivot = pivot;
-        }
-
         public void SetInputEnabled(bool value)
         {
             inputEnabled = value;

@@ -32,13 +32,6 @@ namespace SpellGuard.Player
         public string StatusText { get; private set; } = "等待手势";
         public event Action<SpellType, int> SpellResolved;
 
-        public void Configure(GestureInputProviderBase provider, Camera cameraRef, PlayerHealth health)
-        {
-            inputProvider = provider;
-            castCamera = cameraRef;
-            playerHealth = health;
-        }
-
         public void SetConfirmSeconds(float value)
         {
             confirmSeconds = Mathf.Max(0.1f, value);

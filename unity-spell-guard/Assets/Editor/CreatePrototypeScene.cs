@@ -203,6 +203,7 @@ namespace SpellGuard.EditorTools
             var spawner = flow.AddComponent<EnemySpawner>();
             var gameFlow = flow.AddComponent<GameFlowManager>();
             var hud = flow.AddComponent<DebugHud>();
+            var menuOverlay = flow.AddComponent<SpellGuardMenuOverlay>();
 
             SetField(inputRouter, "mockProvider", mockProvider);
             SetField(inputRouter, "nativeMediapipeProvider", nativeMediapipeProvider);
@@ -229,7 +230,33 @@ namespace SpellGuard.EditorTools
             SetField(sceneContext, "gameSettings", settings);
             SetField(sceneContext, "flowController", flowController);
             SetField(sceneContext, "debugHud", hud);
+            SetField(sceneContext, "menuOverlay", menuOverlay);
             SetField(sceneContext, "motionGestureFeedbackBoard", motionGestureFeedbackBoardComponent);
+
+            SetField(flowController, "settings", settings);
+            SetField(flowController, "motor", motor);
+            SetField(flowController, "spellCaster", spellCaster);
+            SetField(flowController, "playerHealth", health);
+            SetField(flowController, "playerRoot", player.transform);
+            SetField(flowController, "enemySpawner", spawner);
+            SetField(flowController, "gameFlow", gameFlow);
+
+            SetField(motor, "inputProvider", inputRouter);
+            SetField(motor, "cameraPivot", cameraPivot);
+
+            SetField(spellCaster, "inputProvider", inputRouter);
+            SetField(spellCaster, "castCamera", camera);
+            SetField(spellCaster, "playerHealth", health);
+
+            SetField(spawner, "playerRoot", player.transform);
+            SetField(spawner, "playerHealth", health);
+
+            SetField(gameFlow, "playerHealth", health);
+            SetField(gameFlow, "enemySpawner", spawner);
+
+            SetField(menuOverlay, "inputProvider", inputRouter);
+            SetField(menuOverlay, "settings", settings);
+            SetField(menuOverlay, "flowController", flowController);
 
             SetField(udpReceiver, "bridgeProvider", externalBridge);
             SetField(udpReceiver, "webcamFeed", webcamFeed);
@@ -243,6 +270,19 @@ namespace SpellGuard.EditorTools
             SetField(motionGestureFeedbackBoardComponent, "faceCamera", camera);
             SetField(motionGestureFeedbackBoardComponent, "boardRenderer", motionGestureFeedbackBoard.GetComponent<Renderer>());
             SetField(motionGestureFeedbackBoardComponent, "labelText", motionGestureFeedbackLabel);
+
+            SetField(hud, "inputProvider", inputRouter);
+            SetField(hud, "inputRouter", inputRouter);
+            SetField(hud, "webcamFeed", webcamFeed);
+            SetField(hud, "nativeMediapipeProvider", nativeMediapipeProvider);
+            SetField(hud, "externalBridge", externalBridge);
+            SetField(hud, "udpGestureReceiver", udpReceiver);
+            SetField(hud, "motor", motor);
+            SetField(hud, "spellCaster", spellCaster);
+            SetField(hud, "playerHealth", health);
+            SetField(hud, "enemySpawner", spawner);
+            SetField(hud, "gameFlow", gameFlow);
+            SetField(hud, "flowController", flowController);
 
             SetField(bootstrap, "sceneContext", sceneContext);
 
