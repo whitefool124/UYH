@@ -11,12 +11,6 @@ namespace SpellGuard.Core
 
         public bool GameOver { get; private set; }
 
-        public void Configure(PlayerHealth health, EnemySpawner spawner)
-        {
-            playerHealth = health;
-            enemySpawner = spawner;
-        }
-
         public void ResetGameOver()
         {
             GameOver = false;

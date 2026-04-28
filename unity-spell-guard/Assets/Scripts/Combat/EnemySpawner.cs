@@ -18,12 +18,6 @@ namespace SpellGuard.Combat
 
         public IReadOnlyList<SimpleEnemyController> AliveEnemies => aliveEnemies;
 
-        public void Configure(Transform root, PlayerHealth health)
-        {
-            playerRoot = root;
-            playerHealth = health;
-        }
-
         private void Update()
         {
             aliveEnemies.RemoveAll(enemy => enemy == null);

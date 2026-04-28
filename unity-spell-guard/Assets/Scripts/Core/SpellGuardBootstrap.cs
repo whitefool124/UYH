@@ -34,30 +34,13 @@ namespace SpellGuard.Core
                 return;
             }
 
-            sceneContext.AutoBindMissingReferences();
+            sceneContext.ValidateSerializedReferences();
 
             if (!sceneContext.IsValid(out var reason))
             {
                 Debug.LogError($"SpellGuardBootstrap 装配失败：{reason}", this);
                 return;
             }
-
-            sceneContext.FpsMotor.Configure(sceneContext.InputProvider, sceneContext.CameraPivot);
-            sceneContext.SpellCaster.Configure(sceneContext.InputProvider, sceneContext.MainCamera, sceneContext.PlayerHealth);
-            sceneContext.EnemySpawner.Configure(sceneContext.PlayerRoot, sceneContext.PlayerHealth);
-            sceneContext.GameFlowManager.Configure(sceneContext.PlayerHealth, sceneContext.EnemySpawner);
-            sceneContext.FlowController.Configure(
-                sceneContext.InputProvider,
-                sceneContext.ExternalBridge,
-                sceneContext.GameSettings,
-                sceneContext.FpsMotor,
-                sceneContext.SpellCaster,
-                sceneContext.PlayerHealth,
-                sceneContext.PlayerRoot,
-                sceneContext.EnemySpawner,
-                sceneContext.GameFlowManager,
-                sceneContext.MainCamera
-            );
 
             if (sceneContext.NativeMediapipeProvider != null)
             {
@@ -75,21 +58,6 @@ namespace SpellGuard.Core
             {
                 sceneContext.ExternalMotionGestureRecognizer.Configure(sceneContext.ExternalBridge);
             }
-            sceneContext.DebugHud.Configure(
-                sceneContext.InputProvider,
-                sceneContext.InputRouter,
-                sceneContext.WebcamFeed,
-                sceneContext.NativeMediapipeProvider,
-                sceneContext.ExternalBridge,
-                sceneContext.UdpGestureReceiver,
-                sceneContext.FpsMotor,
-                sceneContext.SpellCaster,
-                sceneContext.PlayerHealth,
-                sceneContext.EnemySpawner,
-                sceneContext.GameFlowManager,
-                sceneContext.FlowController
-            );
-
             if (sceneContext.MotionGestureFeedbackBoard != null)
             {
                 sceneContext.MotionGestureFeedbackBoard.Configure(sceneContext.InputProvider, sceneContext.MainCamera);

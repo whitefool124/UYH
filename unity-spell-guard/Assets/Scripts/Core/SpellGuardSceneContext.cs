@@ -36,6 +36,7 @@ namespace SpellGuard.Core
 
         [Header("UI")]
         [SerializeField] private DebugHud debugHud;
+        [SerializeField] private SpellGuardMenuOverlay menuOverlay;
 
         [Header("Feedback")]
         [SerializeField] private MotionGestureFeedbackBoard motionGestureFeedbackBoard;
@@ -61,67 +62,14 @@ namespace SpellGuard.Core
         public SpellGuardGameSettings GameSettings => gameSettings;
         public SpellGuardFlowController FlowController => flowController;
         public DebugHud DebugHud => debugHud;
+        public SpellGuardMenuOverlay MenuOverlay => menuOverlay;
         public MotionGestureFeedbackBoard MotionGestureFeedbackBoard => motionGestureFeedbackBoard;
 
-        public void AutoBindMissingReferences()
+        public void ValidateSerializedReferences()
         {
-            gameSettings ??= GetOrAddComponent<SpellGuardGameSettings>(gameObject);
-            flowController ??= GetOrAddComponent<SpellGuardFlowController>(gameObject);
-            enemySpawner ??= GetOrAddComponent<EnemySpawner>(gameObject);
-            gameFlowManager ??= GetOrAddComponent<GameFlowManager>(gameObject);
-            debugHud ??= GetOrAddComponent<DebugHud>(gameObject);
-
-            inputRouter ??= FindObjectOfType<GestureInputRouter>(true);
-            mockProvider ??= FindObjectOfType<MockGestureInputProvider>(true);
-            nativeMediapipeProvider ??= FindObjectOfType<NativeMediapipeGestureProvider>(true);
-            nativeMediapipeRunner ??= FindObjectOfType<NativeMediapipeGestureRunner>(true);
-            nativeMotionGestureRecognizer ??= FindObjectOfType<NativeMotionGestureRecognizer>(true);
-            externalBridge ??= FindObjectOfType<ExternalGestureBridgeProvider>(true);
-            externalMotionGestureRecognizer ??= FindObjectOfType<ExternalMotionGestureRecognizer>(true);
-            udpGestureReceiver ??= FindObjectOfType<UdpGestureReceiver>(true);
-            webcamFeed ??= FindObjectOfType<WebcamFeedController>(true);
-            fpsMotor ??= FindObjectOfType<FpsGestureMotor>(true);
-            spellCaster ??= FindObjectOfType<GestureSpellCaster>(true);
-            playerHealth ??= FindObjectOfType<PlayerHealth>(true);
-            enemySpawner ??= FindObjectOfType<EnemySpawner>(true);
-            gameFlowManager ??= FindObjectOfType<GameFlowManager>(true);
-            gameSettings ??= FindObjectOfType<SpellGuardGameSettings>(true);
-            flowController ??= FindObjectOfType<SpellGuardFlowController>(true);
-            debugHud ??= FindObjectOfType<DebugHud>(true);
-            motionGestureFeedbackBoard ??= FindObjectOfType<MotionGestureFeedbackBoard>(true);
-
-            if (inputProvider == null)
+            if (inputProvider == null && inputRouter != null)
             {
-                inputProvider = inputRouter != null ? inputRouter : FindObjectOfType<GestureInputProviderBase>(true);
-            }
-
-            if (externalMotionGestureRecognizer == null && externalBridge != null)
-            {
-                externalMotionGestureRecognizer = GetOrAddComponent<ExternalMotionGestureRecognizer>(externalBridge.gameObject);
-            }
-
-            if (nativeMotionGestureRecognizer == null && nativeMediapipeProvider != null)
-            {
-                nativeMotionGestureRecognizer = GetOrAddComponent<NativeMotionGestureRecognizer>(nativeMediapipeProvider.gameObject);
-            }
-
-            if (playerRoot == null && fpsMotor != null)
-            {
-                playerRoot = fpsMotor.transform;
-            }
-
-            if (cameraPivot == null && mainCamera != null && mainCamera.transform.parent != null)
-            {
-                cameraPivot = mainCamera.transform.parent;
-            }
-
-            if (mainCamera == null)
-            {
-                mainCamera = Camera.main;
-                if (mainCamera == null)
-                {
-                    mainCamera = FindObjectOfType<Camera>(true);
-                }
+                inputProvider = inputRouter;
             }
         }
 
@@ -145,9 +93,9 @@ namespace SpellGuard.Core
                 return false;
             }
 
-            if (enemySpawner == null || gameFlowManager == null || debugHud == null || gameSettings == null || flowController == null)
+            if (enemySpawner == null || gameFlowManager == null || debugHud == null || menuOverlay == null || gameSettings == null || flowController == null)
             {
-                reason = "流程、战斗或 HUD 组件引用不完整";
+                reason = "流程、战斗或 UI 组件引用不完整";
                 return false;
             }
 
@@ -155,15 +103,5 @@ namespace SpellGuard.Core
             return true;
         }
 
-        private static T GetOrAddComponent<T>(GameObject target) where T : Component
-        {
-            var component = target.GetComponent<T>();
-            if (component == null)
-            {
-                component = target.AddComponent<T>();
-            }
-
-            return component;
-        }
     }
 }
