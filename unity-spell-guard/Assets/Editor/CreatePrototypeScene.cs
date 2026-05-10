@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using SpellGuard.Audio;
 using SpellGuard.Combat;
 using SpellGuard.Core;
 using SpellGuard.InputSystem;
@@ -157,6 +158,7 @@ namespace SpellGuard.EditorTools
             camera.clearFlags = CameraClearFlags.Skybox;
             camera.fieldOfView = 72f;
             camera.backgroundColor = new Color(0.02f, 0.03f, 0.07f);
+            cameraObject.AddComponent<AudioListener>();
 
             var motionGestureFeedbackBoard = GameObject.CreatePrimitive(PrimitiveType.Quad);
             motionGestureFeedbackBoard.name = "MotionGestureFeedbackBoard";
@@ -198,6 +200,7 @@ namespace SpellGuard.EditorTools
             var flow = new GameObject("GameFlow");
             var sceneContext = flow.AddComponent<SpellGuardSceneContext>();
             var bootstrap = flow.AddComponent<SpellGuardBootstrap>();
+            var audioController = flow.AddComponent<SpellGuardAudioController>();
             var settings = flow.AddComponent<SpellGuardGameSettings>();
             var flowController = flow.AddComponent<SpellGuardFlowController>();
             var spawner = flow.AddComponent<EnemySpawner>();
@@ -208,6 +211,7 @@ namespace SpellGuard.EditorTools
             SetField(inputRouter, "mockProvider", mockProvider);
             SetField(inputRouter, "nativeMediapipeProvider", nativeMediapipeProvider);
             SetField(inputRouter, "externalBridgeProvider", externalBridge);
+            SetField(inputRouter, "mode", GestureInputRouter.InputMode.Mock);
 
             SetField(sceneContext, "inputProvider", inputRouter);
             SetField(sceneContext, "inputRouter", inputRouter);
@@ -231,9 +235,11 @@ namespace SpellGuard.EditorTools
             SetField(sceneContext, "flowController", flowController);
             SetField(sceneContext, "debugHud", hud);
             SetField(sceneContext, "menuOverlay", menuOverlay);
+            SetField(sceneContext, "audioController", audioController);
             SetField(sceneContext, "motionGestureFeedbackBoard", motionGestureFeedbackBoardComponent);
 
             SetField(flowController, "settings", settings);
+            SetField(flowController, "inputProvider", inputRouter);
             SetField(flowController, "motor", motor);
             SetField(flowController, "spellCaster", spellCaster);
             SetField(flowController, "playerHealth", health);

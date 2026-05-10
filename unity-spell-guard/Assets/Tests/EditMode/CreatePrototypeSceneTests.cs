@@ -91,6 +91,7 @@ namespace SpellGuard.Tests.EditMode
 
             var flowControllerObject = new SerializedObject(flowController);
             Assert.That(flowControllerObject.FindProperty("settings")?.objectReferenceValue, Is.SameAs(sceneContext.GameSettings));
+            Assert.That(flowControllerObject.FindProperty("inputProvider")?.objectReferenceValue, Is.SameAs(inputRouter));
             Assert.That(flowControllerObject.FindProperty("motor")?.objectReferenceValue, Is.SameAs(motor));
             Assert.That(flowControllerObject.FindProperty("spellCaster")?.objectReferenceValue, Is.SameAs(spellCaster));
             Assert.That(flowControllerObject.FindProperty("playerHealth")?.objectReferenceValue, Is.SameAs(playerHealth));

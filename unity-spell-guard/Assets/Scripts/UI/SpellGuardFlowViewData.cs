@@ -20,7 +20,12 @@ namespace SpellGuard.UI
             int trainingIceCasts,
             int trainingShieldCasts,
             SpellType lastTrainingSpell,
-            int hitRate)
+            int hitRate,
+            SpellGuardRunResult runResult,
+            int targetScoreToWin,
+            int bestScore,
+            bool tutorialSeen,
+            bool trainingComplete)
         {
             Screen = screen;
             HintText = hintText;
@@ -37,6 +42,11 @@ namespace SpellGuard.UI
             TrainingShieldCasts = trainingShieldCasts;
             LastTrainingSpell = lastTrainingSpell;
             HitRate = hitRate;
+            RunResult = runResult;
+            TargetScoreToWin = targetScoreToWin;
+            BestScore = bestScore;
+            TutorialSeen = tutorialSeen;
+            TrainingComplete = trainingComplete;
         }
 
         public SpellGuardScreen Screen { get; }
@@ -54,5 +64,10 @@ namespace SpellGuard.UI
         public int TrainingShieldCasts { get; }
         public SpellType LastTrainingSpell { get; }
         public int HitRate { get; }
+        public SpellGuardRunResult RunResult { get; }
+        public int TargetScoreToWin { get; }
+        public int BestScore { get; }
+        public bool TutorialSeen { get; }
+        public bool TrainingComplete { get; }
     }
 }

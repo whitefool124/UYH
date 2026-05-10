@@ -4,5 +4,8 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/SpellGuardPrototype.unity
+    guid: 2e612804685da6c4db1c0be94b04b8a0
   m_configObjects: {}

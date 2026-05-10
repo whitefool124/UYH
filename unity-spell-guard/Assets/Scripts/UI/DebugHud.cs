@@ -40,6 +40,10 @@ namespace SpellGuard.UI
         [SerializeField] private GameFlowManager gameFlow;
         [SerializeField] private SpellGuardFlowController flowController;
 
+        private GUIStyle quickActionStyle;
+        private GUIStyle quickActionPanelStyle;
+        private GUIStyle quickActionLabelStyle;
+
         private GUIStyle labelStyle;
         private GUIStyle titleStyle;
         private GUIStyle subTitleStyle;
@@ -68,6 +72,7 @@ namespace SpellGuard.UI
             DrawPrimaryHud(snapshot, frame, viewData, layout);
             DrawSecondaryHud(snapshot, frame, viewData, layout);
             DrawPreview(snapshot, layout);
+            DrawQuickActions(viewData, layout);
 
         }
 
@@ -120,12 +125,12 @@ namespace SpellGuard.UI
             GUILayout.Label($"运行时来源：{frame.Source} · 手数 {frame.HandCount}", labelStyle);
             GUILayout.Label($"施法反馈：{(spellCaster != null ? spellCaster.StatusText : "无")}", labelStyle);
             GUILayout.Label($"生命 {viewData.HealthText} · 护盾 {viewData.ShieldText} · 敌人 {viewData.EnemyText}", labelStyle);
-            GUILayout.Label($"前进状态：{(motor != null && motor.IsMovingForward ? "推进中" : "待命")}", labelStyle);
+            GUILayout.Label($"位移状态：{GetMovementStateText()}", labelStyle);
 
             if (gameFlow != null && gameFlow.GameOver)
             {
                 GUILayout.Space(6f * layout.Scale);
-                GUILayout.Label("战斗结束 · 按 R 立即重开", accentStyle);
+                GUILayout.Label($"战斗结束 · {GetRunResultText(gameFlow.RunResult)}", accentStyle);
             }
 
             GUILayout.EndArea();
@@ -136,7 +141,7 @@ namespace SpellGuard.UI
             DrawPanel(layout.SecondaryPanel, new Color(0.06f, 0.08f, 0.12f, 0.9f), new Color(0.32f, 0.55f, 0.96f, 0.94f));
             GUILayout.BeginArea(Shrink(layout.SecondaryPanel, layout.Padding, layout.Padding + 22f * layout.Scale, layout.Padding, layout.Padding));
             GUILayout.Label("识别与调试信息", subTitleStyle);
-            GUILayout.Label("F1 切换输入模式 · Point 转向前进 · Fist / V / Palm / Snap / 扇手施法", labelStyle);
+            GUILayout.Label("F1 切换输入模式 · 左右摆手横移 · 上下摆手前后移 · Fist / V / Palm / Snap 施法", labelStyle);
             GUILayout.Space(4f * layout.Scale);
             GUILayout.Label($"手位：{snapshot.ViewportPosition:F2}", labelStyle);
             if (frame.HandCount > 0)
@@ -158,8 +163,10 @@ namespace SpellGuard.UI
 
         private SpellGuardHudViewData BuildViewData()
         {
+            var screenStatus = flowController != null ? flowController.GetScreenStatus() : new SpellGuardRuntimeStatus("未绑定", "无可用流程状态");
+
             return new SpellGuardHudViewData(
-                GetScreenLabel(),
+                screenStatus.Title,
                 GetInputModeLabel(),
                 GetMotionCaptureSignal(),
                 GetHealthText(),
@@ -172,6 +179,33 @@ namespace SpellGuard.UI
         private string GetHealthText() => playerHealth != null ? playerHealth.CurrentHealth.ToString() : "0";
         private string GetShieldText() => playerHealth != null && playerHealth.ShieldActive ? "开启" : "关闭";
         private string GetEnemyText() => enemySpawner != null ? enemySpawner.AliveEnemies.Count.ToString() : "0";
+
+        private string GetMovementStateText()
+        {
+            if (motor == null || !motor.IsStepInProgress)
+            {
+                return "待命";
+            }
+
+            return motor.CurrentStepDirection switch
+            {
+                FpsGestureMotor.DiscreteMoveDirection.Forward => "前进一步中",
+                FpsGestureMotor.DiscreteMoveDirection.Backward => "后退一步中",
+                FpsGestureMotor.DiscreteMoveDirection.Left => "左移一步中",
+                FpsGestureMotor.DiscreteMoveDirection.Right => "右移一步中",
+                _ => "位移中"
+            };
+        }
+
+        private static string GetRunResultText(SpellGuardRunResult runResult)
+        {
+            return runResult switch
+            {
+                SpellGuardRunResult.Victory => "已达成目标分数，请在结果页继续",
+                SpellGuardRunResult.Defeat => "生命耗尽，请在结果页重开或返回",
+                _ => "请在结果页继续"
+            };
+        }
 
         private void DrawPreview(GestureSnapshot snapshot, HudLayout layout)
         {
@@ -216,6 +250,160 @@ namespace SpellGuard.UI
             }
 
             DrawMotionCaptureBanner(textureRect);
+        }
+
+        private void DrawQuickActions(SpellGuardHudViewData viewData, HudLayout layout)
+        {
+            EnsureQuickActionStyles(layout.Scale);
+
+            var width = Mathf.Clamp(layout.PrimaryPanel.width + layout.SecondaryPanel.width + layout.PreviewPanel.width + layout.Padding * 2f, 380f, UnityEngine.Screen.width - layout.Padding * 2f);
+            var panelHeight = Mathf.Clamp(92f * layout.Scale, 82f, 104f);
+            var panel = new Rect(layout.Padding, UnityEngine.Screen.height - layout.Padding - panelHeight, width, panelHeight);
+            DrawPanel(panel, new Color(0.05f, 0.06f, 0.09f, 0.9f), new Color(0.78f, 0.76f, 0.28f, 0.9f));
+
+            var content = Shrink(panel, 14f, 12f, 14f, 12f);
+            GUI.Label(new Rect(content.x, content.y, content.width, 20f * layout.Scale), GetQuickActionTitle(viewData), quickActionLabelStyle);
+
+            var buttonY = content.y + 26f * layout.Scale;
+            var buttonHeight = Mathf.Clamp(32f * layout.Scale, 28f, 36f);
+            var gap = Mathf.Clamp(8f * layout.Scale, 6f, 12f);
+            var buttonCount = GetQuickActionCount();
+            var buttonWidth = (content.width - gap * Mathf.Max(0, buttonCount - 1)) / buttonCount;
+
+            var index = 0;
+            DrawQuickActionButton(new Rect(content.x + index++ * (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), GetPrimaryActionLabel(), GetPrimaryAction());
+            if (flowController != null && flowController.Screen == SpellGuardScreen.Playing)
+            {
+                DrawQuickActionButton(new Rect(content.x + index++ * (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), "暂停战斗", () => flowController.PauseRun());
+            }
+            else if (flowController != null && flowController.Screen == SpellGuardScreen.Paused)
+            {
+                DrawQuickActionButton(new Rect(content.x + index++ * (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), "继续战斗", () => flowController.ResumeRun());
+            }
+            else if (flowController != null && flowController.Screen == SpellGuardScreen.Training)
+            {
+                DrawQuickActionButton(new Rect(content.x + index++ * (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), flowController.TrainingComplete ? "开始正式守卫" : "完成训练后开始", () => flowController.StartRunFromTraining());
+            }
+            else if (flowController != null && flowController.Screen == SpellGuardScreen.Results)
+            {
+                DrawQuickActionButton(new Rect(content.x + index++ * (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), "再来一局", () => flowController.StartRun());
+            }
+
+            DrawQuickActionButton(new Rect(content.x + (buttonCount - 1) * (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), "返回主菜单", () => flowController?.ReturnToMenu());
+        }
+
+        private int GetQuickActionCount()
+        {
+            if (flowController == null)
+            {
+                return 2;
+            }
+
+            return flowController.Screen switch
+            {
+                SpellGuardScreen.Playing => 3,
+                SpellGuardScreen.Paused => 3,
+                SpellGuardScreen.Training => 3,
+                SpellGuardScreen.Results => 3,
+                _ => 2,
+            };
+        }
+
+        private string GetQuickActionTitle(SpellGuardHudViewData viewData)
+        {
+            if (flowController == null)
+            {
+                return "流程快捷操作";
+            }
+
+            return flowController.Screen switch
+            {
+                SpellGuardScreen.Menu => $"流程快捷操作 · {viewData.ScreenLabel} · 可直接进入训练或开始守卫",
+                SpellGuardScreen.Settings => $"流程快捷操作 · {viewData.ScreenLabel} · 可切换参数后返回",
+                SpellGuardScreen.Tutorial => $"流程快捷操作 · {viewData.ScreenLabel} · 可直接进入训练或战斗",
+                SpellGuardScreen.Training => $"流程快捷操作 · {viewData.ScreenLabel} · 先完成训练，再进入正式守卫",
+                SpellGuardScreen.Playing => $"流程快捷操作 · {viewData.ScreenLabel} · 可随时暂停",
+                SpellGuardScreen.Paused => $"流程快捷操作 · {viewData.ScreenLabel} · 可继续、重开或返回",
+                SpellGuardScreen.Results => $"流程快捷操作 · {viewData.ScreenLabel} · 可再来一局或返回",
+                _ => "流程快捷操作",
+            };
+        }
+
+        private string GetPrimaryActionLabel()
+        {
+            if (flowController == null)
+            {
+                return "开始守卫";
+            }
+
+            return flowController.Screen switch
+            {
+                SpellGuardScreen.Menu => "开始守卫",
+                SpellGuardScreen.Settings => "调整设置",
+                SpellGuardScreen.Tutorial => "开始守卫",
+                SpellGuardScreen.Training => "进入训练场",
+                SpellGuardScreen.Playing => "战斗中",
+                SpellGuardScreen.Paused => "暂停中",
+                SpellGuardScreen.Results => "结果页",
+                _ => "开始守卫",
+            };
+        }
+
+        private System.Action GetPrimaryAction()
+        {
+            if (flowController == null)
+            {
+                return null;
+            }
+
+            return flowController.Screen switch
+            {
+                SpellGuardScreen.Menu => () => flowController.StartRun(),
+                SpellGuardScreen.Settings => () => flowController.ReturnToMenu(),
+                SpellGuardScreen.Tutorial => () => flowController.StartRun(),
+                SpellGuardScreen.Training => () => flowController.StartRunFromTraining(),
+                SpellGuardScreen.Playing => () => flowController.PauseRun(),
+                SpellGuardScreen.Paused => () => flowController.ResumeRun(),
+                SpellGuardScreen.Results => () => flowController.StartRun(),
+                _ => () => flowController.StartRun(),
+            };
+        }
+
+        private void DrawQuickActionButton(Rect rect, string label, System.Action action)
+        {
+            if (action == null)
+            {
+                return;
+            }
+
+            if (GUI.Button(rect, label, quickActionStyle))
+            {
+                action.Invoke();
+            }
+        }
+
+        private void EnsureQuickActionStyles(float scale)
+        {
+            if (quickActionStyle != null)
+            {
+                return;
+            }
+
+            quickActionStyle = new GUIStyle(GUI.skin.button)
+            {
+                fontSize = Mathf.RoundToInt(14f * scale),
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+                wordWrap = false
+            };
+
+            quickActionPanelStyle = new GUIStyle(GUI.skin.box);
+            quickActionLabelStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = Mathf.RoundToInt(13f * scale),
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = new Color(0.95f, 0.92f, 0.78f, 1f) }
+            };
         }
 
         private void DrawHandSkeleton(Rect textureRect, bool mirrorPreview)
@@ -447,23 +635,5 @@ namespace SpellGuard.UI
             };
         }
 
-        private string GetScreenLabel()
-        {
-            if (flowController == null)
-            {
-                return "未绑定";
-            }
-
-            return flowController.Screen switch
-            {
-                SpellGuardScreen.Menu => "主菜单",
-                SpellGuardScreen.Settings => "设置",
-                SpellGuardScreen.Tutorial => "教程",
-                SpellGuardScreen.Training => "训练场",
-                SpellGuardScreen.Playing => "战斗中",
-                SpellGuardScreen.Results => "结果页",
-                _ => "未绑定"
-            };
-        }
     }
 }
