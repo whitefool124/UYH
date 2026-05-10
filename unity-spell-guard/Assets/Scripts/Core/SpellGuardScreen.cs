@@ -7,6 +7,7 @@ namespace SpellGuard.Core
         Tutorial,
         Training,
         Playing,
+        Paused,
         Results
     }
 }

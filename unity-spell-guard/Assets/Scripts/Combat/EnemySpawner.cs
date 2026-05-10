@@ -56,21 +56,15 @@ namespace SpellGuard.Combat
 
         public void ApplySettings(SpellGuardDifficulty difficulty)
         {
-            switch (difficulty)
+            var config = difficulty switch
             {
-                case SpellGuardDifficulty.Relaxed:
-                    spawnInterval = 3.1f;
-                    maxAliveEnemies = 4;
-                    break;
-                case SpellGuardDifficulty.Intense:
-                    spawnInterval = 1.8f;
-                    maxAliveEnemies = 8;
-                    break;
-                default:
-                    spawnInterval = 2.5f;
-                    maxAliveEnemies = 6;
-                    break;
-            }
+                SpellGuardDifficulty.Relaxed => DifficultySettings.Relaxed,
+                SpellGuardDifficulty.Intense => DifficultySettings.Intense,
+                _ => DifficultySettings.Standard
+            };
+
+            spawnInterval = config.SpawnInterval;
+            maxAliveEnemies = config.MaxAliveEnemies;
         }
 
         private void SpawnEnemy()
@@ -94,6 +88,7 @@ namespace SpellGuard.Combat
 
             var enemy = enemyObject.AddComponent<SimpleEnemyController>();
             enemy.Initialize(playerRoot, playerHealth);
+            enemy.ApplyConfig(EnemyConfig.Default);
             aliveEnemies.Add(enemy);
         }
     }

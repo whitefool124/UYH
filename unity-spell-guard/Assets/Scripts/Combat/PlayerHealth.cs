@@ -1,4 +1,5 @@
 using UnityEngine;
+using SpellGuard.Audio;
 
 namespace SpellGuard.Combat
 {
@@ -38,10 +39,12 @@ namespace SpellGuard.Combat
             if (ShieldActive)
             {
                 ShieldActiveUntil = 0f;
+                SpellGuardAudioController.Instance?.PlaySpellCastSfx(SpellType.Shield);
                 return false;
             }
 
             CurrentHealth = Mathf.Max(0, CurrentHealth - damage);
+            SpellGuardAudioController.Instance?.PlayPlayerHitSfx();
             return CurrentHealth <= 0;
         }
     }

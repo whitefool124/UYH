@@ -1,4 +1,5 @@
 using SpellGuard.Combat;
+using SpellGuard.Audio;
 using SpellGuard.InputSystem;
 using System;
 using UnityEngine;
@@ -12,7 +13,6 @@ namespace SpellGuard.Player
         [SerializeField] private PlayerHealth playerHealth;
         [SerializeField] private float confirmSeconds = 0.4f;
         [SerializeField] private float castDistance = 50f;
-        [SerializeField] private float shieldDuration = 3f;
         [SerializeField] private float castStatusHoldSeconds = 0.75f;
         [SerializeField] private LayerMask hitMask = Physics.DefaultRaycastLayers;
         [SerializeField] private bool debugLogs = true;
@@ -31,6 +31,11 @@ namespace SpellGuard.Player
         public SpellType LastCastSpell => lastCastSpell;
         public string StatusText { get; private set; } = "等待手势";
         public event Action<SpellType, int> SpellResolved;
+
+        public SpellConfig GetSpellConfig(SpellType spellType)
+        {
+            return SpellConfigLibrary.Get(spellType);
+        }
 
         public void SetConfirmSeconds(float value)
         {
@@ -115,20 +120,22 @@ namespace SpellGuard.Player
         private void Cast(SpellType spell)
         {
             var hitCount = 0;
+            var spellConfig = GetSpellConfig(spell);
+            SpellGuardAudioController.Instance?.PlaySpellCastSfx(spell);
             switch (spell)
             {
                 case SpellType.Fire:
-                    hitCount = TryHitEnemy(enemy => enemy.ApplyDamage(1));
+                    hitCount = TryHitEnemy(enemy => enemy.ApplyDamage(spellConfig.Damage));
                     StatusText = "火焰术已释放";
                     break;
                 case SpellType.Ice:
-                    hitCount = TryHitEnemy(enemy => enemy.ApplyFreeze(2.5f));
+                    hitCount = TryHitEnemy(enemy => enemy.ApplyFreeze(spellConfig.FreezeDuration));
                     StatusText = "冰霜术已释放";
                     break;
                 case SpellType.Shield:
                     if (playerHealth != null)
                     {
-                        playerHealth.ActivateShield(shieldDuration);
+                        playerHealth.ActivateShield(spellConfig.ShieldDuration);
                     }
                     StatusText = "护盾术已释放";
                     break;
@@ -212,12 +219,6 @@ namespace SpellGuard.Player
                 case MotionGestureType.Snap:
                 case MotionGestureType.PointToFist:
                     return SpellType.Fire;
-                case MotionGestureType.SwipeLeftToRight:
-                case MotionGestureType.OpenPalmSlapLeftToRight:
-                    return SpellType.Ice;
-                case MotionGestureType.SwipeRightToLeft:
-                case MotionGestureType.OpenPalmSlapRightToLeft:
-                    return SpellType.Shield;
                 default:
                     return SpellType.None;
             }

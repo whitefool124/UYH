@@ -1,4 +1,5 @@
 using SpellGuard.Combat;
+using SpellGuard.Audio;
 using SpellGuard.InputSystem;
 using SpellGuard.Player;
 using SpellGuard.UI;
@@ -38,6 +39,9 @@ namespace SpellGuard.Core
         [SerializeField] private DebugHud debugHud;
         [SerializeField] private SpellGuardMenuOverlay menuOverlay;
 
+        [Header("Audio")]
+        [SerializeField] private SpellGuardAudioController audioController;
+
         [Header("Feedback")]
         [SerializeField] private MotionGestureFeedbackBoard motionGestureFeedbackBoard;
 
@@ -63,6 +67,7 @@ namespace SpellGuard.Core
         public SpellGuardFlowController FlowController => flowController;
         public DebugHud DebugHud => debugHud;
         public SpellGuardMenuOverlay MenuOverlay => menuOverlay;
+        public SpellGuardAudioController AudioController => audioController;
         public MotionGestureFeedbackBoard MotionGestureFeedbackBoard => motionGestureFeedbackBoard;
 
         public void ValidateSerializedReferences()
@@ -93,9 +98,9 @@ namespace SpellGuard.Core
                 return false;
             }
 
-            if (enemySpawner == null || gameFlowManager == null || debugHud == null || menuOverlay == null || gameSettings == null || flowController == null)
+            if (enemySpawner == null || gameFlowManager == null || debugHud == null || menuOverlay == null || gameSettings == null || flowController == null || audioController == null)
             {
-                reason = "流程、战斗或 UI 组件引用不完整";
+                reason = "流程、战斗、UI 或音频组件引用不完整";
                 return false;
             }
 

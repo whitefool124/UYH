@@ -1,4 +1,5 @@
 using SpellGuard.InputSystem;
+using SpellGuard.Audio;
 using UnityEngine;
 
 namespace SpellGuard.Core
@@ -34,6 +35,8 @@ namespace SpellGuard.Core
                 return;
             }
 
+            EnsureAudioController();
+
             sceneContext.ValidateSerializedReferences();
 
             if (!sceneContext.IsValid(out var reason))
@@ -62,11 +65,50 @@ namespace SpellGuard.Core
             {
                 sceneContext.MotionGestureFeedbackBoard.Configure(sceneContext.InputProvider, sceneContext.MainCamera);
             }
+            if (sceneContext.AudioController != null)
+            {
+                sceneContext.AudioController.ApplySettings(sceneContext.GameSettings);
+                sceneContext.AudioController.PlayMenuMusic();
+            }
 
             SubscribeToInputRouter();
             SyncInputBackendLifecycle();
 
             IsBootstrapped = true;
+        }
+
+        private void EnsureAudioController()
+        {
+            if (sceneContext == null || sceneContext.AudioController != null)
+            {
+                return;
+            }
+
+            var existing = sceneContext.GetComponent<SpellGuardAudioController>();
+            if (existing != null)
+            {
+                SetPrivateField(sceneContext, "audioController", existing);
+                return;
+            }
+
+            var created = sceneContext.gameObject.AddComponent<SpellGuardAudioController>();
+            SetPrivateField(sceneContext, "audioController", created);
+        }
+
+        private static void SetPrivateField(Object target, string fieldName, Object value)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            var field = target.GetType().GetField(fieldName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            if (field == null)
+            {
+                return;
+            }
+
+            field.SetValue(target, value);
         }
 
         private void SubscribeToInputRouter()
@@ -104,13 +146,18 @@ namespace SpellGuard.Core
                 return;
             }
 
-            var useExternalBridge = sceneContext.InputProvider == sceneContext.ExternalBridge ||
-                                    (sceneContext.InputRouter != null && sceneContext.InputRouter.Mode == GestureInputRouter.InputMode.ExternalBridge);
+            var mode = sceneContext.InputRouter != null ? sceneContext.InputRouter.Mode : GestureInputRouter.InputMode.Mock;
+            var useNativeMediapipe = mode == GestureInputRouter.InputMode.NativeMediapipe;
+            var useExternalBridge = mode == GestureInputRouter.InputMode.ExternalBridge;
 
-            if (sceneContext.NativeMediapipeRunner != null && !useExternalBridge)
+            if (sceneContext.NativeMediapipeRunner != null)
             {
-                sceneContext.NativeMediapipeRunner.Configure(sceneContext.NativeMediapipeProvider, sceneContext.WebcamFeed);
-                sceneContext.NativeMediapipeRunner.StartRunner();
+                sceneContext.NativeMediapipeRunner.enabled = useNativeMediapipe;
+                if (useNativeMediapipe)
+                {
+                    sceneContext.NativeMediapipeRunner.Configure(sceneContext.NativeMediapipeProvider, sceneContext.WebcamFeed);
+                    sceneContext.NativeMediapipeRunner.StartRunner();
+                }
             }
 
             if (sceneContext.UdpGestureReceiver != null)
@@ -125,9 +172,23 @@ namespace SpellGuard.Core
                 }
             }
 
-            if (!useExternalBridge && sceneContext.WebcamFeed != null && !sceneContext.WebcamFeed.IsRunning)
+            if (sceneContext.WebcamFeed != null)
             {
-                sceneContext.WebcamFeed.StartCamera();
+                if (useNativeMediapipe && !sceneContext.WebcamFeed.IsRunning)
+                {
+                    sceneContext.WebcamFeed.StartCamera();
+                    if (!sceneContext.WebcamFeed.IsRunning)
+                    {
+                        sceneContext.InputRouter?.SetMode(GestureInputRouter.InputMode.Mock);
+                        sceneContext.NativeMediapipeRunner.enabled = false;
+                        sceneContext.NativeMediapipeProvider?.SetStatusText("摄像头不可用，已回退到 Mock");
+                        sceneContext.AudioController?.PlayMenuMusic();
+                    }
+                }
+                else if (!useNativeMediapipe && sceneContext.WebcamFeed.IsRunning)
+                {
+                    sceneContext.WebcamFeed.StopCamera();
+                }
             }
         }
     }

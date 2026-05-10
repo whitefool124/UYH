@@ -8,33 +8,51 @@ namespace SpellGuard.Core
     {
         [SerializeField] private PlayerHealth playerHealth;
         [SerializeField] private EnemySpawner enemySpawner;
+        [SerializeField] private int targetScoreToWin = 12;
 
         public bool GameOver { get; private set; }
+        public SpellGuardRunResult RunResult { get; private set; }
+        public int TargetScoreToWin => Mathf.Max(1, targetScoreToWin);
 
         public void ResetGameOver()
         {
             GameOver = false;
+            RunResult = SpellGuardRunResult.None;
+        }
+
+        public void ReportCombatScore(int combatScore)
+        {
+            if (GameOver)
+            {
+                return;
+            }
+
+            if (combatScore >= TargetScoreToWin)
+            {
+                EndRun(SpellGuardRunResult.Victory);
+            }
         }
 
         private void Update()
         {
             if (GameOver)
             {
-                if (Input.GetKeyDown(KeyCode.R))
-                {
-                    SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-                }
-
                 return;
             }
 
             if (playerHealth != null && !playerHealth.IsAlive)
             {
-                GameOver = true;
-                if (enemySpawner != null)
-                {
-                    enemySpawner.ClearAll();
-                }
+                EndRun(SpellGuardRunResult.Defeat);
+            }
+        }
+
+        private void EndRun(SpellGuardRunResult result)
+        {
+            GameOver = true;
+            RunResult = result;
+            if (enemySpawner != null)
+            {
+                enemySpawner.ClearAll();
             }
         }
     }
