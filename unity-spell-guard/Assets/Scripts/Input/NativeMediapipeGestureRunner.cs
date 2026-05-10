@@ -7,11 +7,15 @@ using Mediapipe.Unity;
 using Mediapipe.Unity.CoordinateSystem;
 using Mediapipe.Unity.Experimental;
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace SpellGuard.InputSystem
 {
     public class NativeMediapipeGestureRunner : MonoBehaviour
     {
+        private const string GoogleLoggingSessionKey = "SpellGuard.NativeMediapipe.GoogleLoggingInitialized";
         private const string InputStreamName = "input_video";
         private const string OutputVideoStreamName = "output_video";
         private const string LandmarksStreamName = "landmarks";
@@ -159,7 +163,9 @@ node: {
             if (mediapipeInitialized)
             {
                 GpuManager.Shutdown();
+#if !UNITY_EDITOR
                 Glog.Shutdown();
+#endif
                 Protobuf.ResetLogHandler();
                 mediapipeInitialized = false;
             }
@@ -198,7 +204,11 @@ node: {
             targetProvider.SetStatusText("正在初始化原生识别");
 
             Protobuf.SetLogHandler(Protobuf.DefaultLogHandler);
-            Glog.Initialize("SpellGuardLegacyMediapipe");
+            if (!IsGoogleLoggingInitialized())
+            {
+                Glog.Initialize("SpellGuardLegacyMediapipe");
+                MarkGoogleLoggingInitialized();
+            }
             IResourceManager resourceManager = new LocalResourceManager();
             yield return resourceManager.PrepareAssetAsync("hand_landmark_full.bytes", overwrite: true);
             yield return resourceManager.PrepareAssetAsync("hand_recrop.bytes", overwrite: true);
@@ -438,6 +448,22 @@ node: {
                 270 => RotationAngle.Rotation270,
                 _ => RotationAngle.Rotation0,
             };
+        }
+
+        private static bool IsGoogleLoggingInitialized()
+        {
+#if UNITY_EDITOR
+            return SessionState.GetBool(GoogleLoggingSessionKey, false);
+#else
+            return false;
+#endif
+        }
+
+        private static void MarkGoogleLoggingInitialized()
+        {
+#if UNITY_EDITOR
+            SessionState.SetBool(GoogleLoggingSessionKey, true);
+#endif
         }
     }
 }

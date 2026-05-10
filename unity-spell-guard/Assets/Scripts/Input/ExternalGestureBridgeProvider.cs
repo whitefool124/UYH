@@ -214,6 +214,13 @@ namespace SpellGuard.InputSystem
             RefreshCurrentCommand(false);
         }
 
+        public override void ClearTransientInputs()
+        {
+            latestMotionGesture = MotionGestureEvent.None;
+            RefreshGestureFrame();
+            RefreshCurrentCommand(false);
+        }
+
         private void RefreshTimeoutState()
         {
             if (clearWhenTimedOut && Time.time - lastPushTime > snapshotTimeout)
@@ -338,6 +345,10 @@ namespace SpellGuard.InputSystem
                     return "左到右挥动";
                 case MotionGestureType.SwipeRightToLeft:
                     return "右到左挥动";
+                case MotionGestureType.SwipeBottomToTop:
+                    return "下到上挥动";
+                case MotionGestureType.SwipeTopToBottom:
+                    return "上到下挥动";
                 case MotionGestureType.OpenPalmSlapLeftToRight:
                     return "张掌左到右扇手";
                 case MotionGestureType.OpenPalmSlapRightToLeft:

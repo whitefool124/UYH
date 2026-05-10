@@ -154,6 +154,11 @@ namespace SpellGuard.InputSystem
             RefreshCurrentCommand(false);
         }
 
+        public override void ClearTransientInputs()
+        {
+            ClearMotionGesture();
+        }
+
         private void RefreshGestureFrame()
         {
             currentGestureFrame = LegacyGestureRuntimeAdapter.BuildSingleHandFrame(

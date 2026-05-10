@@ -245,10 +245,15 @@ namespace SpellGuard.InputSystem
             var last = samples[samples.Length - 1];
             var duration = Mathf.Max(0.0001f, last.Time - first.Time);
             var horizontalDelta = last.Palm.x - first.Palm.x;
+            var verticalDelta = last.Palm.y - first.Palm.y;
             var verticalDrift = Mathf.Abs(last.Palm.y - first.Palm.y);
+            var horizontalDrift = Mathf.Abs(last.Palm.x - first.Palm.x);
             var speed = Mathf.Abs(horizontalDelta) / duration;
 
-            if (verticalDrift > swipeMaxVerticalDrift || Mathf.Abs(horizontalDelta) < swipeMinDistance || speed < 0.2f)
+            var horizontalSwipeDetected = verticalDrift <= swipeMaxVerticalDrift && Mathf.Abs(horizontalDelta) >= swipeMinDistance && speed >= 0.2f;
+            var verticalSwipeDetected = horizontalDrift <= swipeMaxVerticalDrift && Mathf.Abs(verticalDelta) >= swipeMinDistance && Mathf.Abs(verticalDelta) / duration >= 0.2f;
+
+            if (!horizontalSwipeDetected && !verticalSwipeDetected)
             {
                 return false;
             }
@@ -259,7 +264,13 @@ namespace SpellGuard.InputSystem
             }
 
             lastSwipeTime = last.Time;
-            gesture = horizontalDelta > 0f ? MotionGestureType.SwipeLeftToRight : MotionGestureType.SwipeRightToLeft;
+            if (horizontalSwipeDetected && Mathf.Abs(horizontalDelta) >= Mathf.Abs(verticalDelta))
+            {
+                gesture = horizontalDelta > 0f ? MotionGestureType.SwipeLeftToRight : MotionGestureType.SwipeRightToLeft;
+                return true;
+            }
+
+            gesture = verticalDelta > 0f ? MotionGestureType.SwipeBottomToTop : MotionGestureType.SwipeTopToBottom;
             return true;
         }
 

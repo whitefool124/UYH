@@ -39,6 +39,28 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator DetectsVerticalSwipeUpFromExternalFrames()
+        {
+            yield return PushHandFrame(new Vector2(0.42f, 0.18f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.43f, 0.32f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.44f, 0.50f), 0.02f);
+
+            Assert.That(bridgeProvider.CurrentMotionGesture.IsValid, Is.True);
+            Assert.That(bridgeProvider.CurrentMotionGesture.Gesture, Is.EqualTo(MotionGestureType.SwipeBottomToTop));
+        }
+
+        [UnityTest]
+        public IEnumerator DetectsVerticalSwipeDownFromExternalFrames()
+        {
+            yield return PushHandFrame(new Vector2(0.42f, 0.52f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.43f, 0.36f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.44f, 0.19f), 0.02f);
+
+            Assert.That(bridgeProvider.CurrentMotionGesture.IsValid, Is.True);
+            Assert.That(bridgeProvider.CurrentMotionGesture.Gesture, Is.EqualTo(MotionGestureType.SwipeTopToBottom));
+        }
+
+        [UnityTest]
         public IEnumerator DetectsSnapFromExternalFrames()
         {
             yield return PushHandFrame(new Vector2(0.55f, 0.46f), 0.01f, 0.012f);

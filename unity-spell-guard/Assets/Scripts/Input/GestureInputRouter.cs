@@ -12,7 +12,7 @@ namespace SpellGuard.InputSystem
             ExternalBridge
         }
 
-        [SerializeField] private InputMode mode = InputMode.NativeMediapipe;
+        [SerializeField] private InputMode mode = InputMode.Mock;
         [SerializeField] private KeyCode toggleModeKey = KeyCode.F1;
         [SerializeField] private MockGestureInputProvider mockProvider;
         [SerializeField] private NativeMediapipeGestureProvider nativeMediapipeProvider;
@@ -106,6 +106,23 @@ namespace SpellGuard.InputSystem
         }
 
         public InputMode Mode => mode;
+
+        public override void ClearTransientInputs()
+        {
+            switch (mode)
+            {
+                case InputMode.NativeMediapipe:
+                    nativeMediapipeProvider?.ClearTransientInputs();
+                    break;
+                case InputMode.ExternalBridge:
+                    externalBridgeProvider?.ClearTransientInputs();
+                    break;
+                case InputMode.Mock:
+                default:
+                    mockProvider?.ClearTransientInputs();
+                    break;
+            }
+        }
 
         private void Update()
         {

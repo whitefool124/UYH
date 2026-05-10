@@ -4,7 +4,7 @@ namespace SpellGuard.InputSystem
 {
     public class WebcamFeedController : MonoBehaviour
     {
-        [SerializeField] private bool playOnAwake = true;
+        [SerializeField] private bool playOnAwake;
         [SerializeField] private int requestedWidth = 640;
         [SerializeField] private int requestedHeight = 480;
         [SerializeField] private int requestedFps = 30;
@@ -50,12 +50,23 @@ namespace SpellGuard.InputSystem
 
             preferredDeviceIndex = Mathf.Clamp(preferredDeviceIndex, 0, WebCamTexture.devices.Length - 1);
             var device = WebCamTexture.devices[preferredDeviceIndex];
-            activeDevice = device;
-            hasActiveDevice = true;
-            webcamTexture = new WebCamTexture(device.name, requestedWidth, requestedHeight, requestedFps);
-            webcamTexture.Play();
-            ActiveDeviceName = device.name;
-            StatusText = $"摄像头运行中：{device.name}";
+            try
+            {
+                activeDevice = device;
+                hasActiveDevice = true;
+                webcamTexture = new WebCamTexture(device.name, requestedWidth, requestedHeight, requestedFps);
+                webcamTexture.Play();
+                ActiveDeviceName = device.name;
+                StatusText = $"摄像头运行中：{device.name}";
+            }
+            catch (System.Exception ex)
+            {
+                webcamTexture = null;
+                hasActiveDevice = false;
+                ActiveDeviceName = "无";
+                StatusText = $"摄像头启动失败：{ex.GetType().Name}";
+                Debug.LogWarning($"[Gesture][Webcam] start failed: {ex.Message}", this);
+            }
         }
 
         public void StopCamera()

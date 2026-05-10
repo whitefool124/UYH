@@ -20,6 +20,10 @@ namespace SpellGuard.InputSystem
 
         public virtual GestureCommand[] RecentGestureCommands => System.Array.Empty<GestureCommand>();
 
+        public virtual void ClearTransientInputs()
+        {
+        }
+
         protected static GestureCommand ChooseGestureCommand(GestureSnapshot snapshot, MotionGestureEvent motion)
         {
             return LegacyGestureRuntimeAdapter.BuildCommand(snapshot, motion);
