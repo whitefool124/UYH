@@ -26,17 +26,21 @@ The project is designed to show a complete vision-to-gameplay pipeline:
 
 1. Open `unity-spell-guard/` in Unity Hub
 2. Wait for the project to import
-3. Run `Spell Guard/Create Prototype Scene`
-4. Open `Assets/Scenes/SpellGuardPrototype.unity`
-5. Press Play
+3. Open `Assets/Scenes/SpellGuardPrototype.unity`
+4. Press Play
+5. Optional: run `Spell Guard/Create Prototype Scene` if you need to regenerate the prototype scene from editor tooling
+
+The prototype scene is included in Build Settings as the first scene, so a standalone build can start from the demo loop directly.
 
 ## Runtime Modes
 
 Press `F1` to switch input source:
 
-- `Mock` – deterministic keyboard-driven testing
-- `NativeMediapipe` – the target in-Unity runtime path
+- `Mock` – deterministic keyboard-driven testing and the default safe demo mode
+- `NativeMediapipe` – the target in-Unity runtime path, started only when selected
 - `ExternalBridge` – compatibility / replay path via UDP bridge
+
+Native MediaPipe startup is guarded so camera or native initialization issues can fall back to the stable demo path instead of blocking the whole flow.
 
 ## Controls
 
@@ -53,11 +57,13 @@ Press `F1` to switch input source:
 
 ### Gameplay mapping
 
-- Point → camera turning / forward movement when hand is high enough
+- Point → camera guidance and forward step intent
+- Open Palm → defensive step-back intent / shield semantics
+- Left / Right motion gestures → lateral repositioning
 - Fist → fire spell
 - V Sign → ice spell
 - Open Palm → shield spell
-- Motion gestures are routed through the command layer to support menu navigation and future combos
+- Motion gestures are routed through the command layer to support movement, menu navigation, and future combos
 
 ## Gesture Runtime
 
@@ -111,10 +117,12 @@ Available test coverage includes:
 
 ## Current Status
 
-The project is already in a stable integration stage:
+The project is in a stable defense-demo stage:
 
 - command-driven runtime is wired into gameplay
-- build and diagnostics are clean
-- tests are present for runtime and dataset validation
+- menu → tutorial/training → combat → results → restart/menu loop is implemented
+- Mock is the default safe startup mode; Native MediaPipe and ExternalBridge remain switchable
+- build settings include `Assets/Scenes/SpellGuardPrototype.unity`
+- tests are present for runtime, flow, scene generation, motion recognition, and dataset validation
 
-The remaining work is mainly to expand richer gesture semantics and polish the graduation-project demo flow.
+The remaining work is mainly richer level content, final art polish, and presentation packaging.
