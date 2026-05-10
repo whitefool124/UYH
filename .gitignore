@@ -32,10 +32,10 @@ skills-lock.json
 opencode.json
 
 # Local datasets / generated analysis
-_training_unpack/
-data/
-scripts/
-训练集/
+/_training_unpack/
+/data/
+/scripts/
+/训练集/
 *.zip
 *.tgz
 *.avi
