@@ -47,9 +47,10 @@
 
 已验证文件：`ProjectSettings/EditorBuildSettings.asset`
 
-- `m_Scenes: []`
+- `Assets/Scenes/SpellGuardStart.unity`
+- `Assets/Scenes/SpellGuardPrototype.unity`
 
-当前 Build Settings 场景列表为空。现状更接近“编辑器内运行原型”，而不是已经配置好正式打包流程的产品工程。
+当前 Build Settings 已配置为“开始场景在前、战斗原型场景在后”。独立构建会先进入手势友好的开始菜单，再根据玩家选择加载战斗 / 训练原型场景。
 
 ## 4. 目录与程序集结构
 
@@ -102,8 +103,8 @@ README 当前写明的推荐流程是：
 
 1. 在 Unity Hub 中打开 `unity-spell-guard/`
 2. 等待导入完成
-3. 执行菜单 `Spell Guard/Create Prototype Scene`
-4. 打开 `Assets/Scenes/SpellGuardPrototype.unity`
+3. 执行菜单 `Spell Guard/Create Start Scene` 或 `Spell Guard/Create Prototype Scene`
+4. 打开 `Assets/Scenes/SpellGuardStart.unity`
 5. 点击 Play
 
 ### 6.2 原型场景以工具生成优先
@@ -113,6 +114,7 @@ README 当前写明的推荐流程是：
 该工具会创建并装配：
 
 - 场景环境：地面、通道、祭坛、墙体、灯光、标识
+- 开始场景：`SpellGuardStart.unity`、开始相机、开始菜单运行时、输入路由与设置组件
 - 玩家对象：`PlayerRoot`、`CharacterController`、相机 Pivot、主相机
 - 输入对象：`WebcamFeedController`、`MockGestureInputProvider`、`NativeMediapipeGestureProvider`、`NativeMediapipeGestureRunner`、`NativeMotionGestureRecognizer`、`ExternalGestureBridgeProvider`、`ExternalMotionGestureRecognizer`、`UdpGestureReceiver`、`GestureInputRouter`
 - 玩法对象：`PlayerHealth`、`FpsGestureMotor`、`GestureSpellCaster`
@@ -538,12 +540,12 @@ HUD 当前显示的信息包括：
 - 存在菜单、设置、教程、训练、战斗、结果六种屏幕状态。
 - Debug HUD 与世界空间反馈板都已经接入运行时。
 - 训练集校验工具与对应测试存在。
-- Build Settings 场景列表当前为空。
+- Build Settings 当前包含 `SpellGuardStart.unity` 与 `SpellGuardPrototype.unity`，并以开始场景为第一场景。
 
 ### 16.2 基于代码的合理推断
 
 - 这个项目的目标重心是“毕设演示可运行原型”，而不是完整商业化打包工程。
-- `Assets/Scenes/SpellGuardPrototype.unity` 可以视为当前主原型场景，但由于 Build Settings 为空，这个“主场景”判断来自 README 与 Editor 工具流程，而不是正式打包配置。
+- `Assets/Scenes/SpellGuardStart.unity` 是当前正式入口场景；`Assets/Scenes/SpellGuardPrototype.unity` 是战斗 / 训练原型场景。
 - 外部桥接链路应当面向外部视觉进程、回放或兼容性接入，但仓库内未完整记录其部署拓扑。
 
 ### 16.3 待确认项
@@ -551,16 +553,16 @@ HUD 当前显示的信息包括：
 - 外部桥接数据源的实际运行方式、启动命令和端口约定。
 - MediaPipe 原生链路在目标答辩机器上的性能、驱动和设备兼容性。
 - 是否存在仓库外的演示打包脚本、CI 流程或答辩专用场景配置。
-- `SpellGuardPrototype.unity` 是否始终由 Editor 工具重新生成，还是允许人工继续编辑并提交。
+- `SpellGuardStart.unity` 与 `SpellGuardPrototype.unity` 是否始终由 Editor 工具重新生成，还是允许人工继续编辑并提交。
 
 ## 17. 接手建议
 
 1. 第一次导入时先确认 Unity 版本与本地包路径是否可解析。
-2. 用 `Spell Guard/Create Prototype Scene` 重新生成场景，优先验证场景生成链路是否正常。
-3. 先用 `Mock` 模式验证菜单、移动、施法、结果页切换。
+2. 用 `Spell Guard/Create Start Scene` 和 `Spell Guard/Create Prototype Scene` 重新生成场景，优先验证场景生成链路是否正常。
+3. 先用 `Mock` 模式验证开始场景菜单、训练入口、战斗入口、移动、施法、结果页切换。
 4. 再分别验证 `NativeMediapipe` 与 `ExternalBridge` 模式。
 5. 跑 `EditMode` 与 `PlayMode` 测试，确认当前环境下的基线状态。
-6. 如果要做正式打包，先补 Build Settings 场景列表，再梳理是否需要独立构建脚本。
+6. 如果要做正式打包，复核 Build Settings 顺序与平台配置，再梳理是否需要独立构建脚本。
 
 ## 18. 快速检索表
 

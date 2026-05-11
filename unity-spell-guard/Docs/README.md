@@ -11,6 +11,7 @@ This folder keeps the graduation-project planning, implementation notes, and dem
 - `Day3_基线版本检查.md` - baseline status and known risks.
 - `Day4_教学关结构搭建.md` - training/tutorial loop structure.
 - `论文风险补全实验规划.md` - YOLO evidence and Unity performance metrics plan for thesis risk closure.
+- `论文导向技术栈补全开发计划.md` - P0/P1/P2 engineering backlog for making the game project thesis-ready.
 
 ## Design references
 
