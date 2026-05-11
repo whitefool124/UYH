@@ -1,5 +1,6 @@
 using SpellGuard.Combat;
 using SpellGuard.Audio;
+using SpellGuard.Diagnostics;
 using SpellGuard.InputSystem;
 using SpellGuard.Player;
 using SpellGuard.UI;
@@ -45,6 +46,9 @@ namespace SpellGuard.Core
         [Header("Feedback")]
         [SerializeField] private MotionGestureFeedbackBoard motionGestureFeedbackBoard;
 
+        [Header("Diagnostics")]
+        [SerializeField] private GesturePerformanceMonitor performanceMonitor;
+
         public GestureInputProviderBase InputProvider => inputProvider;
         public GestureInputRouter InputRouter => inputRouter;
         public MockGestureInputProvider MockProvider => mockProvider;
@@ -69,6 +73,7 @@ namespace SpellGuard.Core
         public SpellGuardMenuOverlay MenuOverlay => menuOverlay;
         public SpellGuardAudioController AudioController => audioController;
         public MotionGestureFeedbackBoard MotionGestureFeedbackBoard => motionGestureFeedbackBoard;
+        public GesturePerformanceMonitor PerformanceMonitor => performanceMonitor;
 
         public void ValidateSerializedReferences()
         {

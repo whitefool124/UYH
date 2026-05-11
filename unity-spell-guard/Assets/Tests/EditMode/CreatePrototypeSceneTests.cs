@@ -1,4 +1,5 @@
 using SpellGuard.Core;
+using SpellGuard.Diagnostics;
 using SpellGuard.EditorTools;
 using SpellGuard.InputSystem;
 using SpellGuard.Player;
@@ -43,6 +44,7 @@ namespace SpellGuard.Tests.EditMode
             var feedbackBoard = Object.FindObjectOfType<MotionGestureFeedbackBoard>(true);
             var menuOverlay = Object.FindObjectOfType<SpellGuardMenuOverlay>(true);
             var flowController = Object.FindObjectOfType<SpellGuardFlowController>(true);
+            var performanceMonitor = playerRoot != null ? playerRoot.GetComponent<GesturePerformanceMonitor>() : null;
 
             Assert.That(playerRoot, Is.Not.Null, "PlayerRoot should exist in the generated prototype scene.");
             Assert.That(ritualLane, Is.Not.Null, "Generated scene should include a ritual lane for arena composition.");
@@ -59,6 +61,8 @@ namespace SpellGuard.Tests.EditMode
             Assert.That(sceneContext.MenuOverlay, Is.SameAs(menuOverlay));
             Assert.That(sceneContext.MotionGestureFeedbackBoard, Is.SameAs(feedbackBoard));
             Assert.That(flowController, Is.Not.Null, "Generated scene should include the flow controller.");
+            Assert.That(performanceMonitor, Is.Not.Null, "Generated scene should include a gesture performance monitor.");
+            Assert.That(sceneContext.PerformanceMonitor, Is.SameAs(performanceMonitor));
 
             var nativeRecognizerObject = new SerializedObject(nativeRecognizer);
             var nativeProviderProperty = nativeRecognizerObject.FindProperty("nativeProvider");
@@ -128,6 +132,11 @@ namespace SpellGuard.Tests.EditMode
             Assert.That(hudObject.FindProperty("enemySpawner")?.objectReferenceValue, Is.SameAs(sceneContext.EnemySpawner));
             Assert.That(hudObject.FindProperty("gameFlow")?.objectReferenceValue, Is.SameAs(sceneContext.GameFlowManager));
             Assert.That(hudObject.FindProperty("flowController")?.objectReferenceValue, Is.SameAs(flowController));
+            Assert.That(hudObject.FindProperty("performanceMonitor")?.objectReferenceValue, Is.SameAs(performanceMonitor));
+
+            var monitorObject = new SerializedObject(performanceMonitor);
+            Assert.That(monitorObject.FindProperty("inputRouter")?.objectReferenceValue, Is.SameAs(inputRouter));
+            Assert.That(monitorObject.FindProperty("externalBridge")?.objectReferenceValue, Is.SameAs(bridgeProvider));
         }
     }
 }

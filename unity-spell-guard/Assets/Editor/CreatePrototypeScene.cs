@@ -2,6 +2,7 @@
 using SpellGuard.Audio;
 using SpellGuard.Combat;
 using SpellGuard.Core;
+using SpellGuard.Diagnostics;
 using SpellGuard.InputSystem;
 using SpellGuard.Player;
 using SpellGuard.UI;
@@ -146,6 +147,7 @@ namespace SpellGuard.EditorTools
             var health = player.AddComponent<PlayerHealth>();
             var motor = player.AddComponent<FpsGestureMotor>();
             var spellCaster = player.AddComponent<GestureSpellCaster>();
+            var performanceMonitor = player.AddComponent<GesturePerformanceMonitor>();
 
             var cameraPivot = new GameObject("CameraPivot").transform;
             cameraPivot.SetParent(player.transform, false);
@@ -237,6 +239,7 @@ namespace SpellGuard.EditorTools
             SetField(sceneContext, "menuOverlay", menuOverlay);
             SetField(sceneContext, "audioController", audioController);
             SetField(sceneContext, "motionGestureFeedbackBoard", motionGestureFeedbackBoardComponent);
+            SetField(sceneContext, "performanceMonitor", performanceMonitor);
 
             SetField(flowController, "settings", settings);
             SetField(flowController, "inputProvider", inputRouter);
@@ -289,6 +292,10 @@ namespace SpellGuard.EditorTools
             SetField(hud, "enemySpawner", spawner);
             SetField(hud, "gameFlow", gameFlow);
             SetField(hud, "flowController", flowController);
+            SetField(hud, "performanceMonitor", performanceMonitor);
+
+            SetField(performanceMonitor, "inputRouter", inputRouter);
+            SetField(performanceMonitor, "externalBridge", externalBridge);
 
             SetField(bootstrap, "sceneContext", sceneContext);
 

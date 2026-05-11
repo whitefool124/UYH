@@ -65,6 +65,10 @@ namespace SpellGuard.Core
             {
                 sceneContext.MotionGestureFeedbackBoard.Configure(sceneContext.InputProvider, sceneContext.MainCamera);
             }
+            if (sceneContext.PerformanceMonitor != null)
+            {
+                sceneContext.PerformanceMonitor.Configure(sceneContext.InputRouter, sceneContext.ExternalBridge);
+            }
             if (sceneContext.AudioController != null)
             {
                 sceneContext.AudioController.ApplySettings(sceneContext.GameSettings);

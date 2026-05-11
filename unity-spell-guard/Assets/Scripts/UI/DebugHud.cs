@@ -1,5 +1,6 @@
 using SpellGuard.Combat;
 using SpellGuard.Core;
+using SpellGuard.Diagnostics;
 using SpellGuard.InputSystem;
 using SpellGuard.Player;
 using UnityEngine;
@@ -39,6 +40,7 @@ namespace SpellGuard.UI
         [SerializeField] private EnemySpawner enemySpawner;
         [SerializeField] private GameFlowManager gameFlow;
         [SerializeField] private SpellGuardFlowController flowController;
+        [SerializeField] private GesturePerformanceMonitor performanceMonitor;
 
         private GUIStyle quickActionStyle;
         private GUIStyle quickActionPanelStyle;
@@ -158,7 +160,22 @@ namespace SpellGuard.UI
             GUILayout.Label($"UDP：{(udpGestureReceiver != null ? udpGestureReceiver.StatusText : "未绑定")}", labelStyle);
             GUILayout.Label($"动态事件：{viewData.MotionGestureLabel}", labelStyle);
             GUILayout.Label($"Pose 点数：{viewData.PoseLandmarkCount}", labelStyle);
+            DrawPerformanceLines();
             GUILayout.EndArea();
+        }
+
+        private void DrawPerformanceLines()
+        {
+            if (performanceMonitor == null)
+            {
+                GUILayout.Label("性能统计：未绑定", labelStyle);
+                return;
+            }
+
+            var summary = performanceMonitor.CurrentSummary;
+            GUILayout.Label($"性能：FPS {summary.AverageFps:F1} / P95 {summary.P95FrameMs:F1} ms", labelStyle);
+            GUILayout.Label($"桥接延迟：avg {summary.AverageEstimatedLatencyMs:F1} ms / P95 {summary.P95EstimatedLatencyMs:F1} ms", labelStyle);
+            GUILayout.Label($"实验记录：{(summary.IsRecording ? "Recording" : "Stopped")} {(string.IsNullOrWhiteSpace(summary.LastExportPath) ? string.Empty : summary.LastExportPath)}", labelStyle);
         }
 
         private SpellGuardHudViewData BuildViewData()
