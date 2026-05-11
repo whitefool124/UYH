@@ -23,6 +23,7 @@ namespace SpellGuard.Tests.PlayMode
         private GameObject root;
         private SpellGuardFlowController flowController;
         private TrackingInputProvider inputProvider;
+        private GestureInputRouter inputRouter;
         private GameFlowManager gameFlow;
 
         [SetUp]
@@ -31,8 +32,10 @@ namespace SpellGuard.Tests.PlayMode
             root = new GameObject("SpellGuardFlowControllerTestsRoot");
             flowController = root.AddComponent<SpellGuardFlowController>();
             inputProvider = root.AddComponent<TrackingInputProvider>();
+            inputRouter = root.AddComponent<GestureInputRouter>();
             gameFlow = root.AddComponent<GameFlowManager>();
             SetPrivateField(flowController, "inputProvider", inputProvider);
+            SetPrivateField(flowController, "inputRouter", inputRouter);
             SetPrivateField(flowController, "gameFlow", gameFlow);
         }
 
@@ -98,6 +101,17 @@ namespace SpellGuard.Tests.PlayMode
 
             Assert.That(flowController.Screen, Is.EqualTo(SpellGuardScreen.Playing));
             Assert.That(inputProvider.ClearCalls, Is.GreaterThanOrEqualTo(2));
+        }
+
+        [Test]
+        public void CycleInputModeSettingUpdatesRouterMode()
+        {
+            Assert.That(inputRouter.Mode, Is.EqualTo(GestureInputRouter.InputMode.Mock));
+
+            flowController.CycleInputModeSetting();
+
+            Assert.That(inputRouter.Mode, Is.EqualTo(GestureInputRouter.InputMode.NativeMediapipe));
+            Assert.That(flowController.InputModeLabel, Is.EqualTo("Native MediaPipe"));
         }
 
         [Test]

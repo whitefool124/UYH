@@ -40,7 +40,10 @@ namespace SpellGuard.UI
         private string focusedKey;
         private string dwellKey;
         private float dwellStartedAt;
+        private GestureType dwellGesture = GestureType.None;
         private float backStartedAt;
+        private int selectedIndex;
+        private SpellGuardScreen lastScreen;
         private float lastHandledMotionTime = -999f;
         private string lastActivatedKey;
         private float lastActivatedAt = -999f;
@@ -91,7 +94,7 @@ namespace SpellGuard.UI
                     break;
             }
 
-            DrawCursor();
+            DrawGestureStatus();
         }
 
         private bool IsMenuLikeScreen()
@@ -112,12 +115,13 @@ namespace SpellGuard.UI
         private void UpdateMenuLikeInput()
         {
             RebuildRegions();
+            ClampSelectedIndex();
+            focusedKey = GetSelectedKey();
 
             var snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
             if (snapshot.HandPresent && snapshot.Gesture == GestureType.OpenPalm &&
                 flowController.Screen != SpellGuardScreen.Menu &&
-                flowController.Screen != SpellGuardScreen.Playing &&
-                flowController.Screen != SpellGuardScreen.Training)
+                flowController.Screen != SpellGuardScreen.Playing)
             {
                 if (backStartedAt <= 0f)
                 {
@@ -134,135 +138,69 @@ namespace SpellGuard.UI
 
             backStartedAt = 0f;
 
-            if (!snapshot.HandPresent)
-            {
-                focusedKey = null;
-                dwellKey = null;
-                regionCount = 0;
-                return;
-            }
-
-            var cursor = new Vector2(snapshot.ViewportPosition.x * UnityEngine.Screen.width, (1f - snapshot.ViewportPosition.y) * UnityEngine.Screen.height);
-            var region = GetFocusedRegion(cursor);
-            if (region == null)
-            {
-                focusedKey = null;
-                dwellKey = null;
-                return;
-            }
-
-            focusedKey = region.Value.key;
-            if (HandleMotionGesture(region.Value.key))
+            var command = inputProvider != null ? inputProvider.CurrentGestureCommand : GestureCommand.None;
+            if (HandleMotionGesture(command))
             {
                 return;
             }
 
-            if (dwellKey != focusedKey)
+            if (!command.IsValid || command.Kind != GestureCommandKind.StaticPose)
+            {
+                ClearHoldState();
+                return;
+            }
+
+            if (command.StaticGesture != GestureType.Fist)
+            {
+                ClearHoldState();
+                return;
+            }
+
+            if (dwellKey != focusedKey || dwellGesture != command.StaticGesture)
             {
                 dwellKey = focusedKey;
+                dwellGesture = command.StaticGesture;
                 dwellStartedAt = Time.unscaledTime;
             }
 
-            if (Time.unscaledTime - dwellStartedAt >= GetRequiredHoldSeconds(region.Value.key))
+            if (!string.IsNullOrEmpty(focusedKey) && Time.unscaledTime - dwellStartedAt >= GetRequiredHoldSeconds(focusedKey))
             {
-                ActivateRegion(region.Value.key);
-                dwellKey = null;
-                focusedKey = null;
+                ActivateRegion(focusedKey);
+                ClearHoldState();
             }
         }
 
-        private bool HandleMotionGesture(string focusedRegionKey)
+        private bool HandleMotionGesture(GestureCommand command)
         {
-            if (inputProvider == null)
-            {
-                return false;
-            }
-
-            var command = inputProvider.CurrentGestureCommand;
             if (!command.IsValid || command.Kind != GestureCommandKind.Motion || command.TriggeredTime <= lastHandledMotionTime)
             {
                 return false;
             }
 
+            lastHandledMotionTime = command.TriggeredTime;
+            ClearHoldState();
+
             switch (command.MotionGesture)
             {
                 case MotionGestureType.SwipeRightToLeft:
                 case MotionGestureType.OpenPalmSlapRightToLeft:
-                    lastHandledMotionTime = command.TriggeredTime;
-                    if (flowController.Screen == SpellGuardScreen.Settings)
-                    {
-                        if (focusedRegionKey == "confirm")
-                        {
-                            flowController.CycleConfirmSetting();
-                            dwellKey = null;
-                            LogFlowEvent($"motion settings cycle confirm via {command.MotionGesture}");
-                            return true;
-                        }
-
-                        if (focusedRegionKey == "difficulty")
-                        {
-                            flowController.CycleDifficultySetting();
-                            dwellKey = null;
-                            LogFlowEvent($"motion settings cycle difficulty via {command.MotionGesture}");
-                            return true;
-                        }
-
-                        if (focusedRegionKey == "music-volume")
-                        {
-                            flowController.CycleMusicVolumeSetting();
-                            dwellKey = null;
-                            LogFlowEvent($"motion settings cycle music volume via {command.MotionGesture}");
-                            return true;
-                        }
-
-                        if (focusedRegionKey == "sfx-volume")
-                        {
-                            flowController.CycleSfxVolumeSetting();
-                            dwellKey = null;
-                            LogFlowEvent($"motion settings cycle sfx volume via {command.MotionGesture}");
-                            return true;
-                        }
-                    }
-
-                    if (flowController.Screen == SpellGuardScreen.Settings || flowController.Screen == SpellGuardScreen.Tutorial || flowController.Screen == SpellGuardScreen.Results)
-                    {
-                        LogFlowEvent($"motion return to menu via {command.MotionGesture} from {flowController.Screen}");
-                        flowController.ReturnToMenu();
-                        return true;
-                    }
-                    break;
+                case MotionGestureType.SwipeTopToBottom:
+                    MoveSelection(1);
+                    return true;
 
                 case MotionGestureType.SwipeLeftToRight:
                 case MotionGestureType.OpenPalmSlapLeftToRight:
-                    if (flowController.Screen == SpellGuardScreen.Settings && (focusedRegionKey == "confirm" || focusedRegionKey == "difficulty" || focusedRegionKey == "music-volume" || focusedRegionKey == "sfx-volume"))
-                    {
-                        lastHandledMotionTime = command.TriggeredTime;
-                        if (focusedRegionKey == "confirm")
-                        {
-                            flowController.CycleConfirmSetting();
-                            LogFlowEvent($"motion settings cycle confirm via {command.MotionGesture}");
-                        }
-                        else
-                        if (focusedRegionKey == "difficulty")
-                        {
-                            flowController.CycleDifficultySetting();
-                            LogFlowEvent($"motion settings cycle difficulty via {command.MotionGesture}");
-                        }
-                        else if (focusedRegionKey == "music-volume")
-                        {
-                            flowController.CycleMusicVolumeSetting();
-                            LogFlowEvent($"motion settings cycle music volume via {command.MotionGesture}");
-                        }
-                        else
-                        {
-                            flowController.CycleSfxVolumeSetting();
-                            LogFlowEvent($"motion settings cycle sfx volume via {command.MotionGesture}");
-                        }
+                case MotionGestureType.SwipeBottomToTop:
+                    MoveSelection(-1);
+                    return true;
 
-                        dwellKey = null;
-                        return true;
+                case MotionGestureType.Snap:
+                case MotionGestureType.PointToFist:
+                    if (!string.IsNullOrEmpty(focusedKey))
+                    {
+                        ActivateRegion(focusedKey);
                     }
-                    break;
+                    return true;
             }
 
             return false;
@@ -283,7 +221,8 @@ namespace SpellGuard.UI
                     else if (key == "tutorial") flowController.OpenTutorial();
                     break;
                 case SpellGuardScreen.Settings:
-                    if (key == "confirm") flowController.CycleConfirmSetting();
+                    if (key == "input-mode") flowController.CycleInputModeSetting();
+                    else if (key == "confirm") flowController.CycleConfirmSetting();
                     else if (key == "difficulty") flowController.CycleDifficultySetting();
                     else if (key == "music-volume") flowController.CycleMusicVolumeSetting();
                     else if (key == "sfx-volume") flowController.CycleSfxVolumeSetting();
@@ -329,9 +268,62 @@ namespace SpellGuard.UI
             return null;
         }
 
+        private string GetSelectedKey()
+        {
+            if (regionCount <= 0)
+            {
+                return null;
+            }
+
+            ClampSelectedIndex();
+            return regions[selectedIndex].key;
+        }
+
+        private void ClampSelectedIndex()
+        {
+            if (regionCount <= 0)
+            {
+                selectedIndex = 0;
+                return;
+            }
+
+            selectedIndex = Mathf.Clamp(selectedIndex, 0, regionCount - 1);
+        }
+
+        private void MoveSelection(int delta)
+        {
+            if (regionCount <= 0)
+            {
+                selectedIndex = 0;
+                return;
+            }
+
+            selectedIndex = (selectedIndex + delta) % regionCount;
+            if (selectedIndex < 0)
+            {
+                selectedIndex += regionCount;
+            }
+
+            focusedKey = GetSelectedKey();
+            SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
+        }
+
+        private void ClearHoldState()
+        {
+            dwellKey = null;
+            dwellGesture = GestureType.None;
+            dwellStartedAt = 0f;
+        }
+
         private void RebuildRegions()
         {
             regionCount = 0;
+            if (flowController.Screen != lastScreen)
+            {
+                selectedIndex = 0;
+                ClearHoldState();
+                lastScreen = flowController.Screen;
+            }
 
             var layout = GetOverlayLayout();
             switch (flowController.Screen)
@@ -343,11 +335,12 @@ namespace SpellGuard.UI
                     AddRegion("settings", "调整设置", MakeButtonRect(layout, 3, 0, 4));
                     break;
                 case SpellGuardScreen.Settings:
-                    AddRegion("confirm", $"结印确认时长：{flowController.ConfirmLabel}", MakeButtonRect(layout, 0, 0, 5));
-                    AddRegion("difficulty", $"敌人节奏：{flowController.DifficultyLabel}", MakeButtonRect(layout, 1, 0, 5));
-                    AddRegion("music-volume", $"音乐音量：{flowController.MusicVolumeLabel}", MakeButtonRect(layout, 2, 0, 5));
-                    AddRegion("sfx-volume", $"音效音量：{flowController.SfxVolumeLabel}", MakeButtonRect(layout, 3, 0, 5));
-                    AddRegion("back", "返回主菜单", MakeButtonRect(layout, 4, 0, 5));
+                    AddRegion("input-mode", $"输入模式：{flowController.InputModeLabel}", MakeButtonRect(layout, 0, 0, 6));
+                    AddRegion("confirm", $"结印确认时长：{flowController.ConfirmLabel}", MakeButtonRect(layout, 1, 0, 6));
+                    AddRegion("difficulty", $"敌人节奏：{flowController.DifficultyLabel}", MakeButtonRect(layout, 2, 0, 6));
+                    AddRegion("music-volume", $"音乐音量：{flowController.MusicVolumeLabel}", MakeButtonRect(layout, 3, 0, 6));
+                    AddRegion("sfx-volume", $"音效音量：{flowController.SfxVolumeLabel}", MakeButtonRect(layout, 4, 0, 6));
+                    AddRegion("back", "返回主菜单", MakeButtonRect(layout, 5, 0, 6));
                     break;
                 case SpellGuardScreen.Tutorial:
                     AddRegion("play", "开始守卫", MakeButtonRect(layout, 0, 0, 3));
@@ -370,6 +363,8 @@ namespace SpellGuard.UI
                     AddRegion("menu", "返回主菜单", MakeButtonRect(layout, 1, 0, 2));
                     break;
             }
+
+            ClampSelectedIndex();
         }
 
         private void DrawMenu()
@@ -393,12 +388,13 @@ namespace SpellGuard.UI
             EnsureOverlayStyles(layout.Scale);
             DrawPanel(layout.Panel, new Color(0.07f, 0.09f, 0.14f, 0.95f), new Color(0.34f, 0.56f, 1f, 0.9f));
             GUI.Label(layout.Title, "战斗设置", overlayTitleStyle);
-            GUI.Label(layout.Body, "调整施法确认、敌人节奏和音频音量，为正式战斗做准备。", overlayBodyStyle);
-            DrawRegion("confirm", $"结印确认时长：{flowController.ConfirmLabel}", MakeButtonRect(layout, 0, 0, 5));
-            DrawRegion("difficulty", $"敌人节奏：{flowController.DifficultyLabel}", MakeButtonRect(layout, 1, 0, 5));
-            DrawRegion("music-volume", $"音乐音量：{flowController.MusicVolumeLabel}", MakeButtonRect(layout, 2, 0, 5));
-            DrawRegion("sfx-volume", $"音效音量：{flowController.SfxVolumeLabel}", MakeButtonRect(layout, 3, 0, 5));
-            DrawRegion("back", "返回主菜单", MakeButtonRect(layout, 4, 0, 5));
+            GUI.Label(layout.Body, "调整输入模式、施法确认、敌人节奏和音频音量，为正式战斗做准备。", overlayBodyStyle);
+            DrawRegion("input-mode", $"输入模式：{flowController.InputModeLabel}", MakeButtonRect(layout, 0, 0, 6));
+            DrawRegion("confirm", $"结印确认时长：{flowController.ConfirmLabel}", MakeButtonRect(layout, 1, 0, 6));
+            DrawRegion("difficulty", $"敌人节奏：{flowController.DifficultyLabel}", MakeButtonRect(layout, 2, 0, 6));
+            DrawRegion("music-volume", $"音乐音量：{flowController.MusicVolumeLabel}", MakeButtonRect(layout, 3, 0, 6));
+            DrawRegion("sfx-volume", $"音效音量：{flowController.SfxVolumeLabel}", MakeButtonRect(layout, 4, 0, 6));
+            DrawRegion("back", "返回主菜单", MakeButtonRect(layout, 5, 0, 6));
         }
 
         private void DrawTutorial()
@@ -498,19 +494,19 @@ namespace SpellGuard.UI
 
         private void DrawRegion(string key, string label, Rect rect)
         {
-            var text = label;
+            var isFocused = GetSelectedKey() == key;
+            var text = isFocused ? $"▶ {label}" : $"   {label}";
             if (IsRecentlyActivated(key))
             {
-                text = $"{label}   已确认";
+                text = $"▶ {label}   已确认";
             }
             if (focusedKey == key && dwellKey == key)
             {
                 var progress = Mathf.Clamp01((Time.unscaledTime - dwellStartedAt) / GetRequiredHoldSeconds(key));
-                text = $"{label}   {Mathf.RoundToInt(progress * 100f)}%";
+                text = $"▶ {label}   {Mathf.RoundToInt(progress * 100f)}%";
             }
 
             var previousColor = GUI.color;
-            var isFocused = focusedKey == key;
             var isHolding = focusedKey == key && dwellKey == key;
             GUI.color = isHolding ? new Color(1f, 0.68f, 0.28f, 0.95f) : (isFocused ? new Color(0.38f, 0.58f, 1f, 0.95f) : new Color(0.18f, 0.22f, 0.3f, 0.92f));
             GUI.Box(rect, GUIContent.none);
@@ -682,6 +678,30 @@ namespace SpellGuard.UI
             {
                 GUI.Box(new Rect(x + 16f, y - 8f, 110f, 22f), snapshot.Gesture.ToChinese());
             }
+        }
+
+        private void DrawGestureStatus()
+        {
+            var snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
+            var command = inputProvider != null ? inputProvider.CurrentGestureCommand : GestureCommand.None;
+            var layout = GetOverlayLayout();
+            var selected = string.IsNullOrEmpty(GetSelectedKey()) ? "无" : GetSelectedKey();
+            var status = snapshot.HandPresent
+                ? $"识别：{snapshot.Gesture.ToChinese()} · 命令：{FormatCommand(command)} · 选中：{selected}"
+                : $"未检测到手 · 选中：{selected}";
+            GUI.Label(new Rect(layout.Panel.x, layout.Panel.yMax + 6f, layout.Panel.width, 22f * layout.Scale), status, overlayHintStyle);
+        }
+
+        private static string FormatCommand(GestureCommand command)
+        {
+            if (!command.IsValid)
+            {
+                return "无";
+            }
+
+            return command.Kind == GestureCommandKind.Motion
+                ? command.MotionGesture.ToString()
+                : command.StaticGesture.ToChinese();
         }
 
         private float GetRequiredHoldSeconds(string key)

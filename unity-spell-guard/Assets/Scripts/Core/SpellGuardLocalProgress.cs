@@ -8,6 +8,7 @@ namespace SpellGuard.Core
         private const string DifficultyIndexKey = "SpellGuard.Settings.DifficultyIndex";
         private const string MusicVolumeIndexKey = "SpellGuard.Settings.MusicVolumeIndex";
         private const string SfxVolumeIndexKey = "SpellGuard.Settings.SfxVolumeIndex";
+        private const string InputModeIndexKey = "SpellGuard.Settings.InputModeIndex";
         private const string BestScoreKey = "SpellGuard.Progress.BestScore";
         private const string TutorialSeenKey = "SpellGuard.Progress.TutorialSeen";
 
@@ -52,6 +53,17 @@ namespace SpellGuard.Core
         public static void SaveSfxVolumeIndex(int value)
         {
             PlayerPrefs.SetInt(SfxVolumeIndexKey, value);
+            PlayerPrefs.Save();
+        }
+
+        public static int LoadInputModeIndex(int fallback)
+        {
+            return PlayerPrefs.GetInt(InputModeIndexKey, fallback);
+        }
+
+        public static void SaveInputModeIndex(int value)
+        {
+            PlayerPrefs.SetInt(InputModeIndexKey, value);
             PlayerPrefs.Save();
         }
 

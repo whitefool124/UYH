@@ -1,4 +1,5 @@
 using System;
+using SpellGuard.InputSystem;
 using UnityEngine;
 
 namespace SpellGuard.Core
@@ -15,6 +16,14 @@ namespace SpellGuard.Core
 
         [SerializeField] private int confirmIndex = 1;
         [SerializeField] private int difficultyIndex = 1;
+        [SerializeField] private GestureInputRouter.InputMode[] inputModeOptions =
+        {
+            GestureInputRouter.InputMode.Mock,
+            GestureInputRouter.InputMode.NativeMediapipe,
+            GestureInputRouter.InputMode.ExternalBridge,
+        };
+
+        [SerializeField] private int inputModeIndex;
         [SerializeField] private float[] volumeOptions = { 0.25f, 0.5f, 0.75f, 1f };
         [SerializeField] private int musicVolumeIndex = 2;
         [SerializeField] private int sfxVolumeIndex = 3;
@@ -23,6 +32,7 @@ namespace SpellGuard.Core
 
         public int ConfirmIndex => confirmIndex;
         public int DifficultyIndex => difficultyIndex;
+        public int InputModeIndex => inputModeIndex;
         public int MusicVolumeIndex => musicVolumeIndex;
         public int SfxVolumeIndex => sfxVolumeIndex;
 
@@ -33,6 +43,7 @@ namespace SpellGuard.Core
 
         public float ConfirmSeconds => confirmSecondsOptions[Mathf.Clamp(confirmIndex, 0, confirmSecondsOptions.Length - 1)];
         public SpellGuardDifficulty Difficulty => difficultyOptions[Mathf.Clamp(difficultyIndex, 0, difficultyOptions.Length - 1)];
+        public GestureInputRouter.InputMode InputMode => inputModeOptions[Mathf.Clamp(inputModeIndex, 0, inputModeOptions.Length - 1)];
         public float MusicVolume => volumeOptions[Mathf.Clamp(musicVolumeIndex, 0, volumeOptions.Length - 1)];
         public float SfxVolume => volumeOptions[Mathf.Clamp(sfxVolumeIndex, 0, volumeOptions.Length - 1)];
         public float MenuDwellSeconds => menuDwellSeconds;
@@ -46,6 +57,13 @@ namespace SpellGuard.Core
             SpellGuardDifficulty.Intense => "紧张",
             _ => "标准",
         };
+        public string InputModeLabel => InputMode switch
+        {
+            GestureInputRouter.InputMode.Mock => "Mock",
+            GestureInputRouter.InputMode.NativeMediapipe => "Native MediaPipe",
+            GestureInputRouter.InputMode.ExternalBridge => "ExternalBridge",
+            _ => "Unknown",
+        };
 
         public void CycleConfirm()
         {
@@ -57,6 +75,26 @@ namespace SpellGuard.Core
         {
             difficultyIndex = (difficultyIndex + 1) % difficultyOptions.Length;
             SpellGuardLocalProgress.SaveDifficultyIndex(difficultyIndex);
+        }
+
+        public GestureInputRouter.InputMode CycleInputMode()
+        {
+            inputModeIndex = (inputModeIndex + 1) % inputModeOptions.Length;
+            SpellGuardLocalProgress.SaveInputModeIndex(inputModeIndex);
+            return InputMode;
+        }
+
+        public void SetInputMode(GestureInputRouter.InputMode mode)
+        {
+            for (var index = 0; index < inputModeOptions.Length; index++)
+            {
+                if (inputModeOptions[index] == mode)
+                {
+                    inputModeIndex = index;
+                    SpellGuardLocalProgress.SaveInputModeIndex(inputModeIndex);
+                    return;
+                }
+            }
         }
 
         public void CycleMusicVolume()
@@ -75,6 +113,7 @@ namespace SpellGuard.Core
         {
             confirmIndex = Mathf.Clamp(SpellGuardLocalProgress.LoadConfirmIndex(confirmIndex), 0, confirmSecondsOptions.Length - 1);
             difficultyIndex = Mathf.Clamp(SpellGuardLocalProgress.LoadDifficultyIndex(difficultyIndex), 0, difficultyOptions.Length - 1);
+            inputModeIndex = Mathf.Clamp(SpellGuardLocalProgress.LoadInputModeIndex(inputModeIndex), 0, inputModeOptions.Length - 1);
             musicVolumeIndex = Mathf.Clamp(SpellGuardLocalProgress.LoadMusicVolumeIndex(musicVolumeIndex), 0, volumeOptions.Length - 1);
             sfxVolumeIndex = Mathf.Clamp(SpellGuardLocalProgress.LoadSfxVolumeIndex(sfxVolumeIndex), 0, volumeOptions.Length - 1);
         }
