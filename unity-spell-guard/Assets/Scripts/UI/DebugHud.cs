@@ -155,13 +155,29 @@ namespace SpellGuard.UI
             GUILayout.Label($"摄像头：{(webcamFeed != null ? webcamFeed.StatusText : "未绑定")}", labelStyle);
             GUILayout.Label($"设备：{(webcamFeed != null ? webcamFeed.ActiveDeviceName : "无")}", labelStyle);
             GUILayout.Label($"原生识别：{(nativeMediapipeProvider != null ? nativeMediapipeProvider.StatusText : "未绑定")}", labelStyle);
-            GUILayout.Label($"识别桥：{(externalBridge != null ? externalBridge.BridgeStatus : "未绑定")}", labelStyle);
-            GUILayout.Label($"桥接源：{(externalBridge != null ? externalBridge.SourceLabel : "未绑定")}", labelStyle);
-            GUILayout.Label($"UDP：{(udpGestureReceiver != null ? udpGestureReceiver.StatusText : "未绑定")}", labelStyle);
-            GUILayout.Label($"动态事件：{viewData.MotionGestureLabel}", labelStyle);
+            DrawExternalBridgeLines(viewData);
             GUILayout.Label($"Pose 点数：{viewData.PoseLandmarkCount}", labelStyle);
             DrawPerformanceLines();
             GUILayout.EndArea();
+        }
+
+        private void DrawExternalBridgeLines(SpellGuardHudViewData viewData)
+        {
+            if (externalBridge == null)
+            {
+                GUILayout.Label("Bridge Status：未绑定", labelStyle);
+                return;
+            }
+
+            var lastMotion = externalBridge.LatestMotionGesture.IsValid ? externalBridge.LatestMotionGesture.Gesture.ToChinese() : viewData.MotionGestureLabel;
+            GUILayout.Label($"Bridge Status：{externalBridge.BridgeStatus}", labelStyle);
+            GUILayout.Label($"Source：{externalBridge.SourceLabel}", labelStyle);
+            GUILayout.Label($"Packets：{externalBridge.PacketCount} · UDP {(udpGestureReceiver != null ? udpGestureReceiver.PacketCount : 0)}", labelStyle);
+            GUILayout.Label($"Last Packet Age：{externalBridge.LastPacketAgeMs:F0} ms", labelStyle);
+            GUILayout.Label($"Avg Packet Interval：{externalBridge.AveragePacketIntervalMs:F1} ms", labelStyle);
+            GUILayout.Label($"Estimated Latency：{GetLatencyLabel()}", labelStyle);
+            GUILayout.Label($"Last Motion Event：{lastMotion}", labelStyle);
+            GUILayout.Label($"UDP：{(udpGestureReceiver != null ? udpGestureReceiver.StatusText : "未绑定")}", labelStyle);
         }
 
         private void DrawPerformanceLines()
@@ -176,6 +192,17 @@ namespace SpellGuard.UI
             GUILayout.Label($"性能：FPS {summary.AverageFps:F1} / P95 {summary.P95FrameMs:F1} ms", labelStyle);
             GUILayout.Label($"桥接延迟：avg {summary.AverageEstimatedLatencyMs:F1} ms / P95 {summary.P95EstimatedLatencyMs:F1} ms", labelStyle);
             GUILayout.Label($"实验记录：{(summary.IsRecording ? "Recording" : "Stopped")} {(string.IsNullOrWhiteSpace(summary.LastExportPath) ? string.Empty : summary.LastExportPath)}", labelStyle);
+        }
+
+        private string GetLatencyLabel()
+        {
+            if (performanceMonitor == null)
+            {
+                return "未绑定";
+            }
+
+            var summary = performanceMonitor.CurrentSummary;
+            return $"avg {summary.AverageEstimatedLatencyMs:F1} ms / p95 {summary.P95EstimatedLatencyMs:F1} ms";
         }
 
         private SpellGuardHudViewData BuildViewData()

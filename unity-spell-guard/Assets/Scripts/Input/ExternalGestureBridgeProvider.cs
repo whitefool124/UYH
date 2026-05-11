@@ -23,6 +23,10 @@ namespace SpellGuard.InputSystem
         private GestureCommand currentGestureCommand = GestureCommand.None;
         private readonly Queue<ExternalVisionFrame> pendingFrames = new Queue<ExternalVisionFrame>();
         private float lastPushTime = -999f;
+        private float lastPacketTime = -999f;
+        private float previousPacketTime = -999f;
+        private float packetIntervalTotalMs;
+        private int packetIntervalSamples;
         private int frameVersion;
         private string lastLoggedMotionKey;
 
@@ -70,14 +74,17 @@ namespace SpellGuard.InputSystem
             get
             {
                 RefreshTimeoutState();
-                if (!snapshot.HandPresent)
+                if (currentFrame == null)
                 {
-                    return "等待外部识别数据";
+                    return "Waiting";
                 }
 
-                return latestMotionGesture.IsValid
-                    ? $"外部识别：{snapshot.Gesture.ToChinese()} / 动态：{latestMotionGesture.Gesture.ToChinese()}"
-                    : $"外部识别：{snapshot.Gesture.ToChinese()}";
+                if (Time.time - lastPacketTime > snapshotTimeout)
+                {
+                    return "Stale";
+                }
+
+                return "Receiving";
             }
         }
 
@@ -108,6 +115,9 @@ namespace SpellGuard.InputSystem
         public IReadOnlyList<Vector2> PoseLandmarks => poseLandmarks;
         public bool HasHandLandmarks => handLandmarks != null && handLandmarks.Length > 0;
         public MotionGestureEvent LatestMotionGesture => CurrentMotionGesture;
+        public int PacketCount => frameVersion;
+        public float LastPacketAgeMs => lastPacketTime > 0f ? Mathf.Max(0f, Time.time - lastPacketTime) * 1000f : 0f;
+        public float AveragePacketIntervalMs => packetIntervalSamples > 0 ? packetIntervalTotalMs / packetIntervalSamples : 0f;
 
         public int FrameVersion => frameVersion;
 
@@ -149,6 +159,13 @@ namespace SpellGuard.InputSystem
 
             currentFrame = frame;
             frameVersion++;
+            previousPacketTime = lastPacketTime;
+            lastPacketTime = Time.time;
+            if (previousPacketTime > 0f)
+            {
+                packetIntervalTotalMs += Mathf.Max(0f, lastPacketTime - previousPacketTime) * 1000f;
+                packetIntervalSamples++;
+            }
             pendingFrames.Enqueue(frame);
 
             SetLandmarks(frame.handLandmarks, ref handLandmarks);
@@ -210,6 +227,10 @@ namespace SpellGuard.InputSystem
             commandHistory.Clear();
             pendingFrames.Clear();
             lastPushTime = -999f;
+            lastPacketTime = -999f;
+            previousPacketTime = -999f;
+            packetIntervalTotalMs = 0f;
+            packetIntervalSamples = 0;
             RefreshGestureFrame();
             RefreshCurrentCommand(false);
         }

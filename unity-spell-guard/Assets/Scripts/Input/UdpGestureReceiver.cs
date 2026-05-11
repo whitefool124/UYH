@@ -19,9 +19,11 @@ namespace SpellGuard.InputSystem
         private UdpClient udpClient;
         private Thread receiveThread;
         private volatile bool running;
+        private int packetCount;
 
         public bool IsRunning => running;
         public int ListenPort => listenPort;
+        public int PacketCount => packetCount;
         public string StatusText { get; private set; } = "UDP桥未启动";
 
         private void Start()
@@ -48,7 +50,7 @@ namespace SpellGuard.InputSystem
                     bridgeProvider.PushFrame(packet);
                     processedAnyPacket = true;
                     StatusText = packet.handPresent
-                        ? $"UDP已接收：{packet.gesture} ({packet.confidence:F2})"
+                        ? $"UDP已接收：#{packetCount} {packet.gesture} ({packet.confidence:F2})"
                         : "UDP已接收：无手";
                 }
             }
@@ -84,6 +86,7 @@ namespace SpellGuard.InputSystem
             {
                 udpClient = new UdpClient(listenPort);
                 running = true;
+                packetCount = 0;
                 receiveThread = new Thread(ReceiveLoop)
                 {
                     IsBackground = true,
@@ -148,6 +151,7 @@ namespace SpellGuard.InputSystem
                     lock (packetLock)
                     {
                         pendingPackets.Enqueue(packet);
+                        packetCount++;
                         while (pendingPackets.Count > 180)
                         {
                             pendingPackets.Dequeue();
