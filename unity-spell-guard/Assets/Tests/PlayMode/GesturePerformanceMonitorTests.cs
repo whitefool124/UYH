@@ -35,6 +35,23 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         [Test]
+        public void ExportCsvUsesModeSpecificFileName()
+        {
+            var router = root.AddComponent<GestureInputRouter>();
+            var monitor = root.AddComponent<GesturePerformanceMonitor>();
+            monitor.Configure(router, null);
+            SetPrivateField(monitor, "outputDirectoryName", "Temp/GesturePerformanceMonitorTests");
+            SetPrivateField(monitor, "createReadmeOnExport", false);
+            monitor.StartRecording();
+
+            var path = monitor.ExportCsv();
+
+            StringAssert.Contains("gesture_performance_mock_", System.IO.Path.GetFileName(path));
+            Assert.That(System.IO.File.Exists(path), Is.True);
+            System.IO.File.Delete(path);
+        }
+
+        [Test]
         public void ConfigureAcceptsExistingRouterAndBridge()
         {
             var router = root.AddComponent<GestureInputRouter>();
@@ -48,6 +65,13 @@ namespace SpellGuard.Tests.PlayMode
 
             Assert.That(summary.Mode, Is.EqualTo(GestureInputRouter.InputMode.Mock.ToString()));
             Assert.That(summary.Source, Is.EqualTo("无"));
+        }
+
+        private static void SetPrivateField(object target, string fieldName, object value)
+        {
+            var field = target.GetType().GetField(fieldName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null, fieldName);
+            field.SetValue(target, value);
         }
     }
 }

@@ -17,6 +17,7 @@ namespace SpellGuard.Diagnostics
         [SerializeField] private KeyCode toggleRecordingKey = KeyCode.F8;
         [SerializeField] private KeyCode exportKey = KeyCode.F9;
         [SerializeField] private string outputDirectoryName = "ExperimentResults";
+        [SerializeField] private bool createReadmeOnExport = true;
 
         private readonly List<float> frameMsSamples = new List<float>();
         private readonly List<float> packetIntervalMsSamples = new List<float>();
@@ -99,8 +100,14 @@ namespace SpellGuard.Diagnostics
         {
             var directory = ResolveOutputDirectory();
             Directory.CreateDirectory(directory);
+            if (createReadmeOnExport)
+            {
+                EnsureResultsReadme(directory);
+            }
 
-            var fileName = $"gesture_performance_{(string.IsNullOrWhiteSpace(sessionId) ? DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture) : sessionId)}.csv";
+            var timestamp = string.IsNullOrWhiteSpace(sessionId) ? DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture) : sessionId;
+            var mode = ResolveModeFileToken();
+            var fileName = $"gesture_performance_{mode}_{timestamp}.csv";
             LastExportPath = Path.Combine(directory, fileName);
             File.WriteAllText(LastExportPath, BuildCsv(), Encoding.UTF8);
             return LastExportPath;
@@ -261,6 +268,56 @@ namespace SpellGuard.Diagnostics
             }
 
             return Path.Combine(Application.persistentDataPath, outputDirectoryName);
+        }
+
+        private string ResolveModeFileToken()
+        {
+            if (inputRouter == null)
+            {
+                return "unbound";
+            }
+
+            return inputRouter.Mode switch
+            {
+                GestureInputRouter.InputMode.Mock => "mock",
+                GestureInputRouter.InputMode.NativeMediapipe => "native",
+                GestureInputRouter.InputMode.ExternalBridge => "external",
+                _ => inputRouter.Mode.ToString().ToLowerInvariant()
+            };
+        }
+
+        private static void EnsureResultsReadme(string directory)
+        {
+            var readmePath = Path.Combine(directory, "README.md");
+            if (File.Exists(readmePath))
+            {
+                return;
+            }
+
+            File.WriteAllText(readmePath, BuildResultsReadme(), Encoding.UTF8);
+        }
+
+        private static string BuildResultsReadme()
+        {
+            return "# Spell Guard Experiment Results\n\n" +
+                   "本目录用于归档论文实验 CSV 证据链。Unity 运行时由 `GesturePerformanceMonitor` 导出性能与手势统计，外部视觉链路由 Python benchmark 导出 YOLO / MediaPipe 对比数据。\n\n" +
+                   "## 命名约定\n\n" +
+                   "- `gesture_performance_mock_<timestamp>.csv`：Mock 输入模式性能记录。\n" +
+                   "- `gesture_performance_native_<timestamp>.csv`：Native MediaPipe 输入模式性能记录。\n" +
+                   "- `gesture_performance_external_<timestamp>.csv`：ExternalBridge / UDP 输入模式性能记录。\n" +
+                   "- `yolo_mediapipe_benchmark_<timestamp>.csv`：Python 侧 YOLO + MediaPipe benchmark 记录。\n\n" +
+                   "## Unity CSV 字段\n\n" +
+                   "`session_id, mode, source, elapsed_seconds, total_frames, average_fps, min_fps, average_frame_ms, p95_frame_ms, external_packets, avg_packet_interval_ms, avg_estimated_latency_ms, p95_estimated_latency_ms, static_commands, motion_commands, swipe_lr, swipe_rl, snap, point_to_fist, body_shift_left, body_shift_right`。\n\n" +
+                   "## 实验记录模板\n\n" +
+                   "| 项目 | 记录 |\n" +
+                   "|---|---|\n" +
+                   $"| 实验日期 | {DateTime.Now:yyyy-MM-dd} |\n" +
+                   $"| Unity 版本 | {Application.unityVersion} |\n" +
+                   "| 输入模式 | Mock / Native MediaPipe / ExternalBridge |\n" +
+                   "| 测试设备 | 待填写 CPU / GPU / 内存 |\n" +
+                   "| 摄像头 | 待填写设备型号或 ExternalBridge 视频源 |\n" +
+                   "| 运行时长 | 建议每组不少于 60 秒 |\n" +
+                   "| 使用的视频样本 | ExternalBridge / benchmark 运行时填写 |\n";
         }
 
         private int GetMotionCount(MotionGestureType gesture)
