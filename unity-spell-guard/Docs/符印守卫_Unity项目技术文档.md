@@ -578,6 +578,74 @@ HUD 当前显示的信息包括：
 | 调试显示 | `Assets/Scripts/UI/DebugHud.cs` |
 | 数据集验证 | `Assets/Editor/TrainingDatasetValidator.cs` |
 
-## 19. 文档说明
+## 19. 论文实验支撑补充
+
+### 19.1 性能采集器
+
+已新增 `Assets/Scripts/Diagnostics/GesturePerformanceMonitor.cs`，用于补齐论文中“实时性”和“低延迟”论证所需的数据来源。该组件由 `CreatePrototypeScene` 自动挂载到 `PlayerRoot`，并通过 `SpellGuardSceneContext` 和 `SpellGuardBootstrap` 绑定 `GestureInputRouter` 与 `ExternalGestureBridgeProvider`。
+
+当前采集内容包括：
+
+- 平均 FPS 与最低 FPS。
+- 平均帧耗时与 P95 帧耗时。
+- ExternalBridge 外部包数量。
+- UDP/外部帧平均包间隔。
+- 基于外部 timestamp 的估算链路延迟与 P95 延迟。
+- 静态命令数、动态命令数以及 Swipe / Snap / BodyShift 等动态动作计数。
+
+运行时快捷键：
+
+- `F8`：开始或停止采集。
+- `F9`：导出 CSV。
+
+编辑器中默认导出位置为：
+
+```text
+unity-spell-guard/ExperimentResults/gesture_performance_<timestamp>.csv
+```
+
+`DebugHud` 已显示性能、桥接延迟和实验记录状态，便于论文截图和答辩演示。
+
+### 19.2 YOLO + MediaPipe 离线 benchmark
+
+已新增 `bridge/offline_yolo_mediapipe_benchmark.py`，用于比较纯 MediaPipe 与 YOLO + MediaPipe 在离线视频上的表现。该脚本复用 `mediapipe_udp_bridge.py` 中的 YOLO 检测、MediaPipe 关键点处理和手势分类 helper。
+
+基础命令示例：
+
+```bash
+python bridge/offline_yolo_mediapipe_benchmark.py --video bridge/samples/ipn_real/ipn_229_g05_throw_left.mp4 --max-frames 120
+```
+
+默认输出：
+
+```text
+bridge/outputs/yolo_mediapipe_benchmark.csv
+```
+
+CSV 字段包括：
+
+- `video_name`
+- `mode`
+- `frame_count`
+- `hand_present_frames`
+- `hand_present_ratio`
+- `avg_confidence`
+- `avg_processing_ms`
+- `p95_processing_ms`
+- `average_fps`
+- `yolo_detected_ratio`
+- 各静态手势计数
+
+这组数据可用于论文第 6 章比较“纯 MediaPipe”和“YOLO 前置检测 + MediaPipe 关键点”的检测连续性与运行开销。
+
+### 19.3 建议论文引用方式
+
+论文中建议将该实验写成“小规模可复现实验”，而不是写成完整 YOLO 训练。推荐表述为：
+
+> 本文在外部视觉桥接链路中提供 YOLO + MediaPipe 模式，并通过离线视频 benchmark 与纯 MediaPipe 模式进行对比，评估前置检测对手部检出连续性和实时性能的影响。
+
+该表述与当前工程事实一致，也能回应任务书中关于 YOLO 与 MediaPipe 融合的要求。
+
+## 20. 文档说明
 
 本文档中的“已验证”仅表示当前仓库内存在直接证据，不表示所有运行环境都已实测通过。凡是需要外部设备、外部进程、答辩机器环境或仓库外脚本配合的结论，都应在交接时再次确认。
