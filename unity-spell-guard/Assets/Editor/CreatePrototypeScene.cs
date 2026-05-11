@@ -15,6 +15,105 @@ namespace SpellGuard.EditorTools
 {
     public static class CreatePrototypeScene
     {
+        private const string StartScenePath = "Assets/Scenes/SpellGuardStart.unity";
+        private const string PrototypeScenePath = "Assets/Scenes/SpellGuardPrototype.unity";
+        private const string GestureRecognitionProfilePath = "Assets/Configs/GestureRecognitionProfile_Default.asset";
+
+        [MenuItem("Spell Guard/Create Start Scene")]
+        public static void CreateStartScene()
+        {
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            scene.name = "SpellGuardStart";
+
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.06f, 0.08f, 0.13f);
+
+            var cameraObject = new GameObject("Start Camera");
+            cameraObject.tag = "MainCamera";
+            cameraObject.transform.position = new Vector3(0f, 1.8f, -8f);
+            cameraObject.transform.rotation = Quaternion.Euler(8f, 0f, 0f);
+            var camera = cameraObject.AddComponent<Camera>();
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.018f, 0.024f, 0.045f);
+            camera.fieldOfView = 58f;
+            cameraObject.AddComponent<AudioListener>();
+
+            var keyLightObject = new GameObject("Start Key Light");
+            keyLightObject.transform.rotation = Quaternion.Euler(52f, -28f, 0f);
+            var keyLight = keyLightObject.AddComponent<Light>();
+            keyLight.type = LightType.Directional;
+            keyLight.intensity = 0.65f;
+            keyLight.color = new Color(0.82f, 0.88f, 1f);
+
+            var ritualCore = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            ritualCore.name = "Start Ritual Core";
+            ritualCore.transform.position = new Vector3(0f, -0.4f, 1.4f);
+            ritualCore.transform.localScale = new Vector3(2.8f, 0.08f, 2.8f);
+            ritualCore.GetComponent<Renderer>().sharedMaterial.color = new Color(0.95f, 0.58f, 0.2f);
+
+            var title = new GameObject("StartSceneWorldTitle").AddComponent<TextMesh>();
+            title.transform.position = new Vector3(0f, 2.4f, 1.7f);
+            title.anchor = TextAnchor.MiddleCenter;
+            title.alignment = TextAlignment.Center;
+            title.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            title.fontSize = 72;
+            title.characterSize = 0.075f;
+            title.color = new Color(1f, 0.82f, 0.42f);
+            title.text = "SPELL GUARD\nSTART RITUAL";
+
+            var recognitionProfile = EnsureGestureRecognitionProfile();
+            var runtime = new GameObject("StartRuntime");
+            var webcamFeed = runtime.AddComponent<WebcamFeedController>();
+            var mockProvider = runtime.AddComponent<MockGestureInputProvider>();
+            var nativeMediapipeProvider = runtime.AddComponent<NativeMediapipeGestureProvider>();
+            var nativeMediapipeRunner = runtime.AddComponent<NativeMediapipeGestureRunner>();
+            var nativeMotionGestureRecognizer = runtime.AddComponent<NativeMotionGestureRecognizer>();
+            var externalBridge = runtime.AddComponent<ExternalGestureBridgeProvider>();
+            var externalMotionGestureRecognizer = runtime.AddComponent<ExternalMotionGestureRecognizer>();
+            var udpReceiver = runtime.AddComponent<UdpGestureReceiver>();
+            var inputRouter = runtime.AddComponent<GestureInputRouter>();
+            var settings = runtime.AddComponent<SpellGuardGameSettings>();
+            var audioController = runtime.AddComponent<SpellGuardAudioController>();
+            var bootstrap = runtime.AddComponent<SpellGuardStartSceneBootstrap>();
+            var startMenu = runtime.AddComponent<SpellGuardStartMenuController>();
+
+            SetField(inputRouter, "mockProvider", mockProvider);
+            SetField(inputRouter, "nativeMediapipeProvider", nativeMediapipeProvider);
+            SetField(inputRouter, "externalBridgeProvider", externalBridge);
+            SetEnumField(inputRouter, "mode", (int)GestureInputRouter.InputMode.Mock);
+
+            SetField(nativeMediapipeProvider, "webcamFeed", webcamFeed);
+            SetField(nativeMediapipeRunner, "targetProvider", nativeMediapipeProvider);
+            SetField(nativeMediapipeRunner, "webcamFeed", webcamFeed);
+            SetField(nativeMotionGestureRecognizer, "nativeProvider", nativeMediapipeProvider);
+            SetField(nativeMotionGestureRecognizer, "recognitionProfile", recognitionProfile);
+            SetField(udpReceiver, "bridgeProvider", externalBridge);
+            SetField(udpReceiver, "webcamFeed", webcamFeed);
+            SetField(externalMotionGestureRecognizer, "bridgeProvider", externalBridge);
+            SetField(externalMotionGestureRecognizer, "recognitionProfile", recognitionProfile);
+
+            SetField(bootstrap, "inputRouter", inputRouter);
+            SetField(bootstrap, "webcamFeed", webcamFeed);
+            SetField(bootstrap, "nativeMediapipeProvider", nativeMediapipeProvider);
+            SetField(bootstrap, "nativeMediapipeRunner", nativeMediapipeRunner);
+            SetField(bootstrap, "nativeMotionGestureRecognizer", nativeMotionGestureRecognizer);
+            SetField(bootstrap, "externalBridge", externalBridge);
+            SetField(bootstrap, "externalMotionGestureRecognizer", externalMotionGestureRecognizer);
+            SetField(bootstrap, "udpGestureReceiver", udpReceiver);
+            SetField(bootstrap, "settings", settings);
+            SetField(bootstrap, "audioController", audioController);
+
+            SetField(startMenu, "inputProvider", inputRouter);
+            SetField(startMenu, "inputRouter", inputRouter);
+            SetField(startMenu, "settings", settings);
+
+            EnsureScenesFolder();
+            EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), StartScenePath);
+            UpdateBuildSettings();
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+        }
+
         [MenuItem("Spell Guard/Create Prototype Scene")]
         public static void CreateScene()
         {
@@ -24,6 +123,7 @@ namespace SpellGuard.EditorTools
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             RenderSettings.ambientLight = new Color(0.09f, 0.11f, 0.16f);
 
+            var recognitionProfile = EnsureGestureRecognitionProfile();
             var directionalLightObject = new GameObject("Directional Light");
             directionalLightObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
             var directionalLight = directionalLightObject.AddComponent<Light>();
@@ -213,7 +313,7 @@ namespace SpellGuard.EditorTools
             SetField(inputRouter, "mockProvider", mockProvider);
             SetField(inputRouter, "nativeMediapipeProvider", nativeMediapipeProvider);
             SetField(inputRouter, "externalBridgeProvider", externalBridge);
-            SetField(inputRouter, "mode", GestureInputRouter.InputMode.Mock);
+            SetEnumField(inputRouter, "mode", (int)GestureInputRouter.InputMode.Mock);
 
             SetField(sceneContext, "inputProvider", inputRouter);
             SetField(sceneContext, "inputRouter", inputRouter);
@@ -243,6 +343,7 @@ namespace SpellGuard.EditorTools
 
             SetField(flowController, "settings", settings);
             SetField(flowController, "inputProvider", inputRouter);
+            SetField(flowController, "inputRouter", inputRouter);
             SetField(flowController, "motor", motor);
             SetField(flowController, "spellCaster", spellCaster);
             SetField(flowController, "playerHealth", health);
@@ -251,7 +352,6 @@ namespace SpellGuard.EditorTools
             SetField(flowController, "gameFlow", gameFlow);
 
             SetField(motor, "inputProvider", inputRouter);
-            SetField(motor, "cameraPivot", cameraPivot);
 
             SetField(spellCaster, "inputProvider", inputRouter);
             SetField(spellCaster, "castCamera", camera);
@@ -270,10 +370,12 @@ namespace SpellGuard.EditorTools
             SetField(udpReceiver, "bridgeProvider", externalBridge);
             SetField(udpReceiver, "webcamFeed", webcamFeed);
             SetField(externalMotionGestureRecognizer, "bridgeProvider", externalBridge);
+            SetField(externalMotionGestureRecognizer, "recognitionProfile", recognitionProfile);
             SetField(nativeMediapipeProvider, "webcamFeed", webcamFeed);
             SetField(nativeMediapipeRunner, "targetProvider", nativeMediapipeProvider);
             SetField(nativeMediapipeRunner, "webcamFeed", webcamFeed);
             SetField(nativeMotionGestureRecognizer, "nativeProvider", nativeMediapipeProvider);
+            SetField(nativeMotionGestureRecognizer, "recognitionProfile", recognitionProfile);
 
             SetField(motionGestureFeedbackBoardComponent, "inputProvider", inputRouter);
             SetField(motionGestureFeedbackBoardComponent, "faceCamera", camera);
@@ -299,15 +401,52 @@ namespace SpellGuard.EditorTools
 
             SetField(bootstrap, "sceneContext", sceneContext);
 
-            var scenesFolder = "Assets/Scenes";
-            if (!AssetDatabase.IsValidFolder(scenesFolder))
+            EnsureScenesFolder();
+            EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), PrototypeScenePath);
+            UpdateBuildSettings();
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+        }
+
+        private static void EnsureScenesFolder()
+        {
+            if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
             {
                 AssetDatabase.CreateFolder("Assets", "Scenes");
             }
+        }
 
-            EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), "Assets/Scenes/SpellGuardPrototype.unity");
+        private static GestureRecognitionProfile EnsureGestureRecognitionProfile()
+        {
+            EnsureConfigsFolder();
+            var profile = AssetDatabase.LoadAssetAtPath<GestureRecognitionProfile>(GestureRecognitionProfilePath);
+            if (profile != null)
+            {
+                return profile;
+            }
+
+            profile = ScriptableObject.CreateInstance<GestureRecognitionProfile>();
+            AssetDatabase.CreateAsset(profile, GestureRecognitionProfilePath);
             AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
+            return profile;
+        }
+
+        private static void EnsureConfigsFolder()
+        {
+            if (!AssetDatabase.IsValidFolder("Assets/Configs"))
+            {
+                AssetDatabase.CreateFolder("Assets", "Configs");
+            }
+        }
+
+        private static void UpdateBuildSettings()
+        {
+            var scenes = new[]
+            {
+                new EditorBuildSettingsScene(StartScenePath, true),
+                new EditorBuildSettingsScene(PrototypeScenePath, true),
+            };
+            EditorBuildSettings.scenes = scenes;
         }
 
         private static void SetField(Object target, string fieldName, Object value)
@@ -317,6 +456,17 @@ namespace SpellGuard.EditorTools
             if (property != null)
             {
                 property.objectReferenceValue = value;
+                serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        private static void SetEnumField(Object target, string fieldName, int value)
+        {
+            var serializedObject = new SerializedObject(target);
+            var property = serializedObject.FindProperty(fieldName);
+            if (property != null)
+            {
+                property.enumValueIndex = value;
                 serializedObject.ApplyModifiedPropertiesWithoutUndo();
             }
         }

@@ -5,6 +5,7 @@ using SpellGuard.InputSystem;
 using SpellGuard.Player;
 using SpellGuard.Combat;
 using SpellGuard.UI;
+using SpellGuard.Audio;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -18,6 +19,51 @@ namespace SpellGuard.Tests.EditMode
         public void SetUp()
         {
             EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+        }
+
+        [Test]
+        public void CreateStartScene_WiresStartMenuRuntimeAndBuildSettings()
+        {
+            CreatePrototypeScene.CreateStartScene();
+
+            var runtime = GameObject.Find("StartRuntime");
+            var inputRouter = runtime != null ? runtime.GetComponent<GestureInputRouter>() : null;
+            var mockProvider = runtime != null ? runtime.GetComponent<MockGestureInputProvider>() : null;
+            var nativeProvider = runtime != null ? runtime.GetComponent<NativeMediapipeGestureProvider>() : null;
+            var bridgeProvider = runtime != null ? runtime.GetComponent<ExternalGestureBridgeProvider>() : null;
+            var webcamFeed = runtime != null ? runtime.GetComponent<WebcamFeedController>() : null;
+            var udpReceiver = runtime != null ? runtime.GetComponent<UdpGestureReceiver>() : null;
+            var settings = runtime != null ? runtime.GetComponent<SpellGuardGameSettings>() : null;
+            var audioController = runtime != null ? runtime.GetComponent<SpellGuardAudioController>() : null;
+            var bootstrap = runtime != null ? runtime.GetComponent<SpellGuardStartSceneBootstrap>() : null;
+            var startMenu = runtime != null ? runtime.GetComponent<SpellGuardStartMenuController>() : null;
+
+            Assert.That(Camera.main, Is.Not.Null, "Start scene should include a main camera.");
+            Assert.That(runtime, Is.Not.Null, "Start scene should include a StartRuntime object.");
+            Assert.That(inputRouter, Is.Not.Null, "Start scene should route Mock/Native/External gesture input.");
+            Assert.That(startMenu, Is.Not.Null, "Start scene should include the start menu controller.");
+            Assert.That(bootstrap, Is.Not.Null, "Start scene should include the start-scene bootstrapper.");
+
+            var inputRouterObject = new SerializedObject(inputRouter);
+            Assert.That(inputRouterObject.FindProperty("mockProvider")?.objectReferenceValue, Is.SameAs(mockProvider));
+            Assert.That(inputRouterObject.FindProperty("nativeMediapipeProvider")?.objectReferenceValue, Is.SameAs(nativeProvider));
+            Assert.That(inputRouterObject.FindProperty("externalBridgeProvider")?.objectReferenceValue, Is.SameAs(bridgeProvider));
+
+            var bootstrapObject = new SerializedObject(bootstrap);
+            Assert.That(bootstrapObject.FindProperty("inputRouter")?.objectReferenceValue, Is.SameAs(inputRouter));
+            Assert.That(bootstrapObject.FindProperty("webcamFeed")?.objectReferenceValue, Is.SameAs(webcamFeed));
+            Assert.That(bootstrapObject.FindProperty("udpGestureReceiver")?.objectReferenceValue, Is.SameAs(udpReceiver));
+            Assert.That(bootstrapObject.FindProperty("settings")?.objectReferenceValue, Is.SameAs(settings));
+            Assert.That(bootstrapObject.FindProperty("audioController")?.objectReferenceValue, Is.SameAs(audioController));
+
+            var menuObject = new SerializedObject(startMenu);
+            Assert.That(menuObject.FindProperty("inputProvider")?.objectReferenceValue, Is.SameAs(inputRouter));
+            Assert.That(menuObject.FindProperty("settings")?.objectReferenceValue, Is.SameAs(settings));
+            Assert.That(menuObject.FindProperty("gameplaySceneName")?.stringValue, Is.EqualTo("SpellGuardPrototype"));
+
+            Assert.That(EditorBuildSettings.scenes, Has.Length.GreaterThanOrEqualTo(2));
+            Assert.That(EditorBuildSettings.scenes[0].path, Is.EqualTo("Assets/Scenes/SpellGuardStart.unity"));
+            Assert.That(EditorBuildSettings.scenes[1].path, Is.EqualTo("Assets/Scenes/SpellGuardPrototype.unity"));
         }
 
         [Test]
@@ -104,7 +150,7 @@ namespace SpellGuard.Tests.EditMode
 
             var motorObject = new SerializedObject(motor);
             Assert.That(motorObject.FindProperty("inputProvider")?.objectReferenceValue, Is.SameAs(inputRouter));
-            Assert.That(motorObject.FindProperty("cameraPivot")?.objectReferenceValue, Is.SameAs(sceneContext.CameraPivot));
+            Assert.That(motorObject.FindProperty("cameraPivot"), Is.Null, "FpsGestureMotor should no longer expose camera-guidance wiring.");
 
             var spellCasterObject = new SerializedObject(spellCaster);
             Assert.That(spellCasterObject.FindProperty("inputProvider")?.objectReferenceValue, Is.SameAs(inputRouter));
