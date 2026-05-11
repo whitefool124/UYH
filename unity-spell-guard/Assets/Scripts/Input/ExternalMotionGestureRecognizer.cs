@@ -24,9 +24,11 @@ namespace SpellGuard.InputSystem
         }
 
         [SerializeField] private ExternalGestureBridgeProvider bridgeProvider;
+        [SerializeField] private GestureRecognitionProfile recognitionProfile;
         [SerializeField] private float historySeconds = 0.7f;
         [SerializeField] private float swipeMinDistance = 0.09f;
         [SerializeField] private float swipeMaxVerticalDrift = 0.22f;
+        [SerializeField] private float swipeMinSpeed = 0.2f;
         [SerializeField] private float swipeCooldownSeconds = 0.28f;
         [SerializeField] private float snapCloseDistance = 0.09f;
         [SerializeField] private float snapReleaseDistance = 0.14f;
@@ -34,6 +36,7 @@ namespace SpellGuard.InputSystem
         [SerializeField] private float snapCooldownSeconds = 0.45f;
         [SerializeField] private float bodyShiftMinDistance = 0.1f;
         [SerializeField] private float bodyShiftMaxVerticalDrift = 0.12f;
+        [SerializeField] private float bodyShiftMinSpeed = 0.28f;
         [SerializeField] private float bodyShiftCooldownSeconds = 0.45f;
         [SerializeField] private float minPoseVisibility = 0.45f;
 
@@ -48,6 +51,47 @@ namespace SpellGuard.InputSystem
         public void Configure(ExternalGestureBridgeProvider provider)
         {
             bridgeProvider = provider;
+            ApplyRecognitionProfile();
+        }
+
+        public void Configure(ExternalGestureBridgeProvider provider, GestureRecognitionProfile profile)
+        {
+            bridgeProvider = provider;
+            recognitionProfile = profile;
+            ApplyRecognitionProfile();
+        }
+
+        private void Awake()
+        {
+            ApplyRecognitionProfile();
+        }
+
+        private void OnValidate()
+        {
+            ApplyRecognitionProfile();
+        }
+
+        private void ApplyRecognitionProfile()
+        {
+            if (recognitionProfile == null)
+            {
+                return;
+            }
+
+            historySeconds = recognitionProfile.historySeconds;
+            swipeMinDistance = recognitionProfile.swipeMinDistance;
+            swipeMaxVerticalDrift = recognitionProfile.swipeMaxVerticalDrift;
+            swipeMinSpeed = recognitionProfile.swipeMinSpeed;
+            swipeCooldownSeconds = recognitionProfile.swipeCooldownSeconds;
+            snapCloseDistance = recognitionProfile.snapCloseDistance;
+            snapReleaseDistance = recognitionProfile.snapReleaseDistance;
+            snapMaxDuration = recognitionProfile.snapMaxDuration;
+            snapCooldownSeconds = recognitionProfile.snapCooldownSeconds;
+            bodyShiftMinDistance = recognitionProfile.bodyShiftMinDistance;
+            bodyShiftMaxVerticalDrift = recognitionProfile.bodyShiftMaxVerticalDrift;
+            bodyShiftMinSpeed = recognitionProfile.bodyShiftMinSpeed;
+            bodyShiftCooldownSeconds = recognitionProfile.bodyShiftCooldownSeconds;
+            minPoseVisibility = recognitionProfile.minPoseVisibility;
         }
 
         private void Update()
@@ -250,8 +294,8 @@ namespace SpellGuard.InputSystem
             var horizontalDrift = Mathf.Abs(last.Palm.x - first.Palm.x);
             var speed = Mathf.Abs(horizontalDelta) / duration;
 
-            var horizontalSwipeDetected = verticalDrift <= swipeMaxVerticalDrift && Mathf.Abs(horizontalDelta) >= swipeMinDistance && speed >= 0.2f;
-            var verticalSwipeDetected = horizontalDrift <= swipeMaxVerticalDrift && Mathf.Abs(verticalDelta) >= swipeMinDistance && Mathf.Abs(verticalDelta) / duration >= 0.2f;
+            var horizontalSwipeDetected = verticalDrift <= swipeMaxVerticalDrift && Mathf.Abs(horizontalDelta) >= swipeMinDistance && speed >= swipeMinSpeed;
+            var verticalSwipeDetected = horizontalDrift <= swipeMaxVerticalDrift && Mathf.Abs(verticalDelta) >= swipeMinDistance && Mathf.Abs(verticalDelta) / duration >= swipeMinSpeed;
 
             if (!horizontalSwipeDetected && !verticalSwipeDetected)
             {
@@ -290,7 +334,7 @@ namespace SpellGuard.InputSystem
             var verticalDrift = Mathf.Abs(last.ShoulderCenter.y - first.ShoulderCenter.y);
             var speed = Mathf.Abs(horizontalDelta) / duration;
 
-            if (verticalDrift > bodyShiftMaxVerticalDrift || Mathf.Abs(horizontalDelta) < bodyShiftMinDistance || speed < 0.28f)
+            if (verticalDrift > bodyShiftMaxVerticalDrift || Mathf.Abs(horizontalDelta) < bodyShiftMinDistance || speed < bodyShiftMinSpeed)
             {
                 return false;
             }

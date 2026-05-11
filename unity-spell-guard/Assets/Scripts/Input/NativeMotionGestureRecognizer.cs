@@ -16,13 +16,16 @@ namespace SpellGuard.InputSystem
         }
 
         [SerializeField] private NativeMediapipeGestureProvider nativeProvider;
+        [SerializeField] private GestureRecognitionProfile recognitionProfile;
         [SerializeField] private bool debugLogs = true;
         [SerializeField] private float historySeconds = 0.7f;
         [SerializeField] private float swipeMinDistance = 0.09f;
         [SerializeField] private float swipeMaxVerticalDrift = 0.22f;
+        [SerializeField] private float swipeMinSpeed = 0.2f;
         [SerializeField] private float swipeCooldownSeconds = 0.28f;
         [SerializeField] private float slapMinDistance = 0.11f;
         [SerializeField] private float slapMinOpenPalmRatio = 0.8f;
+        [SerializeField] private float slapMinSpeed = 0.24f;
         [SerializeField] private float slapCooldownSeconds = 0.32f;
         [SerializeField] private float pointHoldMinDuration = 0.08f;
         [SerializeField] private float gestureTransitionMaxDuration = 0.4f;
@@ -49,6 +52,50 @@ namespace SpellGuard.InputSystem
         public void Configure(NativeMediapipeGestureProvider provider)
         {
             nativeProvider = provider;
+            ApplyRecognitionProfile();
+        }
+
+        public void Configure(NativeMediapipeGestureProvider provider, GestureRecognitionProfile profile)
+        {
+            nativeProvider = provider;
+            recognitionProfile = profile;
+            ApplyRecognitionProfile();
+        }
+
+        private void Awake()
+        {
+            ApplyRecognitionProfile();
+        }
+
+        private void OnValidate()
+        {
+            ApplyRecognitionProfile();
+        }
+
+        private void ApplyRecognitionProfile()
+        {
+            if (recognitionProfile == null)
+            {
+                return;
+            }
+
+            historySeconds = recognitionProfile.historySeconds;
+            swipeMinDistance = recognitionProfile.swipeMinDistance;
+            swipeMaxVerticalDrift = recognitionProfile.swipeMaxVerticalDrift;
+            swipeMinSpeed = recognitionProfile.swipeMinSpeed;
+            swipeCooldownSeconds = recognitionProfile.swipeCooldownSeconds;
+            slapMinDistance = recognitionProfile.slapMinDistance;
+            slapMinOpenPalmRatio = recognitionProfile.slapMinOpenPalmRatio;
+            slapMinSpeed = recognitionProfile.slapMinSpeed;
+            slapCooldownSeconds = recognitionProfile.slapCooldownSeconds;
+            pointHoldMinDuration = recognitionProfile.pointHoldMinDuration;
+            gestureTransitionMaxDuration = recognitionProfile.gestureTransitionMaxDuration;
+            gestureTransitionMaxTravel = recognitionProfile.gestureTransitionMaxTravel;
+            gestureTransitionCooldownSeconds = recognitionProfile.gestureTransitionCooldownSeconds;
+            snapCloseDistance = recognitionProfile.snapCloseDistance;
+            snapReleaseDistance = recognitionProfile.snapReleaseDistance;
+            snapMaxDuration = recognitionProfile.snapMaxDuration;
+            snapCooldownSeconds = recognitionProfile.snapCooldownSeconds;
         }
 
         private void Update()
@@ -201,7 +248,7 @@ namespace SpellGuard.InputSystem
             var verticalDrift = Mathf.Abs(last.Palm.y - first.Palm.y);
             var speed = Mathf.Abs(horizontalDelta) / duration;
 
-            if (verticalDrift > swipeMaxVerticalDrift || Mathf.Abs(horizontalDelta) < slapMinDistance || speed < 0.24f)
+            if (verticalDrift > swipeMaxVerticalDrift || Mathf.Abs(horizontalDelta) < slapMinDistance || speed < slapMinSpeed)
             {
                 return false;
             }
@@ -242,8 +289,8 @@ namespace SpellGuard.InputSystem
             var horizontalDrift = Mathf.Abs(last.Palm.x - first.Palm.x);
             var speed = Mathf.Abs(horizontalDelta) / duration;
 
-            var horizontalSwipeDetected = verticalDrift <= swipeMaxVerticalDrift && Mathf.Abs(horizontalDelta) >= swipeMinDistance && speed >= 0.2f;
-            var verticalSwipeDetected = horizontalDrift <= swipeMaxVerticalDrift && Mathf.Abs(verticalDelta) >= swipeMinDistance && Mathf.Abs(verticalDelta) / duration >= 0.2f;
+            var horizontalSwipeDetected = verticalDrift <= swipeMaxVerticalDrift && Mathf.Abs(horizontalDelta) >= swipeMinDistance && speed >= swipeMinSpeed;
+            var verticalSwipeDetected = horizontalDrift <= swipeMaxVerticalDrift && Mathf.Abs(verticalDelta) >= swipeMinDistance && Mathf.Abs(verticalDelta) / duration >= swipeMinSpeed;
 
             if (!horizontalSwipeDetected && !verticalSwipeDetected)
             {

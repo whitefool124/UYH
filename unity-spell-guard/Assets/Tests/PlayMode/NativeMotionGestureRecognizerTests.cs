@@ -147,6 +147,25 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator ProfileCanRaiseSwipeThresholdForNativeRecognizer()
+        {
+            var profile = ScriptableObject.CreateInstance<GestureRecognitionProfile>();
+            profile.swipeMinDistance = 0.5f;
+            profile.swipeMinSpeed = 0.2f;
+            recognizer.Configure(nativeProvider, profile);
+
+            PushHandFrame(new Vector2(0.18f, 0.42f), 0.18f);
+            yield return new WaitForSeconds(0.02f);
+            PushHandFrame(new Vector2(0.31f, 0.44f), 0.18f);
+            yield return new WaitForSeconds(0.02f);
+            PushHandFrame(new Vector2(0.48f, 0.45f), 0.18f);
+            yield return null;
+
+            Assert.That(nativeProvider.CurrentMotionGesture.IsValid, Is.False);
+            Object.DestroyImmediate(profile);
+        }
+
+        [UnityTest]
         public IEnumerator DoesNotDetectPointToFistWhenPalmTravelIsTooLarge()
         {
             PushHandFrame(new Vector2(0.20f, 0.45f), 0.18f, GestureType.Point);

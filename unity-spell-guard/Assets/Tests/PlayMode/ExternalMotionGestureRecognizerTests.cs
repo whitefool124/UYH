@@ -98,6 +98,22 @@ namespace SpellGuard.Tests.PlayMode
             Assert.That(bridgeProvider.CurrentMotionGesture.Gesture, Is.EqualTo(MotionGestureType.SwipeLeftToRight));
         }
 
+        [UnityTest]
+        public IEnumerator ProfileCanRaiseSwipeThresholdForExternalRecognizer()
+        {
+            var profile = ScriptableObject.CreateInstance<GestureRecognitionProfile>();
+            profile.swipeMinDistance = 0.5f;
+            profile.swipeMinSpeed = 0.2f;
+            recognizer.Configure(bridgeProvider, profile);
+
+            yield return PushHandFrame(new Vector2(0.18f, 0.42f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.31f, 0.44f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.48f, 0.45f), 0.02f);
+
+            Assert.That(bridgeProvider.CurrentMotionGesture.IsValid, Is.False);
+            Object.DestroyImmediate(profile);
+        }
+
         private IEnumerator PushHandFrame(Vector2 palm, float timeStep, float thumbMiddleDistance = 0.18f)
         {
             bridgeProvider.PushFrame(CreateHandFrame(palm, thumbMiddleDistance, Time.time));
