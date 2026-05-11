@@ -16,19 +16,12 @@ namespace SpellGuard.Player
         }
 
         [SerializeField] private GestureInputProviderBase inputProvider;
-        [SerializeField] private Transform cameraPivot;
-        [SerializeField] private float maxYawSpeed = 140f;
-        [SerializeField] private float maxPitchSpeed = 90f;
-        [SerializeField] private float turnDeadZone = 0.08f;
         [SerializeField] private float moveStepDistance = 1.5f;
         [SerializeField] private float moveStepDuration = 0.18f;
         [SerializeField] private float moveInputCooldown = 0.18f;
         [SerializeField] private float gravity = -18f;
-        [SerializeField] private float minPitch = -45f;
-        [SerializeField] private float maxPitch = 55f;
         private CharacterController characterController;
         private float verticalVelocity;
-        private float pitch;
         private bool inputEnabled = true;
         private GestureFrame currentGestureFrame;
         private float lastMoveTriggerTime = -999f;
@@ -78,24 +71,9 @@ namespace SpellGuard.Player
             var moveVector = Vector3.zero;
             IsMovingForward = stepInProgress && currentStepDirection == DiscreteMoveDirection.Forward;
 
-            if (inputEnabled && activeHand.IsTracked && activeHand.StaticGesture == GestureType.Point)
-            {
-                var offset = activeHand.ViewportPosition - new Vector2(0.5f, 0.5f);
-                var yawInput = ApplyDeadZone(offset.x, turnDeadZone);
-                var pitchInput = ApplyDeadZone(offset.y, turnDeadZone);
-
-                transform.Rotate(0f, yawInput * maxYawSpeed * Time.deltaTime, 0f);
-
-                pitch = Mathf.Clamp(pitch - pitchInput * maxPitchSpeed * Time.deltaTime, minPitch, maxPitch);
-                if (cameraPivot != null)
-                {
-                    cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
-                }
-            }
-
             if (inputEnabled)
             {
-                HandleDiscreteMovement(activeHand, currentGestureFrame.LatestMotion);
+                HandleDiscreteMovement(currentGestureFrame.LatestMotion);
             }
 
             if (stepInProgress)
@@ -122,10 +100,9 @@ namespace SpellGuard.Player
             moveVector.y = verticalVelocity;
 
             characterController.Move(moveVector * Time.deltaTime);
-
         }
 
-        private void HandleDiscreteMovement(TrackedHandState activeHand, MotionGestureEvent motion)
+        private void HandleDiscreteMovement(MotionGestureEvent motion)
         {
             if (stepInProgress || Time.time - lastMoveTriggerTime < moveInputCooldown)
             {
@@ -203,17 +180,6 @@ namespace SpellGuard.Player
             }
 
             return DiscreteMoveDirection.None;
-        }
-
-        private static float ApplyDeadZone(float value, float deadZone)
-        {
-            if (Mathf.Abs(value) <= deadZone)
-            {
-                return 0f;
-            }
-
-            var sign = Mathf.Sign(value);
-            return sign * Mathf.InverseLerp(deadZone, 0.5f, Mathf.Abs(value));
         }
     }
 }

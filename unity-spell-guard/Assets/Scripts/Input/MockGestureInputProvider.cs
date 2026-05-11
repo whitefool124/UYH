@@ -8,7 +8,9 @@ namespace SpellGuard.InputSystem
         [SerializeField] private GestureType gesture = GestureType.Point;
         [SerializeField] private Vector2 viewportPosition = new Vector2(0.5f, 0.7f);
         [SerializeField] private float moveSpeed = 0.65f;
+        [SerializeField] private float motionEventTimeout = 0.7f;
         private readonly GestureCommandHistory commandHistory = new GestureCommandHistory();
+        private MotionGestureEvent latestMotionGesture = MotionGestureEvent.None;
         private GestureCommand currentGestureCommand = GestureCommand.None;
 
         public override GestureSnapshot CurrentSnapshot => new GestureSnapshot
@@ -19,18 +21,28 @@ namespace SpellGuard.InputSystem
             Confidence = handPresent ? 1f : 0f
         };
 
+        public override MotionGestureEvent CurrentMotionGesture
+        {
+            get
+            {
+                RefreshMotionTimeout();
+                return latestMotionGesture;
+            }
+        }
+
         public override GestureFrame CurrentGestureFrame => LegacyGestureRuntimeAdapter.BuildSingleHandFrame(
             CurrentSnapshot,
             null,
             0,
             Time.time,
             GestureSourceKind.Mock,
-            MotionGestureEvent.None);
+            CurrentMotionGesture);
 
         public override GestureCommand CurrentGestureCommand
         {
             get
             {
+                RefreshMotionTimeout();
                 return currentGestureCommand;
             }
         }
@@ -58,6 +70,12 @@ namespace SpellGuard.InputSystem
             if (Input.GetKeyDown(KeyCode.Alpha3)) gesture = GestureType.VSign;
             if (Input.GetKeyDown(KeyCode.Alpha4)) gesture = GestureType.OpenPalm;
 
+            if (Input.GetKeyDown(KeyCode.LeftArrow)) PushMotionGesture(MotionGestureType.SwipeRightToLeft);
+            if (Input.GetKeyDown(KeyCode.RightArrow)) PushMotionGesture(MotionGestureType.SwipeLeftToRight);
+            if (Input.GetKeyDown(KeyCode.UpArrow)) PushMotionGesture(MotionGestureType.SwipeBottomToTop);
+            if (Input.GetKeyDown(KeyCode.DownArrow)) PushMotionGesture(MotionGestureType.SwipeTopToBottom);
+            if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) PushMotionGesture(MotionGestureType.PointToFist);
+
             var speed = moveSpeed * (Input.GetKey(KeyCode.LeftShift) ? 2f : 1f);
             var delta = Vector2.zero;
 
@@ -74,11 +92,43 @@ namespace SpellGuard.InputSystem
             {
                 RefreshCurrentCommand(true);
             }
+            else
+            {
+                RefreshMotionTimeout();
+            }
+        }
+
+        public override void ClearTransientInputs()
+        {
+            latestMotionGesture = MotionGestureEvent.None;
+            RefreshCurrentCommand(false);
+        }
+
+        private void PushMotionGesture(MotionGestureType motionGesture)
+        {
+            latestMotionGesture = new MotionGestureEvent
+            {
+                Gesture = motionGesture,
+                ViewportPosition = viewportPosition,
+                Confidence = handPresent ? 1f : 0f,
+                TriggeredTime = Time.time
+            };
+
+            RefreshCurrentCommand(true);
+        }
+
+        private void RefreshMotionTimeout()
+        {
+            if (latestMotionGesture.IsValid && Time.time - latestMotionGesture.TriggeredTime > motionEventTimeout)
+            {
+                latestMotionGesture = MotionGestureEvent.None;
+                RefreshCurrentCommand(false);
+            }
         }
 
         private void RefreshCurrentCommand(bool record)
         {
-            currentGestureCommand = ChooseGestureCommand(CurrentSnapshot, MotionGestureEvent.None);
+            currentGestureCommand = ChooseGestureCommand(CurrentSnapshot, latestMotionGesture);
             if (record)
             {
                 commandHistory.Record(currentGestureCommand);
