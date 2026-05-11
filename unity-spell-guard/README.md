@@ -26,11 +26,11 @@ The project is designed to show a complete vision-to-gameplay pipeline:
 
 1. Open `unity-spell-guard/` in Unity Hub
 2. Wait for the project to import
-3. Open `Assets/Scenes/SpellGuardPrototype.unity`
+3. Open `Assets/Scenes/SpellGuardStart.unity`
 4. Press Play
-5. Optional: run `Spell Guard/Create Prototype Scene` if you need to regenerate the prototype scene from editor tooling
+5. Optional: run `Spell Guard/Create Start Scene` or `Spell Guard/Create Prototype Scene` if you need to regenerate scenes from editor tooling
 
-The prototype scene is included in Build Settings as the first scene, so a standalone build can start from the demo loop directly.
+The start scene is the first scene in Build Settings, followed by the prototype combat scene. A standalone build now enters the gesture-friendly start menu first, then loads the combat prototype after the player chooses combat or training.
 
 ## Runtime Modes
 
@@ -44,6 +44,15 @@ Native MediaPipe startup is guarded so camera or native initialization issues ca
 
 ## Controls
 
+### Start scene
+
+- Left / right / up / down motion gestures – cycle the highlighted start-menu option
+- `Fist` hold, `Snap`, or `PointToFist` – confirm the highlighted option
+- `Open Palm` hold – return to the main start menu from tutorial/settings/gesture guide
+- Mouse click – supported as an accessibility and demo fallback
+
+The start scene does not use hand-position targeting. UI is calculated from `Screen.safeArea` with a 16:9 reference scale, uses a two-column layout on wide screens and stacks panels vertically on narrow screens, while keeping button hit targets at least 44 pixels tall.
+
 ### Mock mode
 
 - `Tab` – toggle hand present
@@ -53,11 +62,13 @@ Native MediaPipe startup is guarded so camera or native initialization issues ca
 - `4` – Open Palm
 - `0` – clear gesture
 - `I / J / K / L` – move virtual hand
+- Arrow keys – emit mock swipe motion commands for menu/gameplay testing
+- `Enter` – emit a mock PointToFist confirmation command
 - `Left Shift` – faster movement
 
 ### Gameplay mapping
 
-- Point → camera guidance and forward step intent
+- Point → hand presence / targeting feedback only
 - Open Palm → defensive step-back intent / shield semantics
 - Left / Right motion gestures → lateral repositioning
 - Fist → fire spell
@@ -120,9 +131,9 @@ Available test coverage includes:
 The project is in a stable defense-demo stage:
 
 - command-driven runtime is wired into gameplay
-- menu → tutorial/training → combat → results → restart/menu loop is implemented
+- start scene → tutorial/settings/training/combat → results/restart/start loop is implemented
 - Mock is the default safe startup mode; Native MediaPipe and ExternalBridge remain switchable
-- build settings include `Assets/Scenes/SpellGuardPrototype.unity`
+- build settings include `Assets/Scenes/SpellGuardStart.unity` followed by `Assets/Scenes/SpellGuardPrototype.unity`
 - tests are present for runtime, flow, scene generation, motion recognition, and dataset validation
 
 The remaining work is mainly richer level content, final art polish, and presentation packaging.

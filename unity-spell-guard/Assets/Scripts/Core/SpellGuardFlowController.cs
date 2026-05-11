@@ -4,6 +4,7 @@ using SpellGuard.InputSystem;
 using SpellGuard.Player;
 using SpellGuard.UI;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace SpellGuard.Core
 {
@@ -11,6 +12,7 @@ namespace SpellGuard.Core
     {
         [SerializeField] private SpellGuardGameSettings settings;
         [SerializeField] private GestureInputProviderBase inputProvider;
+        [SerializeField] private GestureInputRouter inputRouter;
         [SerializeField] private FpsGestureMotor motor;
         [SerializeField] private GestureSpellCaster spellCaster;
         [SerializeField] private PlayerHealth playerHealth;
@@ -20,6 +22,7 @@ namespace SpellGuard.Core
         [SerializeField] private bool debugLogs = true;
         [SerializeField] private float trainingMenuHoldSeconds = 1.6f;
         [SerializeField] private KeyCode pauseToggleKey = KeyCode.Escape;
+        [SerializeField] private string startSceneName = "SpellGuardStart";
 
         private SpellGuardScreen screen = SpellGuardScreen.Menu;
         private int combatScore;
@@ -57,13 +60,14 @@ namespace SpellGuard.Core
         public string DifficultyLabel => settings != null ? settings.DifficultyLabel : "未绑定";
         public string MusicVolumeLabel => settings != null ? settings.MusicVolumeLabel : "未绑定";
         public string SfxVolumeLabel => settings != null ? settings.SfxVolumeLabel : "未绑定";
+        public string InputModeLabel => inputRouter != null ? FormatInputMode(inputRouter.Mode) : settings != null ? settings.InputModeLabel : "未绑定";
 
         public SpellGuardRuntimeStatus GetScreenStatus()
         {
             return screen switch
             {
                 SpellGuardScreen.Menu => new SpellGuardRuntimeStatus("主菜单", "先看教程，或进入训练场热身，再开始守卫"),
-                SpellGuardScreen.Settings => new SpellGuardRuntimeStatus("设置", $"结印确认：{ConfirmLabel} | 敌人节奏：{DifficultyLabel}"),
+                SpellGuardScreen.Settings => new SpellGuardRuntimeStatus("设置", $"输入模式：{InputModeLabel} | 结印确认：{ConfirmLabel} | 敌人节奏：{DifficultyLabel}"),
                 SpellGuardScreen.Tutorial => new SpellGuardRuntimeStatus("上手教程", "先理解流程，再进入训练场或直接开始战斗"),
                 SpellGuardScreen.Training => new SpellGuardRuntimeStatus("训练场", "练习位移、施法与返回菜单"),
                 SpellGuardScreen.Playing => new SpellGuardRuntimeStatus("战斗中", $"推进、施法、换位并完成 {TargetScoreToWin} 分防守目标"),
@@ -117,7 +121,19 @@ namespace SpellGuard.Core
         private void Start()
         {
             LoadLocalProgress();
-            ReturnToMenu();
+            var launchMode = SpellGuardStartSceneLaunch.ConsumePendingMode();
+            if (launchMode == SpellGuardStartSceneLaunchMode.Training)
+            {
+                StartTraining();
+            }
+            else if (launchMode == SpellGuardStartSceneLaunchMode.Combat)
+            {
+                StartRun();
+            }
+            else
+            {
+                ReturnToMenu();
+            }
         }
 
         private void Update()
@@ -171,6 +187,15 @@ namespace SpellGuard.Core
             HintText = $"设置已切换：敌人节奏 {settings?.DifficultyLabel}";
             SpellGuardAudioController.Instance?.PlayUiClickSfx();
             LogFlowEvent("cycle difficulty setting");
+        }
+
+        public void CycleInputModeSetting()
+        {
+            var nextMode = settings != null ? settings.CycleInputMode() : GetNextInputMode(inputRouter != null ? inputRouter.Mode : GestureInputRouter.InputMode.Mock);
+            inputRouter?.SetMode(nextMode);
+            HintText = $"设置已切换：输入模式 {FormatInputMode(nextMode)}";
+            SpellGuardAudioController.Instance?.PlayUiClickSfx();
+            LogFlowEvent("cycle input mode setting");
         }
 
         public void CycleMusicVolumeSetting()
@@ -257,6 +282,17 @@ namespace SpellGuard.Core
 
         public void ReturnToMenu()
         {
+            if (SpellGuardStartSceneLaunch.ShouldReturnToStartScene && !string.IsNullOrWhiteSpace(startSceneName))
+            {
+                Time.timeScale = 1f;
+                enemySpawner?.ClearAll();
+                gameFlow?.ResetGameOver();
+                inputProvider?.ClearTransientInputs();
+                SpellGuardStartSceneLaunch.ClearReturnTarget();
+                SceneManager.LoadScene(startSceneName);
+                return;
+            }
+
             Time.timeScale = 1f;
             enemySpawner?.ClearAll();
             gameFlow?.ResetGameOver();
@@ -455,6 +491,27 @@ namespace SpellGuard.Core
                 SpellGuardRunResult.Victory => "战斗胜利",
                 SpellGuardRunResult.Defeat => "战斗失败",
                 _ => "战斗结果"
+            };
+        }
+
+        private static GestureInputRouter.InputMode GetNextInputMode(GestureInputRouter.InputMode mode)
+        {
+            return mode switch
+            {
+                GestureInputRouter.InputMode.Mock => GestureInputRouter.InputMode.NativeMediapipe,
+                GestureInputRouter.InputMode.NativeMediapipe => GestureInputRouter.InputMode.ExternalBridge,
+                _ => GestureInputRouter.InputMode.Mock
+            };
+        }
+
+        private static string FormatInputMode(GestureInputRouter.InputMode mode)
+        {
+            return mode switch
+            {
+                GestureInputRouter.InputMode.Mock => "Mock",
+                GestureInputRouter.InputMode.NativeMediapipe => "Native MediaPipe",
+                GestureInputRouter.InputMode.ExternalBridge => "ExternalBridge",
+                _ => "Unknown"
             };
         }
 

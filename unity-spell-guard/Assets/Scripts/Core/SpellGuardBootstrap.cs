@@ -75,6 +75,11 @@ namespace SpellGuard.Core
                 sceneContext.AudioController.PlayMenuMusic();
             }
 
+            if (sceneContext.InputRouter != null && sceneContext.GameSettings != null)
+            {
+                sceneContext.InputRouter.SetMode(sceneContext.GameSettings.InputMode);
+            }
+
             SubscribeToInputRouter();
             SyncInputBackendLifecycle();
 
@@ -140,6 +145,7 @@ namespace SpellGuard.Core
 
         private void HandleInputModeChanged(GestureInputRouter.InputMode _)
         {
+            sceneContext?.GameSettings?.SetInputMode(_);
             SyncInputBackendLifecycle();
         }
 
@@ -184,7 +190,10 @@ namespace SpellGuard.Core
                     if (!sceneContext.WebcamFeed.IsRunning)
                     {
                         sceneContext.InputRouter?.SetMode(GestureInputRouter.InputMode.Mock);
-                        sceneContext.NativeMediapipeRunner.enabled = false;
+                        if (sceneContext.NativeMediapipeRunner != null)
+                        {
+                            sceneContext.NativeMediapipeRunner.enabled = false;
+                        }
                         sceneContext.NativeMediapipeProvider?.SetStatusText("摄像头不可用，已回退到 Mock");
                         sceneContext.AudioController?.PlayMenuMusic();
                     }
