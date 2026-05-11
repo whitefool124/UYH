@@ -10,6 +10,7 @@ This folder keeps the graduation-project planning, implementation notes, and dem
 - `Day2_演示主线设计.md` - 5-minute defense-demo route.
 - `Day3_基线版本检查.md` - baseline status and known risks.
 - `Day4_教学关结构搭建.md` - training/tutorial loop structure.
+- `论文风险补全实验规划.md` - YOLO evidence and Unity performance metrics plan for thesis risk closure.
 
 ## Design references
 
