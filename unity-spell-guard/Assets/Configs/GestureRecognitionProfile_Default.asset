@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f6b12f3c94b4e4c9b0b5b91f9e6a0d1, type: 3}
+  m_Name: GestureRecognitionProfile_Default
+  m_EditorClassIdentifier: SpellGuard.InputSystem::SpellGuard.InputSystem.GestureRecognitionProfile
+  historySeconds: 0.7
+  swipeMinDistance: 0.09
+  swipeMaxVerticalDrift: 0.22
+  swipeMinSpeed: 0.2
+  swipeCooldownSeconds: 0.28
+  slapMinDistance: 0.11
+  slapMinOpenPalmRatio: 0.8
+  slapMinSpeed: 0.24
+  slapCooldownSeconds: 0.32
+  snapCloseDistance: 0.09
+  snapReleaseDistance: 0.14
+  snapMaxDuration: 0.35
+  snapCooldownSeconds: 0.45
+  pointHoldMinDuration: 0.08
+  gestureTransitionMaxDuration: 0.4
+  gestureTransitionMaxTravel: 0.18
+  gestureTransitionCooldownSeconds: 0.45
+  bodyShiftMinDistance: 0.1
+  bodyShiftMaxVerticalDrift: 0.12
+  bodyShiftMinSpeed: 0.28
+  bodyShiftCooldownSeconds: 0.45
+  minPoseVisibility: 0.45
