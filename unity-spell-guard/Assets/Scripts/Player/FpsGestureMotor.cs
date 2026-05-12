@@ -19,6 +19,7 @@ namespace SpellGuard.Player
         [SerializeField] private float moveStepDistance = 1.5f;
         [SerializeField] private float moveStepDuration = 0.18f;
         [SerializeField] private float moveInputCooldown = 0.18f;
+        [SerializeField] private float staticMoveHoldSeconds = 0.25f;
         [SerializeField] private float gravity = -18f;
         private CharacterController characterController;
         private float verticalVelocity;
@@ -31,6 +32,9 @@ namespace SpellGuard.Player
         private bool stepInProgress;
         private float lastHandledMotionTime = -999f;
         private DiscreteMoveDirection currentStepDirection = DiscreteMoveDirection.None;
+        private GestureType heldMoveGesture = GestureType.None;
+        private float heldMoveStartedAt = -999f;
+        private bool heldMoveConsumed;
 
         public GestureSnapshot Snapshot { get; private set; }
         public bool IsMovingForward { get; private set; }
@@ -51,11 +55,17 @@ namespace SpellGuard.Player
                 IsMovingForward = false;
                 stepInProgress = false;
                 currentStepDirection = DiscreteMoveDirection.None;
+                ResetStaticMoveHold();
             }
         }
 
         private void Update()
         {
+            if (characterController == null)
+            {
+                characterController = GetComponent<CharacterController>();
+            }
+
             currentGestureFrame = inputProvider != null ? inputProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.Unknown);
             var activeHand = currentGestureFrame.PrimaryHand;
             Snapshot = activeHand.IsTracked
@@ -73,7 +83,7 @@ namespace SpellGuard.Player
 
             if (inputEnabled)
             {
-                HandleDiscreteMovement(currentGestureFrame.LatestMotion);
+                HandleDiscreteMovement(currentGestureFrame);
             }
 
             if (stepInProgress)
@@ -83,7 +93,7 @@ namespace SpellGuard.Player
                 var nextPosition = Vector3.Lerp(stepStartPosition, stepTargetPosition, progress);
                 var delta = nextPosition - transform.position;
                 moveVector += new Vector3(delta.x, 0f, delta.z) / Mathf.Max(Time.deltaTime, 0.0001f);
-                IsMovingForward = true;
+                IsMovingForward = currentStepDirection == DiscreteMoveDirection.Forward;
                 if (progress >= 1f)
                 {
                     stepInProgress = false;
@@ -102,13 +112,19 @@ namespace SpellGuard.Player
             characterController.Move(moveVector * Time.deltaTime);
         }
 
-        private void HandleDiscreteMovement(MotionGestureEvent motion)
+        private void HandleDiscreteMovement(GestureFrame frame)
         {
             if (stepInProgress || Time.time - lastMoveTriggerTime < moveInputCooldown)
             {
                 return;
             }
 
+            if (TryHandleStaticMoveGesture(frame.PrimaryHand))
+            {
+                return;
+            }
+
+            var motion = frame.LatestMotion;
             if (motion.IsValid && motion.TriggeredTime > lastHandledMotionTime)
             {
                 switch (motion.Gesture)
@@ -138,6 +154,39 @@ namespace SpellGuard.Player
                         return;
                 }
             }
+        }
+
+        private bool TryHandleStaticMoveGesture(TrackedHandState primaryHand)
+        {
+            if (!primaryHand.IsTracked ||
+                (primaryHand.StaticGesture != GestureType.Point && primaryHand.StaticGesture != GestureType.OpenPalm))
+            {
+                ResetStaticMoveHold();
+                return false;
+            }
+
+            if (heldMoveGesture != primaryHand.StaticGesture)
+            {
+                heldMoveGesture = primaryHand.StaticGesture;
+                heldMoveStartedAt = Time.time;
+                heldMoveConsumed = false;
+            }
+
+            if (heldMoveConsumed || Time.time - heldMoveStartedAt < Mathf.Max(0f, staticMoveHoldSeconds))
+            {
+                return false;
+            }
+
+            heldMoveConsumed = true;
+            BeginStep(primaryHand.StaticGesture == GestureType.Point ? transform.forward : -transform.forward);
+            return true;
+        }
+
+        private void ResetStaticMoveHold()
+        {
+            heldMoveGesture = GestureType.None;
+            heldMoveStartedAt = -999f;
+            heldMoveConsumed = false;
         }
 
         private void BeginStep(Vector3 direction)

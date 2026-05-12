@@ -17,7 +17,6 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         private GameObject root;
-        private GameObject pivotObject;
         private MockGestureInputProvider mockProvider;
         private FpsGestureMotor motor;
         private TestInputProvider testInputProvider;
@@ -31,17 +30,12 @@ namespace SpellGuard.Tests.PlayMode
             mockProvider = root.AddComponent<MockGestureInputProvider>();
             testInputProvider = root.AddComponent<TestInputProvider>();
 
-            pivotObject = new GameObject("CameraPivot");
-            pivotObject.transform.SetParent(root.transform, false);
-
             SetPrivateField(motor, "inputProvider", mockProvider);
-            SetPrivateField(motor, "cameraPivot", pivotObject.transform);
         }
 
         [TearDown]
         public void TearDown()
         {
-            Object.DestroyImmediate(pivotObject);
             Object.DestroyImmediate(root);
         }
 
@@ -53,7 +47,7 @@ namespace SpellGuard.Tests.PlayMode
 
             Assert.That(motor.Snapshot.HandPresent, Is.True);
             Assert.That(motor.Snapshot.Gesture, Is.EqualTo(GestureType.Point));
-            Assert.That(frame.Source, Is.EqualTo(GestureSourceKind.Unknown));
+            Assert.That(frame.Source, Is.EqualTo(GestureSourceKind.Mock));
         }
 
         [Test]
@@ -106,6 +100,51 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         [Test]
+        public void PointHoldStartsForwardStep()
+        {
+            SetPrivateField(motor, "inputProvider", testInputProvider);
+            SetPrivateField(motor, "staticMoveHoldSeconds", 0f);
+            testInputProvider.frame = CreateStaticGestureFrame(GestureType.Point);
+
+            InvokePrivateUpdate(motor);
+
+            Assert.That(motor.IsStepInProgress, Is.True);
+            Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.Forward));
+        }
+
+        [Test]
+        public void OpenPalmHoldStartsBackwardStep()
+        {
+            SetPrivateField(motor, "inputProvider", testInputProvider);
+            SetPrivateField(motor, "staticMoveHoldSeconds", 0f);
+            testInputProvider.frame = CreateStaticGestureFrame(GestureType.OpenPalm);
+
+            InvokePrivateUpdate(motor);
+
+            Assert.That(motor.IsStepInProgress, Is.True);
+            Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.Backward));
+            Assert.That(motor.IsMovingForward, Is.False);
+        }
+
+        [Test]
+        public void StaticMoveHoldDoesNotRepeatBeforeGestureChanges()
+        {
+            SetPrivateField(motor, "inputProvider", testInputProvider);
+            SetPrivateField(motor, "staticMoveHoldSeconds", 0f);
+            SetPrivateField(motor, "moveStepDuration", 0.01f);
+            SetPrivateField(motor, "moveInputCooldown", 0f);
+            testInputProvider.frame = CreateStaticGestureFrame(GestureType.Point);
+
+            InvokePrivateUpdate(motor);
+            SetPrivateField(motor, "stepInProgress", false);
+            SetPrivateField(motor, "currentStepDirection", FpsGestureMotor.DiscreteMoveDirection.None);
+            InvokePrivateUpdate(motor);
+
+            Assert.That(motor.IsStepInProgress, Is.False);
+            Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.None));
+        }
+
+        [Test]
         public void BodyShiftLeftStartsLeftStep()
         {
             SetPrivateField(motor, "inputProvider", testInputProvider);
@@ -128,6 +167,31 @@ namespace SpellGuard.Tests.PlayMode
         private static void InvokePrivateUpdate(FpsGestureMotor target)
         {
             target.GetType().GetMethod("Update", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.Invoke(target, null);
+        }
+
+        private static GestureFrame CreateStaticGestureFrame(GestureType gesture)
+        {
+            return new GestureFrame
+            {
+                FrameId = 1,
+                Timestamp = Time.time,
+                Source = GestureSourceKind.Mock,
+                Hands = new[]
+                {
+                    new TrackedHandState
+                    {
+                        TrackId = 1,
+                        Handedness = GestureHandedness.Right,
+                        IsTracked = true,
+                        StaticGesture = gesture,
+                        Confidence = 1f,
+                        ViewportPosition = new Vector2(0.5f, 0.5f),
+                        PalmCenter = new Vector2(0.5f, 0.5f),
+                        Landmarks = System.Array.Empty<Vector2>()
+                    }
+                },
+                LatestMotion = MotionGestureEvent.None
+            };
         }
 
         private static void SetPrivateField(object target, string fieldName, object value)
