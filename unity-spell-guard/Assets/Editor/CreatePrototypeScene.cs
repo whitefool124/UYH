@@ -248,6 +248,7 @@ namespace SpellGuard.EditorTools
             var motor = player.AddComponent<FpsGestureMotor>();
             var spellCaster = player.AddComponent<GestureSpellCaster>();
             var performanceMonitor = player.AddComponent<GesturePerformanceMonitor>();
+            var demoRunRecorder = player.AddComponent<DemoRunRecorder>();
 
             var cameraPivot = new GameObject("CameraPivot").transform;
             cameraPivot.SetParent(player.transform, false);
@@ -398,6 +399,9 @@ namespace SpellGuard.EditorTools
 
             SetField(performanceMonitor, "inputRouter", inputRouter);
             SetField(performanceMonitor, "externalBridge", externalBridge);
+
+            SetField(demoRunRecorder, "flowController", flowController);
+            SetField(demoRunRecorder, "inputRouter", inputRouter);
 
             SetField(bootstrap, "sceneContext", sceneContext);
 
