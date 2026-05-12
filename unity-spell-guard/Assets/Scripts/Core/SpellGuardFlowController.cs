@@ -3,6 +3,7 @@ using SpellGuard.Audio;
 using SpellGuard.InputSystem;
 using SpellGuard.Player;
 using SpellGuard.UI;
+using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -61,6 +62,7 @@ namespace SpellGuard.Core
         public string MusicVolumeLabel => settings != null ? settings.MusicVolumeLabel : "未绑定";
         public string SfxVolumeLabel => settings != null ? settings.SfxVolumeLabel : "未绑定";
         public string InputModeLabel => inputRouter != null ? FormatInputMode(inputRouter.Mode) : settings != null ? settings.InputModeLabel : "未绑定";
+        public event Action<SpellType, int, SpellGuardScreen> SpellResolvedForDiagnostics;
 
         public SpellGuardRuntimeStatus GetScreenStatus()
         {
@@ -380,6 +382,8 @@ namespace SpellGuard.Core
 
         private void HandleSpellResolved(SpellType spell, int hitCount)
         {
+            SpellResolvedForDiagnostics?.Invoke(spell, hitCount, screen);
+
             if (screen == SpellGuardScreen.Playing)
             {
                 combatCasts += 1;
