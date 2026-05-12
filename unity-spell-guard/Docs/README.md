@@ -12,6 +12,8 @@ This folder keeps the graduation-project planning, implementation notes, and dem
 - `Day4_教学关结构搭建.md` - training/tutorial loop structure.
 - `论文风险补全实验规划.md` - YOLO evidence and Unity performance metrics plan for thesis risk closure.
 - `论文导向技术栈补全开发计划.md` - P0/P1/P2 engineering backlog for making the game project thesis-ready.
+- `ExperimentResults/test_results.md` - Unity Test Runner and focused PlayMode result archive for thesis evidence.
+- `ThesisAssets/README.md` - screenshot, diagram, and experiment-table archive checklist for thesis/presentation materials.
 
 ## Design references
 
@@ -27,6 +29,7 @@ This folder keeps the graduation-project planning, implementation notes, and dem
 - `美术资产需求表.md` - art asset priorities and current substitutes.
 - `美术风格规范_全息试炼空间.md` - holographic trial-space style guide.
 - `答辩版_vs_比赛版功能边界表.md` - defense version vs competition version scope.
+- `ThesisAssets/` - canonical location for thesis screenshots, diagrams, and derived experiment tables.
 
 ## Current delivery status
 
