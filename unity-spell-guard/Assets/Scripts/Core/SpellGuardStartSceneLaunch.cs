@@ -4,7 +4,8 @@ namespace SpellGuard.Core
     {
         None,
         Combat,
-        Training
+        Training,
+        DeveloperTools
     }
 
     public static class SpellGuardStartSceneLaunch

@@ -26,6 +26,7 @@ namespace SpellGuard.Core
         [SerializeField] private float trainingMenuHoldSeconds = 1.6f;
         [SerializeField] private KeyCode pauseToggleKey = KeyCode.Escape;
         [SerializeField] private string startSceneName = "SpellGuardStart";
+        [SerializeField] private bool developerToolsMode;
         [Header("Custom Gesture Training")]
         [SerializeField] private float customGestureCountdownSeconds = 3f;
         [SerializeField] private float customGestureRecordSeconds = 1.2f;
@@ -39,6 +40,9 @@ namespace SpellGuard.Core
         private int combatScore;
         private int combatHits;
         private int combatCasts;
+        private int combatFireCasts;
+        private int combatIceCasts;
+        private int combatShieldCasts;
         private int trainingCasts;
         private int trainingPointerChecks;
         private int trainingFireCasts;
@@ -66,6 +70,9 @@ namespace SpellGuard.Core
         public int CombatScore => combatScore;
         public int CombatHits => combatHits;
         public int CombatCasts => combatCasts;
+        public int CombatFireCasts => combatFireCasts;
+        public int CombatIceCasts => combatIceCasts;
+        public int CombatShieldCasts => combatShieldCasts;
         public int TrainingCasts => trainingCasts;
         public int TrainingPointerChecks => trainingPointerChecks;
         public int TrainingFireCasts => trainingFireCasts;
@@ -78,6 +85,8 @@ namespace SpellGuard.Core
         public string TrainingStepLabel => GetTrainingStepLabel(trainingStep);
         public string TrainingStepFeedback { get; private set; } = "第 1 步：使用 Point 完成一次指向确认。";
         public bool TrainingComplete => trainingStep == TrainingGestureStep.Complete;
+        public bool DeveloperToolsEnabled => developerToolsMode;
+        public bool IsCustomGestureRecording => customGestureRecorder.IsBusy;
         public string ConfirmLabel => settings != null ? settings.ConfirmLabel : "未绑定";
         public string DifficultyLabel => settings != null ? settings.DifficultyLabel : "未绑定";
         public string MusicVolumeLabel => settings != null ? settings.MusicVolumeLabel : "未绑定";
@@ -102,7 +111,9 @@ namespace SpellGuard.Core
                 SpellGuardScreen.Menu => new SpellGuardRuntimeStatus("主菜单", "先看教程，或进入训练场热身，再开始守卫"),
                 SpellGuardScreen.Settings => new SpellGuardRuntimeStatus("设置", $"输入模式：{InputModeLabel} | 结印确认：{ConfirmLabel} | 敌人节奏：{DifficultyLabel}"),
                 SpellGuardScreen.Tutorial => new SpellGuardRuntimeStatus("上手教程", "先理解流程，再进入训练场或直接开始战斗"),
-                SpellGuardScreen.Training => new SpellGuardRuntimeStatus("训练场", "练习位移、施法与返回菜单"),
+                SpellGuardScreen.Training => developerToolsMode
+                    ? new SpellGuardRuntimeStatus("开发者靶场", "无敌人、无限时间：录入自定义手势并观察识别历史")
+                    : new SpellGuardRuntimeStatus("训练场", "练习位移、施法与返回菜单"),
                 SpellGuardScreen.Playing => new SpellGuardRuntimeStatus("战斗中", $"推进、施法、换位并完成 {TargetScoreToWin} 分防守目标"),
                 SpellGuardScreen.Paused => new SpellGuardRuntimeStatus("战斗暂停", "暂停中：可继续、重开本局，或返回主菜单"),
                 SpellGuardScreen.Results => new SpellGuardRuntimeStatus(GetResultTitle(), $"得分：{CombatScore} | 命中率：{GetHitRate()}%"),
@@ -121,6 +132,9 @@ namespace SpellGuard.Core
                 combatScore,
                 combatHits,
                 combatCasts,
+                combatFireCasts,
+                combatIceCasts,
+                combatShieldCasts,
                 trainingCasts,
                 trainingPointerChecks,
                 trainingFireCasts,
@@ -138,6 +152,7 @@ namespace SpellGuard.Core
                 bestScore,
                 tutorialSeen,
                 TrainingComplete,
+                developerToolsMode,
                 CustomGestureDisplayName,
                 CustomGestureTargetLabel,
                 customGestureStatusText,
@@ -170,8 +185,9 @@ namespace SpellGuard.Core
             ConfigureCustomGestureRecorder();
             inputRouter?.ReloadCustomGestures();
             var launchMode = SpellGuardStartSceneLaunch.ConsumePendingMode();
-            if (launchMode == SpellGuardStartSceneLaunchMode.Training)
+            if (launchMode == SpellGuardStartSceneLaunchMode.Training || launchMode == SpellGuardStartSceneLaunchMode.DeveloperTools || developerToolsMode)
             {
+                developerToolsMode = developerToolsMode || launchMode == SpellGuardStartSceneLaunchMode.DeveloperTools;
                 StartTraining();
             }
             else if (launchMode == SpellGuardStartSceneLaunchMode.Combat)
@@ -294,6 +310,7 @@ namespace SpellGuard.Core
             }
 
             ConfigureCustomGestureRecorder();
+            inputRouter?.SetCustomGesturesEnabled(false);
             customGestureRecorder.Begin(Time.time);
             customGestureStatusText = customGestureRecorder.StatusText;
             HintText = "保持单手完整入镜，系统会录制 1.2 秒 landmark 序列。";
@@ -321,6 +338,7 @@ namespace SpellGuard.Core
 
             inputRouter?.SaveCustomGesture(template);
             customGestureRecorder.MarkSaved();
+            inputRouter?.SetCustomGesturesEnabled(true);
             customGestureStatusText = $"已保存 {template.DisplayName} → {CustomGestureTargetLabel}，进入测试模式重复动作即可触发法术。";
             HintText = customGestureStatusText;
             SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
@@ -329,6 +347,7 @@ namespace SpellGuard.Core
         public void ReloadCustomGestureTemplates()
         {
             inputRouter?.ReloadCustomGestures();
+            inputRouter?.SetCustomGesturesEnabled(true);
             customGestureStatusText = $"已重新加载模板库，最近识别：{CustomGestureLastMatchedName}";
             HintText = customGestureStatusText;
             inputProvider?.ClearTransientInputs();
@@ -395,15 +414,24 @@ namespace SpellGuard.Core
             ConfigureCustomGestureRecorder();
             customGestureStatusText = "自定义手势：可录制 5 个样本并绑定火/冰/盾。";
             SpellGuardAudioController.Instance?.PlayMenuMusic();
-            HintText = "训练：完成基础目标，也可以录入自定义手势绑定火/冰/盾。";
+            HintText = developerToolsMode
+                ? "开发者靶场：无敌人、无倒计时，专注录入自定义手势、测试识别历史与采集论文数据。"
+                : "训练：完成基础目标，也可以录入自定义手势绑定火/冰/盾。";
             if (CurrentLevelConfig != null && !string.IsNullOrWhiteSpace(CurrentLevelConfig.TutorialHint))
             {
-                HintText = CurrentLevelConfig.TutorialHint;
+                HintText = developerToolsMode ? HintText : CurrentLevelConfig.TutorialHint;
             }
         }
 
         public void StartRunFromTraining()
         {
+            if (developerToolsMode)
+            {
+                HintText = "开发者靶场保持无限测试，不会进入正式战斗；请直接观察 HUD 识别历史或导出实验数据。";
+                SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
+                return;
+            }
+
             if (!TrainingComplete)
             {
                 HintText = "训练目标未完成：至少做一次指向确认，并各释放一次火焰、冰霜和护盾。";
@@ -479,7 +507,8 @@ namespace SpellGuard.Core
         private void ApplyModeState()
         {
             var interactive3D = screen == SpellGuardScreen.Playing || screen == SpellGuardScreen.Training;
-            motor?.SetInputEnabled(interactive3D);
+            var allowGameplayInput = interactive3D && !IsCustomGestureRecording;
+            motor?.SetInputEnabled(allowGameplayInput);
             if (!interactive3D)
             {
                 inputProvider?.ClearTransientInputs();
@@ -487,12 +516,14 @@ namespace SpellGuard.Core
 
             if (spellCaster != null)
             {
-                spellCaster.SetCastingEnabled(interactive3D);
+                spellCaster.SetCastingEnabled(allowGameplayInput);
                 if (settings != null)
                 {
                     spellCaster.SetConfirmSeconds(settings.ConfirmSeconds);
                 }
             }
+
+            inputRouter?.SetCustomGesturesEnabled(!IsCustomGestureRecording);
 
             var levelAllowsSpawning = CurrentLevelConfig == null || CurrentLevelConfig.SpawnEnemies;
             enemySpawner?.SetSpawningEnabled(screen == SpellGuardScreen.Playing && levelAllowsSpawning);
@@ -522,6 +553,19 @@ namespace SpellGuard.Core
             if (screen == SpellGuardScreen.Playing)
             {
                 combatCasts += 1;
+                if (spell == SpellType.Fire)
+                {
+                    combatFireCasts += 1;
+                }
+                else if (spell == SpellType.Ice)
+                {
+                    combatIceCasts += 1;
+                }
+                else if (spell == SpellType.Shield)
+                {
+                    combatShieldCasts += 1;
+                }
+
                 combatHits += hitCount;
                 combatScore += hitCount;
                 gameFlow?.ReportCombatScore(combatScore);
@@ -614,6 +658,9 @@ namespace SpellGuard.Core
             combatScore = 0;
             combatHits = 0;
             combatCasts = 0;
+            combatFireCasts = 0;
+            combatIceCasts = 0;
+            combatShieldCasts = 0;
         }
 
         private void ResetPlayerPose()

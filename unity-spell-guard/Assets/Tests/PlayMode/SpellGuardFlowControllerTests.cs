@@ -154,6 +154,39 @@ namespace SpellGuard.Tests.PlayMode
             Assert.That(flowController.CurrentRunResult, Is.EqualTo(SpellGuardRunResult.Victory));
         }
 
+        [Test]
+        public void CombatViewDataCarriesSpellBreakdown()
+        {
+            flowController.StartRun();
+
+            InvokeSpellResolved(SpellType.Fire, 1);
+            InvokeSpellResolved(SpellType.Ice, 1);
+            InvokeSpellResolved(SpellType.Shield, 0);
+
+            var viewData = flowController.GetViewData();
+            Assert.That(viewData.CombatCasts, Is.EqualTo(3));
+            Assert.That(viewData.CombatHits, Is.EqualTo(2));
+            Assert.That(viewData.CombatFireCasts, Is.EqualTo(1));
+            Assert.That(viewData.CombatIceCasts, Is.EqualTo(1));
+            Assert.That(viewData.CombatShieldCasts, Is.EqualTo(1));
+            Assert.That(viewData.HitRate, Is.EqualTo(67));
+        }
+
+        [Test]
+        public void StartRunResetsCombatSpellBreakdown()
+        {
+            flowController.StartRun();
+            InvokeSpellResolved(SpellType.Fire, 1);
+            InvokeSpellResolved(SpellType.Shield, 0);
+
+            flowController.StartRun();
+
+            Assert.That(flowController.CombatCasts, Is.EqualTo(0));
+            Assert.That(flowController.CombatFireCasts, Is.EqualTo(0));
+            Assert.That(flowController.CombatIceCasts, Is.EqualTo(0));
+            Assert.That(flowController.CombatShieldCasts, Is.EqualTo(0));
+        }
+
         private static void SetPrivateField(object target, string fieldName, object value)
         {
             var field = target.GetType().GetField(fieldName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);

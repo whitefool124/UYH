@@ -14,6 +14,9 @@ namespace SpellGuard.UI
             int combatScore,
             int combatHits,
             int combatCasts,
+            int combatFireCasts,
+            int combatIceCasts,
+            int combatShieldCasts,
             int trainingCasts,
             int trainingPointerChecks,
             int trainingFireCasts,
@@ -31,6 +34,7 @@ namespace SpellGuard.UI
             int bestScore,
             bool tutorialSeen,
             bool trainingComplete,
+            bool developerToolsEnabled,
             string customGestureDisplayName,
             string customGestureTargetLabel,
             string customGestureStatusText,
@@ -48,6 +52,9 @@ namespace SpellGuard.UI
             CombatScore = combatScore;
             CombatHits = combatHits;
             CombatCasts = combatCasts;
+            CombatFireCasts = combatFireCasts;
+            CombatIceCasts = combatIceCasts;
+            CombatShieldCasts = combatShieldCasts;
             TrainingCasts = trainingCasts;
             TrainingPointerChecks = trainingPointerChecks;
             TrainingFireCasts = trainingFireCasts;
@@ -65,6 +72,7 @@ namespace SpellGuard.UI
             BestScore = bestScore;
             TutorialSeen = tutorialSeen;
             TrainingComplete = trainingComplete;
+            DeveloperToolsEnabled = developerToolsEnabled;
             CustomGestureDisplayName = customGestureDisplayName;
             CustomGestureTargetLabel = customGestureTargetLabel;
             CustomGestureStatusText = customGestureStatusText;
@@ -83,6 +91,9 @@ namespace SpellGuard.UI
         public int CombatScore { get; }
         public int CombatHits { get; }
         public int CombatCasts { get; }
+        public int CombatFireCasts { get; }
+        public int CombatIceCasts { get; }
+        public int CombatShieldCasts { get; }
         public int TrainingCasts { get; }
         public int TrainingPointerChecks { get; }
         public int TrainingFireCasts { get; }
@@ -100,6 +111,7 @@ namespace SpellGuard.UI
         public int BestScore { get; }
         public bool TutorialSeen { get; }
         public bool TrainingComplete { get; }
+        public bool DeveloperToolsEnabled { get; }
         public string CustomGestureDisplayName { get; }
         public string CustomGestureTargetLabel { get; }
         public string CustomGestureStatusText { get; }
