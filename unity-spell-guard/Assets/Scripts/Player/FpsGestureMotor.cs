@@ -19,6 +19,8 @@ namespace SpellGuard.Player
         [SerializeField] private float moveStepDistance = 1.5f;
         [SerializeField] private float moveStepDuration = 0.18f;
         [SerializeField] private float moveInputCooldown = 0.18f;
+        [SerializeField] private float horizontalMoveCooldown = 0.45f;
+        [SerializeField] private float verticalMoveCooldown = 0.45f;
         [SerializeField] private float staticMoveHoldSeconds = 0.25f;
         [SerializeField] private float gravity = -18f;
         private CharacterController characterController;
@@ -26,6 +28,8 @@ namespace SpellGuard.Player
         private bool inputEnabled = true;
         private GestureFrame currentGestureFrame;
         private float lastMoveTriggerTime = -999f;
+        private float lastHorizontalMoveTriggerTime = -999f;
+        private float lastVerticalMoveTriggerTime = -999f;
         private Vector3 stepStartPosition;
         private Vector3 stepTargetPosition;
         private float stepStartedAt;
@@ -131,21 +135,37 @@ namespace SpellGuard.Player
                 {
                     case GestureIntent.MoveLeft:
                         lastHandledMotionTime = action.TriggeredTime;
+                        if (!CanTriggerHorizontalMove())
+                        {
+                            return;
+                        }
                         BeginStep(-transform.right);
                         return;
 
                     case GestureIntent.MoveRight:
                         lastHandledMotionTime = action.TriggeredTime;
+                        if (!CanTriggerHorizontalMove())
+                        {
+                            return;
+                        }
                         BeginStep(transform.right);
                         return;
 
                     case GestureIntent.MoveForward:
                         lastHandledMotionTime = action.TriggeredTime;
+                        if (!CanTriggerVerticalMove())
+                        {
+                            return;
+                        }
                         BeginStep(transform.forward);
                         return;
 
                     case GestureIntent.MoveBackward:
                         lastHandledMotionTime = action.TriggeredTime;
+                        if (!CanTriggerVerticalMove())
+                        {
+                            return;
+                        }
                         BeginStep(-transform.forward);
                         return;
                 }
@@ -169,6 +189,12 @@ namespace SpellGuard.Player
 
             if (heldMoveConsumed || Time.time - heldMoveStartedAt < Mathf.Max(0f, staticMoveHoldSeconds))
             {
+                return false;
+            }
+
+            if (!CanTriggerVerticalMove())
+            {
+                heldMoveConsumed = true;
                 return false;
             }
 
@@ -199,6 +225,34 @@ namespace SpellGuard.Player
             lastMoveTriggerTime = Time.time;
             stepInProgress = true;
             currentStepDirection = ResolveDirection(direction);
+            if (IsHorizontalDirection(currentStepDirection))
+            {
+                lastHorizontalMoveTriggerTime = Time.time;
+            }
+            else if (IsVerticalDirection(currentStepDirection))
+            {
+                lastVerticalMoveTriggerTime = Time.time;
+            }
+        }
+
+        private bool CanTriggerHorizontalMove()
+        {
+            return Time.time - lastHorizontalMoveTriggerTime >= Mathf.Max(0f, horizontalMoveCooldown);
+        }
+
+        private bool CanTriggerVerticalMove()
+        {
+            return Time.time - lastVerticalMoveTriggerTime >= Mathf.Max(0f, verticalMoveCooldown);
+        }
+
+        private static bool IsHorizontalDirection(DiscreteMoveDirection direction)
+        {
+            return direction == DiscreteMoveDirection.Left || direction == DiscreteMoveDirection.Right;
+        }
+
+        private static bool IsVerticalDirection(DiscreteMoveDirection direction)
+        {
+            return direction == DiscreteMoveDirection.Forward || direction == DiscreteMoveDirection.Backward;
         }
 
         private DiscreteMoveDirection ResolveDirection(Vector3 direction)

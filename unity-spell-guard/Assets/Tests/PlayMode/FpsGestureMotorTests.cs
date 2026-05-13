@@ -164,6 +164,42 @@ namespace SpellGuard.Tests.PlayMode
             Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.None));
         }
 
+        [Test]
+        public void LeftAndRightMovesShareHorizontalCooldown()
+        {
+            SetPrivateField(motor, "inputProvider", testInputProvider);
+            SetPrivateField(motor, "moveInputCooldown", 0f);
+            SetPrivateField(motor, "horizontalMoveCooldown", 1f);
+            PushMotion(MotionGestureType.SwipeRightToLeft, Time.time);
+            InvokePrivateUpdate(motor);
+            Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.Left));
+
+            FinishStepForTest();
+            PushMotion(MotionGestureType.SwipeLeftToRight, Time.time + 0.1f);
+            InvokePrivateUpdate(motor);
+
+            Assert.That(motor.IsStepInProgress, Is.False);
+            Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.None));
+        }
+
+        [Test]
+        public void ForwardAndBackwardMovesShareVerticalCooldown()
+        {
+            SetPrivateField(motor, "inputProvider", testInputProvider);
+            SetPrivateField(motor, "moveInputCooldown", 0f);
+            SetPrivateField(motor, "verticalMoveCooldown", 1f);
+            PushMotion(MotionGestureType.SwipeBottomToTop, Time.time);
+            InvokePrivateUpdate(motor);
+            Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.Forward));
+
+            FinishStepForTest();
+            PushMotion(MotionGestureType.SwipeTopToBottom, Time.time + 0.1f);
+            InvokePrivateUpdate(motor);
+
+            Assert.That(motor.IsStepInProgress, Is.False);
+            Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.None));
+        }
+
         private static void InvokePrivateUpdate(FpsGestureMotor target)
         {
             target.GetType().GetMethod("Update", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.Invoke(target, null);
@@ -192,6 +228,25 @@ namespace SpellGuard.Tests.PlayMode
                 },
                 LatestMotion = MotionGestureEvent.None
             };
+        }
+
+        private void PushMotion(MotionGestureType gesture, float triggeredTime)
+        {
+            testInputProvider.snapshot = GestureSnapshot.Missing;
+            testInputProvider.frame = GestureFrame.Empty(GestureSourceKind.Mock);
+            testInputProvider.frame.LatestMotion = new MotionGestureEvent
+            {
+                Gesture = gesture,
+                ViewportPosition = new Vector2(0.5f, 0.5f),
+                Confidence = 1f,
+                TriggeredTime = triggeredTime
+            };
+        }
+
+        private void FinishStepForTest()
+        {
+            SetPrivateField(motor, "stepInProgress", false);
+            SetPrivateField(motor, "currentStepDirection", FpsGestureMotor.DiscreteMoveDirection.None);
         }
 
         private static void SetPrivateField(object target, string fieldName, object value)

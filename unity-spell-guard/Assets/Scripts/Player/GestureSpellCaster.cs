@@ -30,6 +30,8 @@ namespace SpellGuard.Player
         public float PendingProgress { get; private set; }
         public SpellType LastCastSpell => lastCastSpell;
         public string StatusText { get; private set; } = "等待手势";
+        public string SpellPromptText => BuildSpellPromptText();
+        public string LastSpellFeedbackText { get; private set; } = "尚未施法";
         public event Action<SpellType, int> SpellResolved;
 
         public SpellConfig GetSpellConfig(SpellType spellType)
@@ -135,10 +137,12 @@ namespace SpellGuard.Player
                 case SpellType.Fire:
                     hitCount = TryHitEnemy(enemy => enemy.ApplyDamage(spellConfig.Damage));
                     StatusText = "火焰术已释放";
+                    LastSpellFeedbackText = hitCount > 0 ? "火焰命中：敌人受到伤害" : "火焰未命中：请对准敌人";
                     break;
                 case SpellType.Ice:
                     hitCount = TryHitEnemy(enemy => enemy.ApplyFreeze(spellConfig.FreezeDuration));
                     StatusText = "冰霜术已释放";
+                    LastSpellFeedbackText = hitCount > 0 ? "冰霜命中：敌人进入冻结反馈" : "冰霜未命中：请对准敌人";
                     break;
                 case SpellType.Shield:
                     if (playerHealth != null)
@@ -146,6 +150,7 @@ namespace SpellGuard.Player
                         playerHealth.ActivateShield(spellConfig.ShieldDuration);
                     }
                     StatusText = "护盾术已释放";
+                    LastSpellFeedbackText = $"护盾启动：持续 {spellConfig.ShieldDuration:F1}s";
                     break;
             }
 
@@ -218,6 +223,26 @@ namespace SpellGuard.Player
                 default:
                     return SpellType.None;
             }
+        }
+
+        private string BuildSpellPromptText()
+        {
+            if (!castingEnabled)
+            {
+                return "法术暂停：菜单或结算状态";
+            }
+
+            if (pendingSpell != SpellType.None)
+            {
+                return $"确认中：{pendingSpell.ToChinese()} {Mathf.RoundToInt(PendingProgress * 100f)}%";
+            }
+
+            if (lastCastSpell != SpellType.None)
+            {
+                return $"最近释放：{lastCastSpell.ToChinese()} · {LastSpellFeedbackText}";
+            }
+
+            return "火焰 / 冰霜 / 护盾：等待有效手势";
         }
     }
 }
