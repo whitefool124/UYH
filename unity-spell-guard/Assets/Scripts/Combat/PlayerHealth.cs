@@ -24,6 +24,12 @@ namespace SpellGuard.Combat
             ShieldActiveUntil = 0f;
         }
 
+        public void SetMaxHealth(int value)
+        {
+            maxHealth = Mathf.Max(1, value);
+            ResetHealth();
+        }
+
         public void ActivateShield(float duration)
         {
             ShieldActiveUntil = Time.time + duration;

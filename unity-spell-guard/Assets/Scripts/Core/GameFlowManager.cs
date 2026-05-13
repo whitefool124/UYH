@@ -14,6 +14,16 @@ namespace SpellGuard.Core
         public SpellGuardRunResult RunResult { get; private set; }
         public int TargetScoreToWin => Mathf.Max(1, targetScoreToWin);
 
+        public void ApplyLevelConfig(LevelConfig config)
+        {
+            if (config == null)
+            {
+                return;
+            }
+
+            targetScoreToWin = config.TargetScore;
+        }
+
         public void ResetGameOver()
         {
             GameOver = false;

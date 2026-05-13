@@ -11,12 +11,17 @@ namespace SpellGuard.Combat
         [SerializeField] private float spawnInterval = 2.5f;
         [SerializeField] private float spawnRadius = 18f;
         [SerializeField] private int maxAliveEnemies = 6;
+        [SerializeField] private EnemyConfig enemyConfig = EnemyConfig.Default;
 
         private readonly List<SimpleEnemyController> aliveEnemies = new List<SimpleEnemyController>();
         private float nextSpawnTime;
         private bool spawningEnabled = true;
 
         public IReadOnlyList<SimpleEnemyController> AliveEnemies => aliveEnemies;
+        public float SpawnInterval => spawnInterval;
+        public float SpawnRadius => spawnRadius;
+        public int MaxAliveEnemies => maxAliveEnemies;
+        public EnemyConfig EnemyConfig => enemyConfig;
 
         private void Update()
         {
@@ -67,6 +72,15 @@ namespace SpellGuard.Combat
             maxAliveEnemies = config.MaxAliveEnemies;
         }
 
+        public void ApplyWaveConfig(WaveConfig config)
+        {
+            var fallback = WaveConfig.Default;
+            spawnInterval = config.SpawnInterval > 0f ? config.SpawnInterval : fallback.SpawnInterval;
+            spawnRadius = config.SpawnRadius > 0f ? config.SpawnRadius : fallback.SpawnRadius;
+            maxAliveEnemies = config.MaxAliveEnemies > 0 ? config.MaxAliveEnemies : fallback.MaxAliveEnemies;
+            enemyConfig = IsValidEnemyConfig(config.Enemy) ? config.Enemy : fallback.Enemy;
+        }
+
         private void SpawnEnemy()
         {
             var angle = Random.Range(-70f, 70f);
@@ -88,8 +102,13 @@ namespace SpellGuard.Combat
 
             var enemy = enemyObject.AddComponent<SimpleEnemyController>();
             enemy.Initialize(playerRoot, playerHealth);
-            enemy.ApplyConfig(EnemyConfig.Default);
+            enemy.ApplyConfig(enemyConfig);
             aliveEnemies.Add(enemy);
+        }
+
+        private static bool IsValidEnemyConfig(EnemyConfig config)
+        {
+            return config.Speed > 0f && config.HitPoints > 0 && config.AttackDistance > 0f;
         }
     }
 }
