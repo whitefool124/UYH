@@ -17,6 +17,7 @@ namespace SpellGuard.EditorTools
     {
         private const string StartScenePath = "Assets/Scenes/SpellGuardStart.unity";
         private const string PrototypeScenePath = "Assets/Scenes/SpellGuardPrototype.unity";
+        private const string DeveloperToolsScenePath = "Assets/Scenes/SpellGuardDeveloperTools.unity";
         private const string GestureRecognitionProfilePath = "Assets/Configs/GestureRecognitionProfile_Default.asset";
         private const string TutorialLevelConfigPath = "Assets/Configs/LevelConfig_Tutorial.asset";
         private const string CombatLevelConfigPath = "Assets/Configs/LevelConfig_Combat.asset";
@@ -122,8 +123,19 @@ namespace SpellGuard.EditorTools
         [MenuItem("Spell Guard/Create Prototype Scene")]
         public static void CreateScene()
         {
+            CreateGameplayScene(PrototypeScenePath, false);
+        }
+
+        [MenuItem("Spell Guard/Developer/Create Developer Tools Scene")]
+        public static void CreateDeveloperToolsScene()
+        {
+            CreateGameplayScene(DeveloperToolsScenePath, true);
+        }
+
+        private static void CreateGameplayScene(string scenePath, bool developerToolsMode)
+        {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            scene.name = "SpellGuardPrototype";
+            scene.name = developerToolsMode ? "SpellGuardDeveloperTools" : "SpellGuardPrototype";
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             RenderSettings.ambientLight = new Color(0.09f, 0.11f, 0.16f);
@@ -253,8 +265,8 @@ namespace SpellGuard.EditorTools
             var health = player.AddComponent<PlayerHealth>();
             var motor = player.AddComponent<FpsGestureMotor>();
             var spellCaster = player.AddComponent<GestureSpellCaster>();
-            var performanceMonitor = player.AddComponent<GesturePerformanceMonitor>();
-            var demoRunRecorder = player.AddComponent<DemoRunRecorder>();
+            var performanceMonitor = developerToolsMode ? player.AddComponent<GesturePerformanceMonitor>() : null;
+            var demoRunRecorder = developerToolsMode ? player.AddComponent<DemoRunRecorder>() : null;
 
             var cameraPivot = new GameObject("CameraPivot").transform;
             cameraPivot.SetParent(player.transform, false);
@@ -302,7 +314,12 @@ namespace SpellGuard.EditorTools
             arenaSign.characterSize = 0.08f;
             arenaSign.color = new Color(1f, 0.84f, 0.45f);
             arenaSign.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            arenaSign.text = "SPELL GUARD\nRITUAL CHAMBER";
+            arenaSign.text = developerToolsMode ? "SPELL GUARD\nDEVELOPER LAB" : "SPELL GUARD\nRITUAL CHAMBER";
+
+            if (developerToolsMode)
+            {
+                CreateDeveloperTargetRange();
+            }
 
             var motionGestureFeedbackBoardComponent = motionGestureFeedbackBoard.AddComponent<MotionGestureFeedbackBoard>();
 
@@ -314,7 +331,7 @@ namespace SpellGuard.EditorTools
             var flowController = flow.AddComponent<SpellGuardFlowController>();
             var spawner = flow.AddComponent<EnemySpawner>();
             var gameFlow = flow.AddComponent<GameFlowManager>();
-            var hud = flow.AddComponent<DebugHud>();
+            var hud = developerToolsMode ? flow.AddComponent<DebugHud>() : null;
             var menuOverlay = flow.AddComponent<SpellGuardMenuOverlay>();
 
             SetField(inputRouter, "mockProvider", mockProvider);
@@ -358,6 +375,7 @@ namespace SpellGuard.EditorTools
             SetField(flowController, "enemySpawner", spawner);
             SetField(flowController, "gameFlow", gameFlow);
             SetField(flowController, "levelConfigLibrary", levelConfigLibrary);
+            SetSerializedBool(flowController, "developerToolsMode", developerToolsMode);
 
             SetField(motor, "inputProvider", inputRouter);
 
@@ -390,30 +408,34 @@ namespace SpellGuard.EditorTools
             SetField(motionGestureFeedbackBoardComponent, "boardRenderer", motionGestureFeedbackBoard.GetComponent<Renderer>());
             SetField(motionGestureFeedbackBoardComponent, "labelText", motionGestureFeedbackLabel);
 
-            SetField(hud, "inputProvider", inputRouter);
-            SetField(hud, "inputRouter", inputRouter);
-            SetField(hud, "webcamFeed", webcamFeed);
-            SetField(hud, "nativeMediapipeProvider", nativeMediapipeProvider);
-            SetField(hud, "externalBridge", externalBridge);
-            SetField(hud, "udpGestureReceiver", udpReceiver);
-            SetField(hud, "motor", motor);
-            SetField(hud, "spellCaster", spellCaster);
-            SetField(hud, "playerHealth", health);
-            SetField(hud, "enemySpawner", spawner);
-            SetField(hud, "gameFlow", gameFlow);
-            SetField(hud, "flowController", flowController);
-            SetField(hud, "performanceMonitor", performanceMonitor);
+            if (developerToolsMode)
+            {
+                SetField(hud, "inputProvider", inputRouter);
+                SetField(hud, "inputRouter", inputRouter);
+                SetField(hud, "webcamFeed", webcamFeed);
+                SetField(hud, "nativeMediapipeProvider", nativeMediapipeProvider);
+                SetField(hud, "externalBridge", externalBridge);
+                SetField(hud, "udpGestureReceiver", udpReceiver);
+                SetField(hud, "motor", motor);
+                SetField(hud, "spellCaster", spellCaster);
+                SetField(hud, "playerHealth", health);
+                SetField(hud, "enemySpawner", spawner);
+                SetField(hud, "gameFlow", gameFlow);
+                SetField(hud, "flowController", flowController);
+                SetField(hud, "performanceMonitor", performanceMonitor);
+                SetField(hud, "demoRunRecorder", demoRunRecorder);
 
-            SetField(performanceMonitor, "inputRouter", inputRouter);
-            SetField(performanceMonitor, "externalBridge", externalBridge);
+                SetField(performanceMonitor, "inputRouter", inputRouter);
+                SetField(performanceMonitor, "externalBridge", externalBridge);
 
-            SetField(demoRunRecorder, "flowController", flowController);
-            SetField(demoRunRecorder, "inputRouter", inputRouter);
+                SetField(demoRunRecorder, "flowController", flowController);
+                SetField(demoRunRecorder, "inputRouter", inputRouter);
+            }
 
             SetField(bootstrap, "sceneContext", sceneContext);
 
             EnsureScenesFolder();
-            EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), PrototypeScenePath);
+            EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), scenePath);
             UpdateBuildSettings();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -424,6 +446,43 @@ namespace SpellGuard.EditorTools
             if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
             {
                 AssetDatabase.CreateFolder("Assets", "Scenes");
+            }
+        }
+
+        private static void CreateDeveloperTargetRange()
+        {
+            var root = new GameObject("DeveloperTargetRange");
+            for (var index = 0; index < 3; index++)
+            {
+                var target = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                target.name = $"GestureHistoryTarget_{index + 1}";
+                target.transform.SetParent(root.transform, false);
+                target.transform.position = new Vector3((index - 1) * 3.2f, 1.45f, 9f + index * 1.8f);
+                target.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+                target.transform.localScale = new Vector3(1.1f, 0.08f, 1.1f);
+                target.GetComponent<Renderer>().sharedMaterial.color = index switch
+                {
+                    0 => new Color(1f, 0.36f, 0.22f),
+                    1 => new Color(0.32f, 0.72f, 1f),
+                    _ => new Color(0.36f, 1f, 0.62f)
+                };
+
+                var label = new GameObject("Label").AddComponent<TextMesh>();
+                label.transform.SetParent(target.transform, false);
+                label.transform.localPosition = new Vector3(0f, 0f, -0.12f);
+                label.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+                label.anchor = TextAnchor.MiddleCenter;
+                label.alignment = TextAlignment.Center;
+                label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                label.fontSize = 48;
+                label.characterSize = 0.055f;
+                label.color = Color.white;
+                label.text = index switch
+                {
+                    0 => "FIRE\nFist/Snap",
+                    1 => "ICE\nV Sign",
+                    _ => "SHIELD\nOpen Palm"
+                };
             }
         }
 

@@ -10,6 +10,7 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace SpellGuard.Tests.EditMode
 {
@@ -113,8 +114,8 @@ namespace SpellGuard.Tests.EditMode
             Assert.That(sceneContext.MenuOverlay, Is.SameAs(menuOverlay));
             Assert.That(sceneContext.MotionGestureFeedbackBoard, Is.SameAs(feedbackBoard));
             Assert.That(flowController, Is.Not.Null, "Generated scene should include the flow controller.");
-            Assert.That(performanceMonitor, Is.Not.Null, "Generated scene should include a gesture performance monitor.");
-            Assert.That(sceneContext.PerformanceMonitor, Is.SameAs(performanceMonitor));
+            Assert.That(performanceMonitor, Is.Null, "Player-facing prototype scene should not include paper/performance data collectors.");
+            Assert.That(sceneContext.PerformanceMonitor, Is.Null);
             Assert.That(levelConfigLibrary, Is.Not.Null, "Generated scene should create a default level config library asset.");
             Assert.That(tutorialLevel, Is.Not.Null, "Generated scene should create a tutorial level config asset.");
             Assert.That(combatLevel, Is.Not.Null, "Generated scene should create a combat level config asset.");
@@ -175,24 +176,48 @@ namespace SpellGuard.Tests.EditMode
             Assert.That(gameFlowObject.FindProperty("playerHealth")?.objectReferenceValue, Is.SameAs(playerHealth));
             Assert.That(gameFlowObject.FindProperty("enemySpawner")?.objectReferenceValue, Is.SameAs(sceneContext.EnemySpawner));
 
+            Assert.That(sceneContext.DebugHud, Is.Null, "Player-facing prototype scene should not include the developer debug HUD.");
+        }
+
+        [Test]
+        public void CreateDeveloperToolsScene_WiresCustomGestureAndPaperDataCollectorsOutsideBuild()
+        {
+            CreatePrototypeScene.CreateDeveloperToolsScene();
+
+            var playerRoot = GameObject.Find("PlayerRoot");
+            var sceneContext = Object.FindObjectOfType<SpellGuardSceneContext>();
+            var flowController = Object.FindObjectOfType<SpellGuardFlowController>(true);
+            var inputRouter = playerRoot != null ? playerRoot.GetComponent<GestureInputRouter>() : null;
+            var bridgeProvider = playerRoot != null ? playerRoot.GetComponent<ExternalGestureBridgeProvider>() : null;
+            var performanceMonitor = playerRoot != null ? playerRoot.GetComponent<GesturePerformanceMonitor>() : null;
+            var demoRunRecorder = playerRoot != null ? playerRoot.GetComponent<DemoRunRecorder>() : null;
+            var targetRange = GameObject.Find("DeveloperTargetRange");
+
+            Assert.That(SceneManager.GetActiveScene().path, Is.EqualTo("Assets/Scenes/SpellGuardDeveloperTools.unity"));
+            Assert.That(playerRoot, Is.Not.Null);
+            Assert.That(sceneContext, Is.Not.Null);
+            Assert.That(flowController, Is.Not.Null);
+            Assert.That(flowController.DeveloperToolsEnabled, Is.True);
+            Assert.That(sceneContext.DebugHud, Is.Not.Null, "Developer scene should include the debug HUD.");
+            Assert.That(performanceMonitor, Is.Not.Null, "Developer scene should include performance/paper data collection.");
+            Assert.That(demoRunRecorder, Is.Not.Null, "Developer scene should include demo run recording.");
+            Assert.That(targetRange, Is.Not.Null, "Developer scene should include a no-enemy visual target range.");
+            Assert.That(Object.FindObjectsOfType<SimpleEnemyController>(), Is.Empty, "Developer target range should start with no enemies.");
+            Assert.That(sceneContext.PerformanceMonitor, Is.SameAs(performanceMonitor));
+
             var hudObject = new SerializedObject(sceneContext.DebugHud);
             Assert.That(hudObject.FindProperty("inputProvider")?.objectReferenceValue, Is.SameAs(inputRouter));
-            Assert.That(hudObject.FindProperty("inputRouter")?.objectReferenceValue, Is.SameAs(inputRouter));
-            Assert.That(hudObject.FindProperty("webcamFeed")?.objectReferenceValue, Is.SameAs(webcamFeed));
-            Assert.That(hudObject.FindProperty("nativeMediapipeProvider")?.objectReferenceValue, Is.SameAs(nativeProvider));
-            Assert.That(hudObject.FindProperty("externalBridge")?.objectReferenceValue, Is.SameAs(bridgeProvider));
-            Assert.That(hudObject.FindProperty("udpGestureReceiver")?.objectReferenceValue, Is.SameAs(udpReceiver));
-            Assert.That(hudObject.FindProperty("motor")?.objectReferenceValue, Is.SameAs(motor));
-            Assert.That(hudObject.FindProperty("spellCaster")?.objectReferenceValue, Is.SameAs(spellCaster));
-            Assert.That(hudObject.FindProperty("playerHealth")?.objectReferenceValue, Is.SameAs(playerHealth));
-            Assert.That(hudObject.FindProperty("enemySpawner")?.objectReferenceValue, Is.SameAs(sceneContext.EnemySpawner));
-            Assert.That(hudObject.FindProperty("gameFlow")?.objectReferenceValue, Is.SameAs(sceneContext.GameFlowManager));
-            Assert.That(hudObject.FindProperty("flowController")?.objectReferenceValue, Is.SameAs(flowController));
             Assert.That(hudObject.FindProperty("performanceMonitor")?.objectReferenceValue, Is.SameAs(performanceMonitor));
+            Assert.That(hudObject.FindProperty("demoRunRecorder")?.objectReferenceValue, Is.SameAs(demoRunRecorder));
 
             var monitorObject = new SerializedObject(performanceMonitor);
             Assert.That(monitorObject.FindProperty("inputRouter")?.objectReferenceValue, Is.SameAs(inputRouter));
             Assert.That(monitorObject.FindProperty("externalBridge")?.objectReferenceValue, Is.SameAs(bridgeProvider));
+
+            var recorderObject = new SerializedObject(demoRunRecorder);
+            Assert.That(recorderObject.FindProperty("flowController")?.objectReferenceValue, Is.SameAs(flowController));
+            Assert.That(recorderObject.FindProperty("inputRouter")?.objectReferenceValue, Is.SameAs(inputRouter));
+            Assert.That(EditorBuildSettings.scenes, Has.None.Matches<EditorBuildSettingsScene>(scene => scene.enabled && scene.path == "Assets/Scenes/SpellGuardDeveloperTools.unity"));
         }
     }
 }
