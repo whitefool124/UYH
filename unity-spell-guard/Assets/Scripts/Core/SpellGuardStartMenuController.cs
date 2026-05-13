@@ -120,7 +120,7 @@ namespace SpellGuard.Core
 
         public void LaunchTraining()
         {
-            Launch(SpellGuardStartSceneLaunchMode.Training);
+            Debug.LogWarning("手势训练/自定义录入已迁移到开发者专用场景，请通过 Spell Guard/Developer/Open Developer Tools Scene 打开。", this);
         }
 
         public void OpenMain()
@@ -151,6 +151,7 @@ namespace SpellGuard.Core
         public void OpenCalibration()
         {
             screen = StartMenuScreen.Calibration;
+            EnsureCalibrationCameraPreview();
             ResetSelection();
         }
 
@@ -290,9 +291,6 @@ namespace SpellGuard.Core
                 case "start":
                     LaunchCombat();
                     break;
-                case "training":
-                    LaunchTraining();
-                    break;
                 case "tutorial":
                     OpenTutorial();
                     break;
@@ -395,28 +393,24 @@ namespace SpellGuard.Core
                     AddRegion("back", MakeNavButtonRect(layout, 5, 6));
                     break;
                 case StartMenuScreen.Tutorial:
-                    AddRegion("training", MakeNavButtonRect(layout, 0, 3));
-                    AddRegion("start", MakeNavButtonRect(layout, 1, 3));
-                    AddRegion("back", MakeNavButtonRect(layout, 2, 3));
+                    AddRegion("start", MakeNavButtonRect(layout, 0, 2));
+                    AddRegion("back", MakeNavButtonRect(layout, 1, 2));
                     break;
                 case StartMenuScreen.GestureGuide:
-                    AddRegion("training", MakeNavButtonRect(layout, 0, 3));
-                    AddRegion("start", MakeNavButtonRect(layout, 1, 3));
-                    AddRegion("back", MakeNavButtonRect(layout, 2, 3));
+                    AddRegion("start", MakeNavButtonRect(layout, 0, 2));
+                    AddRegion("back", MakeNavButtonRect(layout, 1, 2));
                     break;
                 case StartMenuScreen.Calibration:
-                    AddRegion("input-mode", MakeNavButtonRect(layout, 0, 4));
-                    AddRegion("camera-device", MakeNavButtonRect(layout, 1, 4));
-                    AddRegion("training", MakeNavButtonRect(layout, 2, 4));
-                    AddRegion("back", MakeNavButtonRect(layout, 3, 4));
+                    AddRegion("input-mode", MakeNavButtonRect(layout, 0, 3));
+                    AddRegion("camera-device", MakeNavButtonRect(layout, 1, 3));
+                    AddRegion("back", MakeNavButtonRect(layout, 2, 3));
                     break;
                 default:
-                    AddRegion("start", MakeNavButtonRect(layout, 0, 6));
-                    AddRegion("tutorial", MakeNavButtonRect(layout, 1, 6));
-                    AddRegion("training", MakeNavButtonRect(layout, 2, 6));
-                    AddRegion("calibration", MakeNavButtonRect(layout, 3, 6));
-                    AddRegion("settings", MakeNavButtonRect(layout, 4, 6));
-                    AddRegion("gestures", MakeNavButtonRect(layout, 5, 6));
+                    AddRegion("start", MakeNavButtonRect(layout, 0, 5));
+                    AddRegion("tutorial", MakeNavButtonRect(layout, 1, 5));
+                    AddRegion("calibration", MakeNavButtonRect(layout, 2, 5));
+                    AddRegion("settings", MakeNavButtonRect(layout, 3, 5));
+                    AddRegion("gestures", MakeNavButtonRect(layout, 4, 5));
                     break;
             }
         }
@@ -428,7 +422,6 @@ namespace SpellGuard.Core
             {
                 ("start", "开始守卫"),
                 ("tutorial", "上手教程"),
-                ("training", "手势训练场"),
                 ("calibration", "摄像头校准"),
                 ("settings", "战斗设置"),
                 ("gestures", "手势控制说明"),
@@ -437,10 +430,9 @@ namespace SpellGuard.Core
 
         private void DrawTutorial(StartLayout layout)
         {
-            DrawHero(layout, "上手教程", "先理解目标，再进入训练", "核心目标：阻止敌人突破仪式通道，达到目标分数即胜利。\n\n战斗中使用握拳释放火焰术，V 手势释放冰霜术，张掌释放护盾术；左右/上下挥动用于离散换位。\n\n建议先进入训练场完成一次指向确认和三种法术，再开始正式守卫。", "挥动切换选项，握拳确认；张掌返回主菜单。 ");
+            DrawHero(layout, "上手教程", "先理解目标，再开始守卫", "核心目标：阻止敌人突破仪式通道，达到目标分数即胜利。\n\n战斗中使用握拳释放火焰术，V 手势释放冰霜术，张掌释放护盾术；左右/上下挥动用于离散换位。\n\n自定义手势录入与论文数据采集已迁移到开发者专用场景，不再作为玩家流程入口。", "挥动切换选项，握拳确认；张掌返回主菜单。 ");
             DrawNavPanel(layout, "教程操作", "读完后选择下一步", new[]
             {
-                ("training", "进入训练场"),
                 ("start", "直接开始"),
                 ("back", "返回主菜单"),
             });
@@ -465,7 +457,6 @@ namespace SpellGuard.Core
             DrawHero(layout, "手势控制规划", "开始场景统一用非指向式菜单手势", "1. 选项固定高亮：界面始终显示当前选中项，不读取手部坐标命中按钮。\n2. 挥动切换：左右或上下挥动在选项间循环切换。\n3. 确认：握拳保持约半秒，或触发 Snap / PointToFist 动态命令。\n4. 返回：子页面张掌保持约半秒返回主菜单。\n5. 屏幕适配：横屏左右双栏，窄屏上下堆叠，所有按钮按 safe area 重新计算。", "当前实现已移除手部定位式菜单选择。 ");
             DrawNavPanel(layout, "下一步", "训练或直接战斗", new[]
             {
-                ("training", "去训练场试手势"),
                 ("start", "开始守卫"),
                 ("back", "返回主菜单"),
             });
@@ -473,22 +464,40 @@ namespace SpellGuard.Core
 
         private void DrawCalibration(StartLayout layout)
         {
-            DrawHero(layout, "摄像头校准", "进入训练前确认识别状态", BuildCalibrationText(), "如果画面仍是 16x16，请切换摄像头或检查 Windows 摄像头权限。 ");
+            EnsureCalibrationCameraPreview();
+            DrawCalibrationHero(layout);
             DrawCameraPreview(layout);
             DrawNavPanel(layout, "校准操作", "可切输入模式或换摄像头", new[]
             {
                 ("input-mode", $"输入：{GetInputModeLabel()}"),
                 ("camera-device", "切换摄像头"),
-                ("training", "进入训练场"),
                 ("back", "返回主菜单"),
             });
+        }
+
+        private void DrawCalibrationHero(StartLayout layout)
+        {
+            DrawPanel(layout.HeroPanel, new Color(0.045f, 0.06f, 0.1f, 0.96f), new Color(0.35f, 0.82f, 1f, 0.95f));
+            GUI.Label(layout.Title, "摄像头校准", titleStyle);
+            GUI.Label(new Rect(layout.Title.x, layout.Title.yMax + 4f * layout.Scale, layout.Title.width, 28f * layout.Scale), "进入训练前确认识别状态", subtitleStyle);
+
+            var preview = GetCalibrationPreviewRect(layout);
+            var bodyRect = new Rect(
+                layout.Body.x,
+                layout.Body.y,
+                layout.Body.width,
+                Mathf.Max(76f * layout.Scale, preview.y - layout.Body.y - 12f * layout.Scale));
+            GUI.Label(bodyRect, BuildCalibrationText(), bodyStyle);
+
+            var hintRect = new Rect(layout.Hint.x, layout.Hint.y, layout.Hint.width, layout.Hint.height);
+            GUI.Label(hintRect, "预览框固定在下方；若仍无画面，先切换输入为 Native MediaPipe，再点‘切换摄像头’。", hintStyle);
         }
 
         private string BuildMainText()
         {
             var bestScore = SpellGuardLocalProgress.LoadBestScore();
             var tutorial = SpellGuardLocalProgress.LoadTutorialSeen() ? "已阅读" : "未阅读";
-            return $"欢迎进入符印守卫。\n\n推荐流程：上手教程 → 手势训练场 → 正式守卫。\n\n教程状态：{tutorial}\n历史最高分：{bestScore}\n\n开始场景承载菜单、设置和手势说明；进入战斗后只保留战斗/训练/结算流程。";
+            return $"欢迎进入符印守卫。\n\n推荐流程：上手教程 → 摄像头校准 → 正式守卫。\n\n教程状态：{tutorial}\n历史最高分：{bestScore}\n\n玩家流程只保留正式体验；自定义手势录入、性能测试和论文数据采集在开发者专用场景中进行。";
         }
 
         private string BuildCalibrationText()
@@ -497,7 +506,6 @@ namespace SpellGuard.Core
             var cameraReady = webcamFeed != null && webcamFeed.HasReadyFrame;
             var cameraStatus = webcamFeed != null ? webcamFeed.StatusText : "未绑定摄像头组件";
             var cameraTexture = webcamFeed != null && webcamFeed.Texture != null ? $"{webcamFeed.Texture.width}x{webcamFeed.Texture.height}" : "None";
-            var cameraDevices = webcamFeed != null ? webcamFeed.GetDeviceListLabel() : "未绑定";
             var nativeStatus = nativeMediapipeProvider != null ? nativeMediapipeProvider.StatusText : "未绑定 Native MediaPipe";
             var currentGesture = snapshot.HandPresent ? snapshot.Gesture.ToChinese() : "None";
             var confidence = snapshot.HandPresent ? Mathf.RoundToInt(snapshot.Confidence * 100f) + "%" : "0%";
@@ -506,21 +514,12 @@ namespace SpellGuard.Core
                 ? "保持手部完整进入画面中央，距离稳定后进入训练。"
                 : "请开启摄像头，并将单手放入画面中央、避免遮挡和过暗背景。";
 
-            return $"Camera: {(cameraReady ? "Ready" : "Not Ready")} · Texture: {cameraTexture}\nCamera Status: {cameraStatus}\nDevices: {cameraDevices}\nNative Status: {nativeStatus}\nHand Detected: {handDetected}\nCurrent Gesture: {currentGesture}\nConfidence: {confidence}\nSuggested Distance: {suggestion}";
+            return $"Camera: {(cameraReady ? "Ready" : "Not Ready")} · Texture: {cameraTexture}\nCamera Status: {cameraStatus}\nNative Status: {nativeStatus}\nHand Detected: {handDetected} · Gesture: {currentGesture} · Confidence: {confidence}\nSuggestion: {suggestion}";
         }
 
         private void DrawCameraPreview(StartLayout layout)
         {
-            if (webcamFeed == null || webcamFeed.Texture == null)
-            {
-                return;
-            }
-
-            var preview = new Rect(
-                layout.HeroPanel.x + layout.Padding,
-                layout.HeroPanel.yMax - Mathf.Clamp(145f * layout.Scale, 118f, 170f),
-                layout.HeroPanel.width - layout.Padding * 2f,
-                Mathf.Clamp(128f * layout.Scale, 104f, 150f));
+            var preview = GetCalibrationPreviewRect(layout);
 
             var previousColor = GUI.color;
             GUI.color = new Color(0.02f, 0.025f, 0.04f, 0.85f);
@@ -528,6 +527,18 @@ namespace SpellGuard.Core
             GUI.color = previousColor;
 
             var content = Shrink(preview, 8f * layout.Scale, 8f * layout.Scale, 8f * layout.Scale, 8f * layout.Scale);
+            if (webcamFeed == null || webcamFeed.Texture == null)
+            {
+                GUI.Label(content, "摄像头预览未启动\n请切换到 Native MediaPipe 或点击‘切换摄像头’", bodyStyle);
+                return;
+            }
+
+            if (!webcamFeed.HasReadyFrame)
+            {
+                GUI.Label(content, $"摄像头启动中：{webcamFeed.ActiveDeviceName}\n当前纹理 {webcamFeed.Texture.width}x{webcamFeed.Texture.height}\n请等待 1-2 秒，或点击‘切换摄像头’", bodyStyle);
+                return;
+            }
+
             if (webcamFeed.MirrorPreview)
             {
                 var previousMatrix = GUI.matrix;
@@ -539,6 +550,30 @@ namespace SpellGuard.Core
             {
                 GUI.DrawTexture(content, webcamFeed.Texture, ScaleMode.ScaleToFit, false);
             }
+        }
+
+        private Rect GetCalibrationPreviewRect(StartLayout layout)
+        {
+            var previewHeight = Mathf.Clamp(layout.HeroPanel.height * 0.34f, 150f * layout.Scale, 230f * layout.Scale);
+            var bottomReserved = layout.Padding + 44f * layout.Scale;
+            return new Rect(
+                layout.HeroPanel.x + layout.Padding,
+                layout.HeroPanel.yMax - bottomReserved - previewHeight,
+                layout.HeroPanel.width - layout.Padding * 2f,
+                previewHeight);
+        }
+
+        private void EnsureCalibrationCameraPreview()
+        {
+            if (webcamFeed == null || webcamFeed.IsRunning || (inputRouter != null && inputRouter.Mode == GestureInputRouter.InputMode.ExternalBridge))
+            {
+                return;
+            }
+
+            webcamFeed.StartCamera();
+            nativeMediapipeProvider?.SetStatusText(webcamFeed.Texture != null
+                ? $"校准预览已启动：{webcamFeed.ActiveDeviceName}"
+                : $"校准预览启动失败：{webcamFeed.StatusText}");
         }
 
         private void DrawHero(StartLayout layout, string title, string subtitle, string body, string hint)
