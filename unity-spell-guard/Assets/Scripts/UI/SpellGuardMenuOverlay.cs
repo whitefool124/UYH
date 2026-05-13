@@ -114,6 +114,12 @@ namespace SpellGuard.UI
 
         private void UpdateMenuLikeInput()
         {
+            if (flowController.Screen == SpellGuardScreen.Training && flowController.IsCustomGestureRecording)
+            {
+                ClearHoldState();
+                return;
+            }
+
             RebuildRegions();
             ClampSelectedIndex();
             focusedKey = GetSelectedKey();
@@ -207,7 +213,7 @@ namespace SpellGuard.UI
             {
                 case SpellGuardScreen.Menu:
                     if (key == "start") flowController.StartRun();
-                    else if (key == "training") flowController.StartTraining();
+                    else if (key == "training" && flowController.DeveloperToolsEnabled) flowController.StartTraining();
                     else if (key == "settings") flowController.OpenSettings();
                     else if (key == "tutorial") flowController.OpenTutorial();
                     break;
@@ -221,18 +227,18 @@ namespace SpellGuard.UI
                     break;
                 case SpellGuardScreen.Tutorial:
                     if (key == "play") flowController.StartRun();
-                    else if (key == "training") flowController.StartTraining();
+                    else if (key == "training" && flowController.DeveloperToolsEnabled) flowController.StartTraining();
                     else if (key == "back") flowController.ReturnToMenu();
                     break;
                 case SpellGuardScreen.Training:
                     if (key == "pointer-check") flowController.RecordTrainingPointerCheck();
                     else if (key == "reset-training") flowController.ResetTrainingStats();
                     else if (key == "start-from-training") flowController.StartRunFromTraining();
-                    else if (key == "custom-slot") flowController.CycleCustomGestureSlot();
-                    else if (key == "custom-target") flowController.CycleCustomGestureTarget();
-                    else if (key == "custom-record") flowController.StartCustomGestureRecording();
-                    else if (key == "custom-save") flowController.SaveCustomGestureTemplate();
-                    else if (key == "custom-reload") flowController.ReloadCustomGestureTemplates();
+                    else if (flowController.DeveloperToolsEnabled && key == "custom-slot") flowController.CycleCustomGestureSlot();
+                    else if (flowController.DeveloperToolsEnabled && key == "custom-target") flowController.CycleCustomGestureTarget();
+                    else if (flowController.DeveloperToolsEnabled && key == "custom-record") flowController.StartCustomGestureRecording();
+                    else if (flowController.DeveloperToolsEnabled && key == "custom-save") flowController.SaveCustomGestureTemplate();
+                    else if (flowController.DeveloperToolsEnabled && key == "custom-reload") flowController.ReloadCustomGestureTemplates();
                     else if (key == "menu") flowController.ReturnToMenu();
                     break;
                 case SpellGuardScreen.Paused:
@@ -314,8 +320,15 @@ namespace SpellGuard.UI
                 case SpellGuardScreen.Menu:
                     AddRegion("start", "开始守卫", MakeButtonRect(layout, 0, 0, 4));
                     AddRegion("tutorial", "上手教程", MakeButtonRect(layout, 1, 0, 4));
-                    AddRegion("training", "手势训练场", MakeButtonRect(layout, 2, 0, 4));
-                    AddRegion("settings", "调整设置", MakeButtonRect(layout, 3, 0, 4));
+                    if (flowController.DeveloperToolsEnabled)
+                    {
+                        AddRegion("training", "开发者训练/录入", MakeButtonRect(layout, 2, 0, 4));
+                        AddRegion("settings", "调整设置", MakeButtonRect(layout, 3, 0, 4));
+                    }
+                    else
+                    {
+                        AddRegion("settings", "调整设置", MakeButtonRect(layout, 2, 0, 3));
+                    }
                     break;
                 case SpellGuardScreen.Settings:
                     AddRegion("input-mode", $"输入模式：{flowController.InputModeLabel}", MakeButtonRect(layout, 0, 0, 6));
@@ -327,19 +340,18 @@ namespace SpellGuard.UI
                     break;
                 case SpellGuardScreen.Tutorial:
                     AddRegion("play", "开始守卫", MakeButtonRect(layout, 0, 0, 3));
-                    AddRegion("training", "进入训练场", MakeButtonRect(layout, 1, 0, 3));
-                    AddRegion("back", "返回主菜单", MakeButtonRect(layout, 2, 0, 3));
+                    if (flowController.DeveloperToolsEnabled)
+                    {
+                        AddRegion("training", "开发者训练/录入", MakeButtonRect(layout, 1, 0, 3));
+                        AddRegion("back", "返回主菜单", MakeButtonRect(layout, 2, 0, 3));
+                    }
+                    else
+                    {
+                        AddRegion("back", "返回主菜单", MakeButtonRect(layout, 1, 0, 2));
+                    }
                     break;
                 case SpellGuardScreen.Training:
-                    AddRegion("pointer-check", "指向确认练习", MakeTrainingRect(layout, 0, 0));
-                    AddRegion("reset-training", "重置训练计数", MakeTrainingRect(layout, 1, 0));
-                    AddRegion("custom-slot", "切换 Custom", MakeTrainingRect(layout, 2, 0));
-                    AddRegion("custom-target", "绑定法术", MakeTrainingRect(layout, 0, 1));
-                    AddRegion("custom-record", "录制样本", MakeTrainingRect(layout, 1, 1));
-                    AddRegion("custom-save", "保存模板", MakeTrainingRect(layout, 2, 1));
-                    AddRegion("custom-reload", "重新加载/测试", MakeTrainingRect(layout, 0, 2));
-                    AddRegion("start-from-training", "完成训练并开始守卫", MakeTrainingRect(layout, 1, 2));
-                    AddRegion("menu", "返回主菜单", MakeTrainingRect(layout, 2, 2));
+                    AddTrainingRegions(layout);
                     break;
                 case SpellGuardScreen.Paused:
                     AddRegion("resume", "继续战斗", MakeButtonRect(layout, 0, 0, 3));
@@ -366,8 +378,15 @@ namespace SpellGuard.UI
             GUI.Label(layout.Hint, flowController.HintText, overlayHintStyle);
             DrawRegion("start", "开始守卫", MakeButtonRect(layout, 0, 0, 4));
             DrawRegion("tutorial", "上手教程", MakeButtonRect(layout, 1, 0, 4));
-            DrawRegion("training", "手势训练场", MakeButtonRect(layout, 2, 0, 4));
-            DrawRegion("settings", "调整设置", MakeButtonRect(layout, 3, 0, 4));
+            if (flowController.DeveloperToolsEnabled)
+            {
+                DrawRegion("training", "开发者训练/录入", MakeButtonRect(layout, 2, 0, 4));
+                DrawRegion("settings", "调整设置", MakeButtonRect(layout, 3, 0, 4));
+            }
+            else
+            {
+                DrawRegion("settings", "调整设置", MakeButtonRect(layout, 2, 0, 3));
+            }
         }
 
         private void DrawSettings()
@@ -391,11 +410,18 @@ namespace SpellGuard.UI
             EnsureOverlayStyles(layout.Scale);
             DrawPanel(layout.Panel, new Color(0.06f, 0.08f, 0.13f, 0.95f), new Color(0.95f, 0.72f, 0.28f, 0.92f));
             GUI.Label(layout.Title, "上手教程", overlayTitleStyle);
-            GUI.Label(layout.Body, "先理解流程，再进入训练场热身，准备好后进入战斗。\n• Point：移动焦点并触发菜单停留\n• Fist / Snap：火焰术，正面打击目标\n• V / 扇手：冰霜术与节奏施法\n• OpenPalm：护盾术，提供一次防护", overlayBodyStyle);
+            GUI.Label(layout.Body, "先理解流程，准备好后进入战斗。\n• Point：移动焦点并触发菜单停留\n• Fist / Snap：火焰术，正面打击目标\n• V / 扇手：冰霜术与节奏施法\n• OpenPalm：护盾术，提供一次防护\n\n自定义手势录入和采集测试仅在开发者场景开放。", overlayBodyStyle);
             GUI.Label(layout.Hint, flowController.HintText, overlayHintStyle);
             DrawRegion("play", "开始守卫", MakeButtonRect(layout, 0, 0, 3));
-            DrawRegion("training", "进入训练场", MakeButtonRect(layout, 1, 0, 3));
-            DrawRegion("back", "返回主菜单", MakeButtonRect(layout, 2, 0, 3));
+            if (flowController.DeveloperToolsEnabled)
+            {
+                DrawRegion("training", "开发者训练/录入", MakeButtonRect(layout, 1, 0, 3));
+                DrawRegion("back", "返回主菜单", MakeButtonRect(layout, 2, 0, 3));
+            }
+            else
+            {
+                DrawRegion("back", "返回主菜单", MakeButtonRect(layout, 1, 0, 2));
+            }
         }
 
         private void DrawTraining()
@@ -404,18 +430,50 @@ namespace SpellGuard.UI
             var layout = GetOverlayLayout();
             EnsureOverlayStyles(layout.Scale);
             DrawPanel(layout.Panel, new Color(0.05f, 0.08f, 0.13f, 0.94f), new Color(0.31f, 0.78f, 1f, 0.92f));
-            GUI.Label(layout.Title, "训练场", overlayTitleStyle);
+            GUI.Label(layout.Title, flowController.DeveloperToolsEnabled ? "开发者测试场" : "训练场", overlayTitleStyle);
             GUI.Label(layout.Body, BuildTrainingOverlayText(viewData), overlayBodyStyle);
             GUI.Label(layout.Hint, viewData.HintText, overlayHintStyle);
+            DrawTrainingRegions(layout, viewData);
+        }
+
+        private void AddTrainingRegions(OverlayLayout layout)
+        {
+            AddRegion("pointer-check", "指向确认练习", MakeTrainingRect(layout, 0, 0));
+            AddRegion("reset-training", "重置训练计数", MakeTrainingRect(layout, 1, 0));
+            if (flowController.DeveloperToolsEnabled)
+            {
+                AddRegion("custom-slot", "切换 Custom", MakeTrainingRect(layout, 2, 0));
+                AddRegion("custom-target", "绑定法术", MakeTrainingRect(layout, 0, 1));
+                AddRegion("custom-record", "录制样本", MakeTrainingRect(layout, 1, 1));
+                AddRegion("custom-save", "保存模板", MakeTrainingRect(layout, 2, 1));
+                AddRegion("custom-reload", "重新加载/测试", MakeTrainingRect(layout, 0, 2));
+                AddRegion("start-from-training", "保持无限靶场", MakeTrainingRect(layout, 1, 2));
+                AddRegion("menu", "返回主菜单", MakeTrainingRect(layout, 2, 2));
+                return;
+            }
+
+            AddRegion("start-from-training", "完成训练并开始守卫", MakeTrainingRect(layout, 0, 1));
+            AddRegion("menu", "返回主菜单", MakeTrainingRect(layout, 1, 1));
+        }
+
+        private void DrawTrainingRegions(OverlayLayout layout, SpellGuardFlowViewData viewData)
+        {
             DrawRegion("pointer-check", "指向确认练习", MakeTrainingRect(layout, 0, 0));
             DrawRegion("reset-training", "重置训练计数", MakeTrainingRect(layout, 1, 0));
-            DrawRegion("custom-slot", $"模板：{viewData.CustomGestureDisplayName}", MakeTrainingRect(layout, 2, 0));
-            DrawRegion("custom-target", $"绑定：{viewData.CustomGestureTargetLabel}", MakeTrainingRect(layout, 0, 1));
-            DrawRegion("custom-record", viewData.CustomGestureRecording ? "录制中..." : "录制样本", MakeTrainingRect(layout, 1, 1));
-            DrawRegion("custom-save", "保存模板", MakeTrainingRect(layout, 2, 1));
-            DrawRegion("custom-reload", "重新加载/测试", MakeTrainingRect(layout, 0, 2));
-            DrawRegion("start-from-training", viewData.TrainingComplete ? "开始正式守卫" : "完成训练后开始", MakeTrainingRect(layout, 1, 2));
-            DrawRegion("menu", "返回主菜单", MakeTrainingRect(layout, 2, 2));
+            if (flowController.DeveloperToolsEnabled)
+            {
+                DrawRegion("custom-slot", $"模板：{viewData.CustomGestureDisplayName}", MakeTrainingRect(layout, 2, 0));
+                DrawRegion("custom-target", $"绑定：{viewData.CustomGestureTargetLabel}", MakeTrainingRect(layout, 0, 1));
+                DrawRegion("custom-record", viewData.CustomGestureRecording ? "录制中..." : "录制样本", MakeTrainingRect(layout, 1, 1));
+                DrawRegion("custom-save", "保存模板", MakeTrainingRect(layout, 2, 1));
+                DrawRegion("custom-reload", "重新加载/测试", MakeTrainingRect(layout, 0, 2));
+                DrawRegion("start-from-training", "保持无限靶场", MakeTrainingRect(layout, 1, 2));
+                DrawRegion("menu", "返回主菜单", MakeTrainingRect(layout, 2, 2));
+                return;
+            }
+
+            DrawRegion("start-from-training", viewData.TrainingComplete ? "开始正式守卫" : "完成训练后开始", MakeTrainingRect(layout, 0, 1));
+            DrawRegion("menu", "返回主菜单", MakeTrainingRect(layout, 1, 1));
         }
 
         private void DrawPaused()
@@ -450,7 +508,10 @@ namespace SpellGuard.UI
             var completion = viewData.TrainingComplete ? "已完成，可开始正式守卫" : "未完成，请补齐指向确认与三法术";
             var nextStep = viewData.TrainingComplete ? "可点‘开始正式守卫’进入战斗" : viewData.TrainingStepLabel;
             var score = float.IsInfinity(viewData.CustomGestureLastScore) ? "-" : viewData.CustomGestureLastScore.ToString("F3");
-            return $"基础训练：{completion} · 当前：{nextStep}\n反馈：{viewData.TrainingStepFeedback}\n火/冰/盾：{viewData.TrainingFireCasts}/{viewData.TrainingIceCasts}/{viewData.TrainingShieldCasts} · Swipe/特殊：{viewData.TrainingSwipeCommands}/{viewData.TrainingSpecialCommands}\n自定义手势：{viewData.CustomGestureDisplayName} → {viewData.CustomGestureTargetLabel}\n样本：{viewData.CustomGestureSampleCount}/{viewData.CustomGestureRequiredSamples} · {viewData.CustomGestureStatusText}\n测试：重复动作后触发法术；最近识别 {viewData.CustomGestureLastMatchedName}，分数 {score}";
+            var customGestureText = viewData.DeveloperToolsEnabled
+                ? $"\n开发者靶场：无敌人 / 无限时间 / 专注识别历史。\n自定义手势：{viewData.CustomGestureDisplayName} → {viewData.CustomGestureTargetLabel}\n样本：{viewData.CustomGestureSampleCount}/{viewData.CustomGestureRequiredSamples} · {viewData.CustomGestureStatusText}\n测试：重复动作后触发法术；最近识别 {viewData.CustomGestureLastMatchedName}，分数 {score}"
+                : "\n自定义手势录入已从玩家流程移至开发者专用场景。";
+            return $"基础训练：{completion} · 当前：{nextStep}\n反馈：{viewData.TrainingStepFeedback}\n火/冰/盾：{viewData.TrainingFireCasts}/{viewData.TrainingIceCasts}/{viewData.TrainingShieldCasts} · Swipe/特殊：{viewData.TrainingSwipeCommands}/{viewData.TrainingSpecialCommands}{customGestureText}";
         }
 
         private static string BuildResultsOverlayText(SpellGuardFlowViewData viewData)
@@ -462,7 +523,27 @@ namespace SpellGuard.UI
                 _ => "本局已结束"
             };
 
-            return $"{outcomeSummary}\n得分：{viewData.CombatScore}/{viewData.TargetScoreToWin}\n最高分：{viewData.BestScore}\n命中：{viewData.CombatHits}\n施法：{viewData.CombatCasts}\n命中率：{viewData.HitRate}%";
+            return $"{outcomeSummary}\n得分：{viewData.CombatScore}/{viewData.TargetScoreToWin} · 最高分：{viewData.BestScore}\n命中：{viewData.CombatHits} · 施法：{viewData.CombatCasts} · 命中率：{viewData.HitRate}%\n法术构成：火 {viewData.CombatFireCasts} / 冰 {viewData.CombatIceCasts} / 盾 {viewData.CombatShieldCasts}\n表现摘要：{BuildPerformanceSummary(viewData)}";
+        }
+
+        private static string BuildPerformanceSummary(SpellGuardFlowViewData viewData)
+        {
+            if (viewData.CombatCasts <= 0)
+            {
+                return "尚无施法记录，建议先完成训练场再进入战斗。";
+            }
+
+            if (viewData.HitRate >= 80)
+            {
+                return "高命中率，手势识别与瞄准稳定，可作为论文演示截图。";
+            }
+
+            if (viewData.CombatShieldCasts > viewData.CombatFireCasts + viewData.CombatIceCasts)
+            {
+                return "防御偏多，可在下一局增加火焰 / 冰霜输出。";
+            }
+
+            return "继续优化瞄准与施法节奏，提升命中率。";
         }
 
         private static string BuildPausedOverlayText(SpellGuardFlowViewData viewData)
@@ -473,7 +554,9 @@ namespace SpellGuard.UI
         private static string BuildMenuOverlayText(SpellGuardFlowViewData viewData)
         {
             var tutorialStatus = viewData.TutorialSeen ? "已阅读" : "未阅读";
-            return $"先看教程，再去训练场热身，最后开始守卫。\n教程状态：{tutorialStatus} · 最高分：{viewData.BestScore}\n鼠标可直接点击按钮，手势仍保留停留确认。";
+            return viewData.DeveloperToolsEnabled
+                ? $"开发者场景：录入自定义手势、测试识别并采集论文数据。\n教程状态：{tutorialStatus} · 最高分：{viewData.BestScore}\nF2 查看调试 HUD，F8/F9 控制性能采集。"
+                : $"先看教程，再开始守卫。\n教程状态：{tutorialStatus} · 最高分：{viewData.BestScore}\n鼠标可直接点击按钮，手势仍保留停留确认。";
         }
 
         private static string GetResultsTitle(SpellGuardFlowViewData viewData)
@@ -637,6 +720,11 @@ namespace SpellGuard.UI
 
         private void DrawGestureStatus()
         {
+            if (flowController.Screen == SpellGuardScreen.Training && flowController.IsCustomGestureRecording)
+            {
+                return;
+            }
+
             var snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
             var allowBack = flowController.Screen != SpellGuardScreen.Menu && flowController.Screen != SpellGuardScreen.Playing;
             var action = inputProvider != null ? inputProvider.GetMenuAction(allowBack) : GestureAction.None;

@@ -41,6 +41,10 @@ namespace SpellGuard.UI
         [SerializeField] private GameFlowManager gameFlow;
         [SerializeField] private SpellGuardFlowController flowController;
         [SerializeField] private GesturePerformanceMonitor performanceMonitor;
+        [SerializeField] private DemoRunRecorder demoRunRecorder;
+        [SerializeField] private bool showOnStart = false;
+        [SerializeField] private bool alwaysShowDeveloperCameraPreview = true;
+        [SerializeField] private KeyCode toggleHudKey = KeyCode.F2;
 
         private GUIStyle quickActionStyle;
         private GUIStyle quickActionPanelStyle;
@@ -52,6 +56,7 @@ namespace SpellGuard.UI
         private GUIStyle accentStyle;
         private GUIStyle panelStyle;
         private float cachedStyleScale = -1f;
+        private bool visible;
 
         private struct HudLayout
         {
@@ -65,6 +70,12 @@ namespace SpellGuard.UI
 
         private void OnGUI()
         {
+            if (!visible)
+            {
+                DrawDeveloperCameraPreviewIfNeeded();
+                return;
+            }
+
             var layout = GetLayout();
             EnsureStyles(layout.Scale);
 
@@ -74,25 +85,87 @@ namespace SpellGuard.UI
             DrawPrimaryHud(snapshot, frame, viewData, layout);
             DrawSecondaryHud(snapshot, frame, viewData, layout);
             DrawPreview(snapshot, layout);
+            DrawGestureHistoryPanel(layout);
+            DrawDeveloperToolsPanel(layout);
             DrawQuickActions(viewData, layout);
 
+        }
+
+        private void DrawDeveloperCameraPreviewIfNeeded()
+        {
+            if (!alwaysShowDeveloperCameraPreview || !IsGameplayOrTrainingScreen())
+            {
+                return;
+            }
+
+            EnsureStyles(Mathf.Clamp(Mathf.Min(UnityEngine.Screen.width / 1280f, UnityEngine.Screen.height / 720f), 0.82f, 1.08f));
+            var margin = Mathf.Clamp(UnityEngine.Screen.width * 0.018f, 12f, 26f);
+            var width = Mathf.Clamp(UnityEngine.Screen.width * 0.2f, 220f, 320f);
+            var height = Mathf.Clamp(width * 0.62f, 136f, 210f);
+            var panel = new Rect(UnityEngine.Screen.width - margin - width, margin, width, height);
+            DrawPanel(panel, new Color(0.035f, 0.045f, 0.07f, 0.86f), new Color(0.35f, 0.82f, 1f, 0.9f));
+            GUI.Label(new Rect(panel.x + 10f, panel.y + 5f, panel.width - 20f, 20f), "开发摄像头预览", subTitleStyle);
+
+            var content = Shrink(panel, 10f, 30f, 10f, 10f);
+            if (webcamFeed == null || webcamFeed.Texture == null)
+            {
+                GUI.Label(content, "摄像头未启动", labelStyle);
+                return;
+            }
+
+            if (!webcamFeed.HasReadyFrame)
+            {
+                GUI.Label(content, $"启动中：{webcamFeed.ActiveDeviceName}\n{webcamFeed.Texture.width}x{webcamFeed.Texture.height}", labelStyle);
+                return;
+            }
+
+            if (webcamFeed.MirrorPreview)
+            {
+                var previousMatrix = GUI.matrix;
+                GUIUtility.ScaleAroundPivot(new Vector2(-1f, 1f), new Vector2(content.x + content.width * 0.5f, content.y + content.height * 0.5f));
+                GUI.DrawTexture(content, webcamFeed.Texture, ScaleMode.ScaleToFit, false);
+                GUI.matrix = previousMatrix;
+            }
+            else
+            {
+                GUI.DrawTexture(content, webcamFeed.Texture, ScaleMode.ScaleToFit, false);
+            }
+        }
+
+        private bool IsGameplayOrTrainingScreen()
+        {
+            return flowController != null &&
+                   (flowController.Screen == SpellGuardScreen.Training || flowController.Screen == SpellGuardScreen.Playing);
+        }
+
+        private void Start()
+        {
+            visible = showOnStart;
+        }
+
+        private void Update()
+        {
+            if (Input.GetKeyDown(toggleHudKey))
+            {
+                visible = !visible;
+            }
         }
 
         private HudLayout GetLayout()
         {
             var width = Mathf.Max(1f, UnityEngine.Screen.width);
             var height = Mathf.Max(1f, UnityEngine.Screen.height);
-            var scale = Mathf.Clamp(Mathf.Min(width / 1280f, height / 720f), 0.88f, 1.3f);
+            var scale = Mathf.Clamp(Mathf.Min(width / 1280f, height / 720f), 0.82f, 1.16f);
             var marginX = Mathf.Clamp(width * 0.022f, 16f, 36f);
             var marginY = Mathf.Clamp(height * 0.022f, 16f, 32f);
             var gap = Mathf.Clamp(12f * scale, 10f, 18f);
             var padding = Mathf.Clamp(16f * scale, 12f, 22f);
 
-            var sideWidth = Mathf.Clamp(width * 0.33f, 320f, 440f);
-            var primaryHeight = Mathf.Clamp(height * 0.25f, 196f, 258f);
-            var secondaryHeight = Mathf.Clamp(height * 0.29f, 198f, 260f);
-            var previewWidth = Mathf.Clamp(width * 0.27f, 280f, 420f);
-            var previewHeight = Mathf.Clamp(previewWidth * 0.78f, 220f, 360f);
+            var sideWidth = Mathf.Clamp(width * 0.3f, 300f, 390f);
+            var primaryHeight = Mathf.Clamp(height * 0.22f, 168f, 224f);
+            var secondaryHeight = Mathf.Clamp(height * 0.25f, 174f, 230f);
+            var previewWidth = Mathf.Clamp(width * 0.24f, 250f, 360f);
+            var previewHeight = Mathf.Clamp(previewWidth * 0.68f, 170f, 260f);
 
             var wideLayout = width >= 1180f;
             var primaryPanel = new Rect(marginX, marginY, sideWidth, primaryHeight);
@@ -126,6 +199,7 @@ namespace SpellGuard.UI
             GUILayout.Label($"当前手势：{snapshot.Gesture.ToChinese()} · 置信度 {snapshot.Confidence:F2}", labelStyle);
             GUILayout.Label($"运行时来源：{frame.Source} · 手数 {frame.HandCount}", labelStyle);
             GUILayout.Label($"施法反馈：{(spellCaster != null ? spellCaster.StatusText : "无")}", labelStyle);
+            GUILayout.Label($"法术提示：{(spellCaster != null ? spellCaster.SpellPromptText : "未绑定")}", labelStyle);
             GUILayout.Label($"生命 {viewData.HealthText} · 护盾 {viewData.ShieldText} · 敌人 {viewData.EnemyText}", labelStyle);
             GUILayout.Label($"位移状态：{GetMovementStateText()}", labelStyle);
 
@@ -300,17 +374,17 @@ namespace SpellGuard.UI
         {
             EnsureQuickActionStyles(layout.Scale);
 
-            var width = Mathf.Clamp(layout.PrimaryPanel.width + layout.SecondaryPanel.width + layout.PreviewPanel.width + layout.Padding * 2f, 380f, UnityEngine.Screen.width - layout.Padding * 2f);
-            var panelHeight = Mathf.Clamp(92f * layout.Scale, 82f, 104f);
-            var panel = new Rect(layout.Padding, UnityEngine.Screen.height - layout.Padding - panelHeight, width, panelHeight);
+            var width = Mathf.Clamp(UnityEngine.Screen.width * 0.46f, 420f, 680f);
+            var panelHeight = Mathf.Clamp(74f * layout.Scale, 66f, 84f);
+            var panel = new Rect((UnityEngine.Screen.width - width) * 0.5f, UnityEngine.Screen.height - layout.Padding - panelHeight, width, panelHeight);
             DrawPanel(panel, new Color(0.05f, 0.06f, 0.09f, 0.9f), new Color(0.78f, 0.76f, 0.28f, 0.9f));
 
-            var content = Shrink(panel, 14f, 12f, 14f, 12f);
-            GUI.Label(new Rect(content.x, content.y, content.width, 20f * layout.Scale), GetQuickActionTitle(viewData), quickActionLabelStyle);
+            var content = Shrink(panel, 12f, 10f, 12f, 10f);
+            GUI.Label(new Rect(content.x, content.y, content.width, 18f * layout.Scale), GetQuickActionTitle(viewData), quickActionLabelStyle);
 
-            var buttonY = content.y + 26f * layout.Scale;
-            var buttonHeight = Mathf.Clamp(32f * layout.Scale, 28f, 36f);
-            var gap = Mathf.Clamp(8f * layout.Scale, 6f, 12f);
+            var buttonY = content.y + 22f * layout.Scale;
+            var buttonHeight = Mathf.Clamp(28f * layout.Scale, 24f, 32f);
+            var gap = Mathf.Clamp(6f * layout.Scale, 5f, 10f);
             var buttonCount = GetQuickActionCount();
             var buttonWidth = (content.width - gap * Mathf.Max(0, buttonCount - 1)) / buttonCount;
 
@@ -327,7 +401,7 @@ namespace SpellGuard.UI
             else if (flowController != null && flowController.Screen == SpellGuardScreen.Training)
             {
                 DrawQuickActionButton(new Rect(content.x + index++ * (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), "切换摄像头", CycleCameraDevice);
-                DrawQuickActionButton(new Rect(content.x + index++ * (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), flowController.TrainingComplete ? "开始正式守卫" : "完成训练后开始", () => flowController.StartRunFromTraining());
+                DrawQuickActionButton(new Rect(content.x + index++ * (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), flowController.DeveloperToolsEnabled ? "无限靶场中" : flowController.TrainingComplete ? "开始正式守卫" : "完成训练后开始", () => flowController.StartRunFromTraining());
             }
             else if (flowController != null && flowController.Screen == SpellGuardScreen.Results)
             {
@@ -366,7 +440,9 @@ namespace SpellGuard.UI
                 SpellGuardScreen.Menu => $"流程快捷操作 · {viewData.ScreenLabel} · 可直接进入训练或开始守卫",
                 SpellGuardScreen.Settings => $"流程快捷操作 · {viewData.ScreenLabel} · 可切换参数后返回",
                 SpellGuardScreen.Tutorial => $"流程快捷操作 · {viewData.ScreenLabel} · 可直接进入训练或战斗",
-                SpellGuardScreen.Training => $"流程快捷操作 · {viewData.ScreenLabel} · 先完成训练，再进入正式守卫",
+                SpellGuardScreen.Training => flowController.DeveloperToolsEnabled
+                    ? $"流程快捷操作 · {viewData.ScreenLabel} · 无敌人无限时间，观察识别历史并采集数据"
+                    : $"流程快捷操作 · {viewData.ScreenLabel} · 先完成训练，再进入正式守卫",
                 SpellGuardScreen.Playing => $"流程快捷操作 · {viewData.ScreenLabel} · 可随时暂停",
                 SpellGuardScreen.Paused => $"流程快捷操作 · {viewData.ScreenLabel} · 可继续、重开或返回",
                 SpellGuardScreen.Results => $"流程快捷操作 · {viewData.ScreenLabel} · 可再来一局或返回",
@@ -386,7 +462,7 @@ namespace SpellGuard.UI
                 SpellGuardScreen.Menu => "开始守卫",
                 SpellGuardScreen.Settings => "调整设置",
                 SpellGuardScreen.Tutorial => "开始守卫",
-                SpellGuardScreen.Training => "进入训练场",
+                SpellGuardScreen.Training => flowController.DeveloperToolsEnabled ? "无限靶场" : "进入训练场",
                 SpellGuardScreen.Playing => "战斗中",
                 SpellGuardScreen.Paused => "暂停中",
                 SpellGuardScreen.Results => "结果页",
@@ -425,6 +501,142 @@ namespace SpellGuard.UI
             nativeMediapipeProvider?.SetStatusText(switched
                 ? $"已切换摄像头：{webcamFeed.ActiveDeviceName}"
                 : $"摄像头切换失败：{webcamFeed.StatusText}");
+        }
+
+        private void DrawGestureHistoryPanel(HudLayout layout)
+        {
+            var width = Mathf.Clamp(UnityEngine.Screen.width * 0.34f, 360f, 540f);
+            var height = Mathf.Clamp(UnityEngine.Screen.height * 0.32f, 230f, 330f);
+            var x = Mathf.Clamp((UnityEngine.Screen.width - width) * 0.5f, layout.Padding, UnityEngine.Screen.width - width - layout.Padding);
+            var y = Mathf.Clamp(UnityEngine.Screen.height * 0.08f, layout.Padding, UnityEngine.Screen.height - height - layout.Padding);
+            var panel = new Rect(x, y, width, height);
+            DrawPanel(panel, new Color(0.035f, 0.045f, 0.07f, 0.94f), new Color(0.28f, 0.9f, 1f, 0.95f));
+
+            var content = Shrink(panel, layout.Padding, layout.Padding + 18f * layout.Scale, layout.Padding, layout.Padding);
+            GUI.Label(new Rect(content.x, content.y - 4f * layout.Scale, content.width, 24f * layout.Scale), "手势识别历史记录", titleStyle);
+
+            var snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
+            var command = inputProvider != null ? inputProvider.CurrentGestureCommand : GestureCommand.None;
+            var customAction = inputProvider != null ? inputProvider.CurrentCustomAction : GestureAction.None;
+            var nowLine = snapshot.HandPresent
+                ? $"当前静态：{snapshot.Gesture.ToChinese()} · 置信度 {snapshot.Confidence:F2} · 位置 {snapshot.ViewportPosition:F2}"
+                : "当前静态：未检测到手";
+            GUI.Label(new Rect(content.x, content.y + 28f * layout.Scale, content.width, 22f * layout.Scale), nowLine, accentStyle);
+            GUI.Label(new Rect(content.x, content.y + 52f * layout.Scale, content.width, 22f * layout.Scale), $"当前命令：{FormatGestureCommand(command)}", accentStyle);
+            GUI.Label(new Rect(content.x, content.y + 76f * layout.Scale, content.width, 22f * layout.Scale), $"自定义匹配：{FormatGestureAction(customAction)}", accentStyle);
+
+            var commands = inputProvider != null ? inputProvider.RecentGestureCommands : System.Array.Empty<GestureCommand>();
+            var listY = content.y + 108f * layout.Scale;
+            GUI.Label(new Rect(content.x, listY, content.width, 20f * layout.Scale), $"最近 {commands.Length} 条（新 → 旧）", subTitleStyle);
+            listY += 24f * layout.Scale;
+
+            if (commands.Length == 0)
+            {
+                GUI.Label(new Rect(content.x, listY, content.width, 24f * layout.Scale), "暂无历史：做出静态手势或挥动动作后会在这里追加记录。", labelStyle);
+                return;
+            }
+
+            var lineHeight = Mathf.Clamp(22f * layout.Scale, 18f, 26f);
+            var maxLines = Mathf.Min(commands.Length, Mathf.FloorToInt((content.yMax - listY) / lineHeight));
+            for (var i = 0; i < maxLines; i++)
+            {
+                var commandIndex = commands.Length - 1 - i;
+                var historyCommand = commands[commandIndex];
+                var age = Mathf.Max(0f, Time.time - historyCommand.TriggeredTime);
+                var line = $"#{commands.Length - i:00}  {FormatGestureCommand(historyCommand)}  · {age:F1}s 前";
+                GUI.Label(new Rect(content.x, listY + lineHeight * i, content.width, lineHeight), line, labelStyle);
+            }
+        }
+
+        private void DrawDeveloperToolsPanel(HudLayout layout)
+        {
+            if (flowController == null || !flowController.DeveloperToolsEnabled)
+            {
+                return;
+            }
+
+            EnsureQuickActionStyles(layout.Scale);
+            var width = Mathf.Clamp(UnityEngine.Screen.width * 0.36f, 390f, 580f);
+            var height = Mathf.Clamp(UnityEngine.Screen.height * 0.22f, 170f, 240f);
+            var x = Mathf.Clamp((UnityEngine.Screen.width - width) * 0.5f, layout.Padding, UnityEngine.Screen.width - width - layout.Padding);
+            var y = Mathf.Clamp(UnityEngine.Screen.height * 0.43f, layout.Padding, UnityEngine.Screen.height - height - 96f * layout.Scale);
+            var panel = new Rect(x, y, width, height);
+            DrawPanel(panel, new Color(0.045f, 0.05f, 0.075f, 0.94f), new Color(1f, 0.68f, 0.22f, 0.95f));
+
+            var content = Shrink(panel, layout.Padding, layout.Padding + 12f * layout.Scale, layout.Padding, layout.Padding);
+            GUI.Label(new Rect(content.x, content.y - 2f * layout.Scale, content.width, 22f * layout.Scale), "开发者操作台：自定义手势 / 论文数据", subTitleStyle);
+
+            var statusY = content.y + 26f * layout.Scale;
+            var perfStatus = performanceMonitor != null && performanceMonitor.IsRecording ? "性能采集中" : "性能暂停";
+            var runStatus = demoRunRecorder != null && demoRunRecorder.IsRecording ? "流程采集中" : "流程暂停";
+            GUI.Label(new Rect(content.x, statusY, content.width, 22f * layout.Scale), $"录入：{flowController.CustomGestureDisplayName} → {flowController.CustomGestureTargetLabel} · 样本 {flowController.CustomGestureSampleCount}/{flowController.CustomGestureRequiredSamples}", accentStyle);
+            GUI.Label(new Rect(content.x, statusY + 22f * layout.Scale, content.width, 22f * layout.Scale), $"数据：{perfStatus} / {runStatus} · F8 性能开关 · F9 导出性能 CSV", labelStyle);
+
+            var buttonY = statusY + 52f * layout.Scale;
+            var buttonHeight = Mathf.Clamp(28f * layout.Scale, 24f, 34f);
+            var gap = Mathf.Clamp(7f * layout.Scale, 5f, 10f);
+            var buttonWidth = (content.width - gap * 3f) / 4f;
+            DrawQuickActionButton(new Rect(content.x, buttonY, buttonWidth, buttonHeight), "录制样本", () => flowController.StartCustomGestureRecording());
+            DrawQuickActionButton(new Rect(content.x + (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), "保存模板", () => flowController.SaveCustomGestureTemplate());
+            DrawQuickActionButton(new Rect(content.x + (buttonWidth + gap) * 2f, buttonY, buttonWidth, buttonHeight), "重载测试", () => flowController.ReloadCustomGestureTemplates());
+            DrawQuickActionButton(new Rect(content.x + (buttonWidth + gap) * 3f, buttonY, buttonWidth, buttonHeight), "换绑定", () => flowController.CycleCustomGestureTarget());
+
+            buttonY += buttonHeight + gap;
+            DrawQuickActionButton(new Rect(content.x, buttonY, buttonWidth, buttonHeight), "换槽位", () => flowController.CycleCustomGestureSlot());
+            DrawQuickActionButton(new Rect(content.x + (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), performanceMonitor != null && performanceMonitor.IsRecording ? "暂停性能" : "开始性能", TogglePerformanceRecording);
+            DrawQuickActionButton(new Rect(content.x + (buttonWidth + gap) * 2f, buttonY, buttonWidth, buttonHeight), "导出性能", ExportPerformanceCsv);
+            DrawQuickActionButton(new Rect(content.x + (buttonWidth + gap) * 3f, buttonY, buttonWidth, buttonHeight), "导出流程", ExportDemoRunCsv);
+        }
+
+        private void TogglePerformanceRecording()
+        {
+            if (performanceMonitor == null)
+            {
+                return;
+            }
+
+            if (performanceMonitor.IsRecording)
+            {
+                performanceMonitor.StopRecording();
+            }
+            else
+            {
+                performanceMonitor.StartRecording();
+            }
+        }
+
+        private void ExportPerformanceCsv()
+        {
+            performanceMonitor?.ExportCsv();
+        }
+
+        private void ExportDemoRunCsv()
+        {
+            demoRunRecorder?.ExportCsv();
+        }
+
+        private static string FormatGestureCommand(GestureCommand command)
+        {
+            if (!command.IsValid)
+            {
+                return "无";
+            }
+
+            var label = command.Kind == GestureCommandKind.Motion
+                ? command.MotionGesture.ToChinese()
+                : command.StaticGesture.ToChinese();
+            var kind = command.Kind == GestureCommandKind.Motion ? "动态" : "静态";
+            return $"{kind} {label} · 置信度 {command.Confidence:F2}";
+        }
+
+        private static string FormatGestureAction(GestureAction action)
+        {
+            if (!action.IsValid)
+            {
+                return "无";
+            }
+
+            return $"{action.Intent} · 置信度 {action.Confidence:F2}";
         }
 
         private void DrawQuickActionButton(Rect rect, string label, System.Action action)
