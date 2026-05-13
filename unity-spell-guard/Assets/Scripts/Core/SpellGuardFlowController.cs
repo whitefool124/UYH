@@ -4,6 +4,7 @@ using SpellGuard.InputSystem;
 using SpellGuard.Player;
 using SpellGuard.UI;
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -20,11 +21,20 @@ namespace SpellGuard.Core
         [SerializeField] private Transform playerRoot;
         [SerializeField] private EnemySpawner enemySpawner;
         [SerializeField] private GameFlowManager gameFlow;
+        [SerializeField] private LevelConfigLibrary levelConfigLibrary;
         [SerializeField] private bool debugLogs = true;
         [SerializeField] private float trainingMenuHoldSeconds = 1.6f;
         [SerializeField] private KeyCode pauseToggleKey = KeyCode.Escape;
         [SerializeField] private string startSceneName = "SpellGuardStart";
+        [Header("Custom Gesture Training")]
+        [SerializeField] private float customGestureCountdownSeconds = 3f;
+        [SerializeField] private float customGestureRecordSeconds = 1.2f;
+        [SerializeField] private float customGestureSampleIntervalSeconds = 0.06f;
+        [SerializeField] private float customGestureMinimumConfidence = 0.55f;
+        [SerializeField] private int customGestureRequiredSamples = 5;
 
+        private readonly CustomGestureRecorder customGestureRecorder = new CustomGestureRecorder();
+        private readonly List<CustomGestureSample> pendingCustomGestureSamples = new List<CustomGestureSample>();
         private SpellGuardScreen screen = SpellGuardScreen.Menu;
         private int combatScore;
         private int combatHits;
@@ -34,10 +44,16 @@ namespace SpellGuard.Core
         private int trainingFireCasts;
         private int trainingIceCasts;
         private int trainingShieldCasts;
+        private int trainingSwipeCommands;
+        private int trainingSpecialCommands;
         private SpellType lastTrainingSpell = SpellType.None;
+        private TrainingGestureStep trainingStep = TrainingGestureStep.Point;
         private bool subscribed;
         private int bestScore;
         private bool tutorialSeen;
+        private int customGestureSlotIndex = 1;
+        private GestureIntent customGestureTargetIntent = GestureIntent.CastFire;
+        private string customGestureStatusText = "自定义手势：选择目标法术后开始录制。";
 
         public SpellGuardRunResult CurrentRunResult => gameFlow != null ? gameFlow.RunResult : SpellGuardRunResult.None;
         public int TargetScoreToWin => gameFlow != null ? gameFlow.TargetScoreToWin : 0;
@@ -55,14 +71,29 @@ namespace SpellGuard.Core
         public int TrainingFireCasts => trainingFireCasts;
         public int TrainingIceCasts => trainingIceCasts;
         public int TrainingShieldCasts => trainingShieldCasts;
+        public int TrainingSwipeCommands => trainingSwipeCommands;
+        public int TrainingSpecialCommands => trainingSpecialCommands;
         public SpellType LastTrainingSpell => lastTrainingSpell;
-        public bool TrainingComplete => trainingPointerChecks > 0 && trainingFireCasts > 0 && trainingIceCasts > 0 && trainingShieldCasts > 0;
+        public TrainingGestureStep TrainingStep => trainingStep;
+        public string TrainingStepLabel => GetTrainingStepLabel(trainingStep);
+        public string TrainingStepFeedback { get; private set; } = "第 1 步：使用 Point 完成一次指向确认。";
+        public bool TrainingComplete => trainingStep == TrainingGestureStep.Complete;
         public string ConfirmLabel => settings != null ? settings.ConfirmLabel : "未绑定";
         public string DifficultyLabel => settings != null ? settings.DifficultyLabel : "未绑定";
         public string MusicVolumeLabel => settings != null ? settings.MusicVolumeLabel : "未绑定";
         public string SfxVolumeLabel => settings != null ? settings.SfxVolumeLabel : "未绑定";
         public string InputModeLabel => inputRouter != null ? FormatInputMode(inputRouter.Mode) : settings != null ? settings.InputModeLabel : "未绑定";
+        public string CustomGestureDisplayName => $"Custom {customGestureSlotIndex}";
+        public string CustomGestureTargetLabel => FormatCustomGestureIntent(customGestureTargetIntent);
+        public string CustomGestureStatusText => customGestureStatusText;
+        public int CustomGestureSampleCount => pendingCustomGestureSamples.Count;
+        public int CustomGestureRequiredSamples => Mathf.Max(1, customGestureRequiredSamples);
+        public bool CustomGestureRecording => customGestureRecorder.IsBusy;
+        public string CustomGestureLastMatchedName => inputRouter != null ? inputRouter.LastCustomGestureName : "无";
+        public float CustomGestureLastScore => inputRouter != null ? inputRouter.LastCustomGestureScore : float.PositiveInfinity;
         public event Action<SpellType, int, SpellGuardScreen> SpellResolvedForDiagnostics;
+
+        public LevelConfig CurrentLevelConfig { get; private set; }
 
         public SpellGuardRuntimeStatus GetScreenStatus()
         {
@@ -95,13 +126,26 @@ namespace SpellGuard.Core
                 trainingFireCasts,
                 trainingIceCasts,
                 trainingShieldCasts,
+                trainingSwipeCommands,
+                trainingSpecialCommands,
                 lastTrainingSpell,
+                trainingStep,
+                TrainingStepLabel,
+                TrainingStepFeedback,
                 GetHitRate(),
                 CurrentRunResult,
                 TargetScoreToWin,
                 bestScore,
                 tutorialSeen,
-                TrainingComplete);
+                TrainingComplete,
+                CustomGestureDisplayName,
+                CustomGestureTargetLabel,
+                customGestureStatusText,
+                CustomGestureSampleCount,
+                CustomGestureRequiredSamples,
+                CustomGestureRecording,
+                CustomGestureLastMatchedName,
+                CustomGestureLastScore);
         }
 
         private void OnEnable()
@@ -123,6 +167,8 @@ namespace SpellGuard.Core
         private void Start()
         {
             LoadLocalProgress();
+            ConfigureCustomGestureRecorder();
+            inputRouter?.ReloadCustomGestures();
             var launchMode = SpellGuardStartSceneLaunch.ConsumePendingMode();
             if (launchMode == SpellGuardStartSceneLaunchMode.Training)
             {
@@ -142,6 +188,7 @@ namespace SpellGuard.Core
         {
             HandlePauseToggle();
             ApplyModeState();
+            UpdateCustomGestureRecording();
 
             if (screen == SpellGuardScreen.Playing && gameFlow != null && gameFlow.GameOver)
             {
@@ -218,9 +265,79 @@ namespace SpellGuard.Core
             LogFlowEvent("cycle sfx volume setting");
         }
 
+        public void CycleCustomGestureSlot()
+        {
+            customGestureSlotIndex = customGestureSlotIndex >= 3 ? 1 : customGestureSlotIndex + 1;
+            pendingCustomGestureSamples.Clear();
+            customGestureRecorder.Cancel();
+            customGestureStatusText = $"已切换到 {CustomGestureDisplayName}，请重新录制 5 个样本。";
+            HintText = customGestureStatusText;
+        }
+
+        public void CycleCustomGestureTarget()
+        {
+            customGestureTargetIntent = customGestureTargetIntent switch
+            {
+                GestureIntent.CastFire => GestureIntent.CastIce,
+                GestureIntent.CastIce => GestureIntent.CastShield,
+                _ => GestureIntent.CastFire
+            };
+            customGestureStatusText = $"自定义手势目标已切换：{CustomGestureTargetLabel}";
+            HintText = customGestureStatusText;
+        }
+
+        public void StartCustomGestureRecording()
+        {
+            if (screen != SpellGuardScreen.Training)
+            {
+                return;
+            }
+
+            ConfigureCustomGestureRecorder();
+            customGestureRecorder.Begin(Time.time);
+            customGestureStatusText = customGestureRecorder.StatusText;
+            HintText = "保持单手完整入镜，系统会录制 1.2 秒 landmark 序列。";
+            inputProvider?.ClearTransientInputs();
+        }
+
+        public void SaveCustomGestureTemplate()
+        {
+            if (pendingCustomGestureSamples.Count < CustomGestureRequiredSamples)
+            {
+                customGestureStatusText = $"样本不足：{pendingCustomGestureSamples.Count}/{CustomGestureRequiredSamples}，继续录制。";
+                HintText = customGestureStatusText;
+                return;
+            }
+
+            var template = new CustomGestureTemplate
+            {
+                GestureId = $"custom_{customGestureSlotIndex}",
+                DisplayName = CustomGestureDisplayName,
+                Kind = CustomGestureKind.DynamicMotion,
+                TargetIntent = customGestureTargetIntent,
+                MatchThreshold = CustomGestureRecognizer.DefaultDynamicThreshold,
+                Samples = new List<CustomGestureSample>(pendingCustomGestureSamples)
+            };
+
+            inputRouter?.SaveCustomGesture(template);
+            customGestureRecorder.MarkSaved();
+            customGestureStatusText = $"已保存 {template.DisplayName} → {CustomGestureTargetLabel}，进入测试模式重复动作即可触发法术。";
+            HintText = customGestureStatusText;
+            SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
+        }
+
+        public void ReloadCustomGestureTemplates()
+        {
+            inputRouter?.ReloadCustomGestures();
+            customGestureStatusText = $"已重新加载模板库，最近识别：{CustomGestureLastMatchedName}";
+            HintText = customGestureStatusText;
+            inputProvider?.ClearTransientInputs();
+        }
+
         public void RecordTrainingPointerCheck()
         {
             trainingPointerChecks += 1;
+            CompleteTrainingStep(TrainingGestureStep.Point, "Point 指向确认完成，下一步练习 Fist 火焰术。");
             SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
         }
 
@@ -231,7 +348,11 @@ namespace SpellGuard.Core
             trainingFireCasts = 0;
             trainingIceCasts = 0;
             trainingShieldCasts = 0;
+            trainingSwipeCommands = 0;
+            trainingSpecialCommands = 0;
             lastTrainingSpell = SpellType.None;
+            trainingStep = TrainingGestureStep.Point;
+            TrainingStepFeedback = "第 1 步：使用 Point 完成一次指向确认。";
         }
 
         public void StartRun()
@@ -241,9 +362,14 @@ namespace SpellGuard.Core
             playerHealth?.ResetHealth();
             enemySpawner?.ClearAll();
             gameFlow?.ResetGameOver();
+            ApplyLevelConfig(levelConfigLibrary != null ? levelConfigLibrary.CombatLevel : null, true);
             if (settings != null)
             {
-                enemySpawner?.ApplySettings(settings.Difficulty);
+                if (CurrentLevelConfig == null)
+                {
+                    enemySpawner?.ApplySettings(settings.Difficulty);
+                }
+
                 SpellGuardAudioController.Instance?.ApplySettings(settings);
             }
 
@@ -261,11 +387,19 @@ namespace SpellGuard.Core
             playerHealth?.ResetHealth();
             enemySpawner?.ClearAll();
             gameFlow?.ResetGameOver();
+            ApplyLevelConfig(levelConfigLibrary != null ? levelConfigLibrary.TutorialLevel : null, false);
             ResetPlayerPose();
             screen = SpellGuardScreen.Training;
             inputProvider?.ClearTransientInputs();
+            inputRouter?.ReloadCustomGestures();
+            ConfigureCustomGestureRecorder();
+            customGestureStatusText = "自定义手势：可录制 5 个样本并绑定火/冰/盾。";
             SpellGuardAudioController.Instance?.PlayMenuMusic();
-            HintText = "训练：完成指向确认和火/冰/盾三法术后，可直接进入正式守卫。";
+            HintText = "训练：完成基础目标，也可以录入自定义手势绑定火/冰/盾。";
+            if (CurrentLevelConfig != null && !string.IsNullOrWhiteSpace(CurrentLevelConfig.TutorialHint))
+            {
+                HintText = CurrentLevelConfig.TutorialHint;
+            }
         }
 
         public void StartRunFromTraining()
@@ -360,7 +494,8 @@ namespace SpellGuard.Core
                 }
             }
 
-            enemySpawner?.SetSpawningEnabled(screen == SpellGuardScreen.Playing);
+            var levelAllowsSpawning = CurrentLevelConfig == null || CurrentLevelConfig.SpawnEnemies;
+            enemySpawner?.SetSpawningEnabled(screen == SpellGuardScreen.Playing && levelAllowsSpawning);
         }
 
         private void HandlePauseToggle()
@@ -397,10 +532,70 @@ namespace SpellGuard.Core
             {
                 trainingCasts += 1;
                 lastTrainingSpell = spell;
-                if (spell == SpellType.Fire) trainingFireCasts += 1;
-                else if (spell == SpellType.Ice) trainingIceCasts += 1;
-                else if (spell == SpellType.Shield) trainingShieldCasts += 1;
+                if (spell == SpellType.Fire)
+                {
+                    trainingFireCasts += 1;
+                    CompleteTrainingStep(TrainingGestureStep.Fist, "Fist 火焰术完成，下一步练习 V Sign 冰霜术。");
+                }
+                else if (spell == SpellType.Ice)
+                {
+                    trainingIceCasts += 1;
+                    CompleteTrainingStep(TrainingGestureStep.VSign, "V Sign 冰霜术完成，下一步练习 OpenPalm 护盾术。");
+                }
+                else if (spell == SpellType.Shield)
+                {
+                    trainingShieldCasts += 1;
+                    CompleteTrainingStep(TrainingGestureStep.OpenPalm, "OpenPalm 护盾术完成，下一步练习 Swipe 左右移动。");
+                }
             }
+        }
+
+        public void RecordTrainingAction(GestureAction action)
+        {
+            if (screen != SpellGuardScreen.Training)
+            {
+                return;
+            }
+
+            var trainingAction = GestureIntentMapper.ToTrainingAction(action);
+            if (trainingAction.Intent == GestureIntent.TrainingSwipe)
+            {
+                trainingSwipeCommands += 1;
+                CompleteTrainingStep(TrainingGestureStep.Swipe, "Swipe 移动练习完成，下一步练习 Snap 或 PointToFist 确认动作。");
+            }
+            else if (trainingAction.Intent == GestureIntent.TrainingSpecialConfirm)
+            {
+                trainingSpecialCommands += 1;
+                CompleteTrainingStep(TrainingGestureStep.SnapOrPointToFist, "Snap / PointToFist 完成，训练流程已完成，可进入正式守卫。");
+            }
+        }
+
+        private void ConfigureCustomGestureRecorder()
+        {
+            customGestureRecorder.Configure(customGestureCountdownSeconds, customGestureRecordSeconds, customGestureSampleIntervalSeconds, customGestureMinimumConfidence);
+        }
+
+        private void UpdateCustomGestureRecording()
+        {
+            if (screen != SpellGuardScreen.Training || !customGestureRecorder.IsBusy)
+            {
+                return;
+            }
+
+            var frame = inputProvider != null ? inputProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.Unknown);
+            var completed = customGestureRecorder.Update(frame, Time.time);
+            customGestureStatusText = customGestureRecorder.StatusText;
+            if (!completed || customGestureRecorder.LastSample == null)
+            {
+                return;
+            }
+
+            pendingCustomGestureSamples.Add(customGestureRecorder.LastSample);
+            customGestureStatusText = $"已录入样本 {pendingCustomGestureSamples.Count}/{CustomGestureRequiredSamples}。";
+            HintText = pendingCustomGestureSamples.Count >= CustomGestureRequiredSamples
+                ? "样本已足够，点击保存模板后即可测试识别。"
+                : "样本有效，继续录制同一个动作。";
+            SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
         }
 
         private void RefreshSpellCasterSubscription()
@@ -430,6 +625,57 @@ namespace SpellGuard.Core
 
             playerRoot.position = new Vector3(0f, 1.1f, 0f);
             playerRoot.rotation = Quaternion.identity;
+        }
+
+        private void CompleteTrainingStep(TrainingGestureStep expectedStep, string feedback)
+        {
+            if (trainingStep != expectedStep)
+            {
+                return;
+            }
+
+            trainingStep = expectedStep == TrainingGestureStep.SnapOrPointToFist ? TrainingGestureStep.Complete : expectedStep + 1;
+            TrainingStepFeedback = feedback;
+        }
+
+        private static string GetTrainingStepLabel(TrainingGestureStep step)
+        {
+            return step switch
+            {
+                TrainingGestureStep.Point => "Point：指向确认",
+                TrainingGestureStep.Fist => "Fist：火焰术",
+                TrainingGestureStep.VSign => "V Sign：冰霜术",
+                TrainingGestureStep.OpenPalm => "OpenPalm：护盾术",
+                TrainingGestureStep.Swipe => "Swipe：左右移动",
+                TrainingGestureStep.SnapOrPointToFist => "Snap / PointToFist：确认动作",
+                TrainingGestureStep.Complete => "训练完成",
+                _ => "训练步骤"
+            };
+        }
+
+        private static string FormatCustomGestureIntent(GestureIntent intent)
+        {
+            return intent switch
+            {
+                GestureIntent.CastFire => "火焰术",
+                GestureIntent.CastIce => "冰霜术",
+                GestureIntent.CastShield => "护盾术",
+                _ => "未绑定"
+            };
+        }
+
+        private void ApplyLevelConfig(LevelConfig config, bool allowEnemySpawning)
+        {
+            CurrentLevelConfig = config;
+            if (config == null)
+            {
+                return;
+            }
+
+            playerHealth?.SetMaxHealth(config.PlayerHealth);
+            gameFlow?.ApplyLevelConfig(config);
+            enemySpawner?.ApplyWaveConfig(config.Wave);
+            enemySpawner?.SetSpawningEnabled(allowEnemySpawning && config.SpawnEnemies);
         }
 
         private void LogFlowEvent(string message)

@@ -96,11 +96,39 @@ namespace SpellGuard.Tests.PlayMode
             InvokeSpellResolved(SpellType.Fire, 0);
             InvokeSpellResolved(SpellType.Ice, 0);
             InvokeSpellResolved(SpellType.Shield, 0);
+            flowController.RecordTrainingAction(TransientAction(GestureIntent.TrainingSwipe));
+            flowController.RecordTrainingAction(TransientAction(GestureIntent.TrainingSpecialConfirm));
 
             flowController.StartRunFromTraining();
 
             Assert.That(flowController.Screen, Is.EqualTo(SpellGuardScreen.Playing));
             Assert.That(inputProvider.ClearCalls, Is.GreaterThanOrEqualTo(2));
+        }
+
+        [Test]
+        public void TrainingStepsAdvanceInRequiredOrder()
+        {
+            flowController.StartTraining();
+
+            Assert.That(flowController.TrainingStep, Is.EqualTo(TrainingGestureStep.Point));
+            flowController.RecordTrainingAction(TransientAction(GestureIntent.TrainingSwipe));
+            Assert.That(flowController.TrainingStep, Is.EqualTo(TrainingGestureStep.Point));
+
+            flowController.RecordTrainingPointerCheck();
+            Assert.That(flowController.TrainingStep, Is.EqualTo(TrainingGestureStep.Fist));
+            InvokeSpellResolved(SpellType.Fire, 0);
+            Assert.That(flowController.TrainingStep, Is.EqualTo(TrainingGestureStep.VSign));
+            InvokeSpellResolved(SpellType.Ice, 0);
+            Assert.That(flowController.TrainingStep, Is.EqualTo(TrainingGestureStep.OpenPalm));
+            InvokeSpellResolved(SpellType.Shield, 0);
+            Assert.That(flowController.TrainingStep, Is.EqualTo(TrainingGestureStep.Swipe));
+            flowController.RecordTrainingAction(TransientAction(GestureIntent.TrainingSwipe));
+            Assert.That(flowController.TrainingStep, Is.EqualTo(TrainingGestureStep.SnapOrPointToFist));
+            flowController.RecordTrainingAction(TransientAction(GestureIntent.TrainingSpecialConfirm));
+
+            Assert.That(flowController.TrainingStep, Is.EqualTo(TrainingGestureStep.Complete));
+            Assert.That(flowController.TrainingComplete, Is.True);
+            Assert.That(flowController.TrainingStepFeedback, Does.Contain("训练流程已完成"));
         }
 
         [Test]
@@ -138,6 +166,19 @@ namespace SpellGuard.Tests.PlayMode
             var method = typeof(SpellGuardFlowController).GetMethod("HandleSpellResolved", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             Assert.That(method, Is.Not.Null);
             method.Invoke(flowController, new object[] { spell, hitCount });
+        }
+
+        private static GestureAction TransientAction(GestureIntent intent)
+        {
+            return new GestureAction
+            {
+                Intent = intent,
+                Confidence = 1f,
+                TriggeredTime = Time.time,
+                SourceKind = GestureCommandKind.Motion,
+                Handedness = GestureHandedness.Unknown,
+                TrackId = -1
+            };
         }
 
         private static void InvokePrivateMethod(object target, string methodName)

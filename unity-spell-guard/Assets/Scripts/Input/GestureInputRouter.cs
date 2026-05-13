@@ -17,6 +17,15 @@ namespace SpellGuard.InputSystem
         [SerializeField] private MockGestureInputProvider mockProvider;
         [SerializeField] private NativeMediapipeGestureProvider nativeMediapipeProvider;
         [SerializeField] private ExternalGestureBridgeProvider externalBridgeProvider;
+        [Header("Custom Gesture")]
+        [SerializeField] private bool customGesturesEnabled = true;
+        [SerializeField] private float customGestureMinConfidence = 0.55f;
+        [SerializeField] private float customGestureWindowSeconds = 1.6f;
+        [SerializeField] private float customGestureCooldownSeconds = 0.85f;
+
+        private readonly CustomGestureRecognizer customGestureRecognizer = new CustomGestureRecognizer();
+        private CustomGestureLibrary customGestureLibrary;
+        private bool customGestureLibraryLoaded;
 
         public event Action<InputMode> ModeChanged;
 
@@ -95,17 +104,61 @@ namespace SpellGuard.InputSystem
                 switch (mode)
                 {
                     case InputMode.NativeMediapipe:
-                        return nativeMediapipeProvider != null ? nativeMediapipeProvider.RecentGestureCommands : System.Array.Empty<GestureCommand>();
+                        return nativeMediapipeProvider != null ? nativeMediapipeProvider.RecentGestureCommands : Array.Empty<GestureCommand>();
                     case InputMode.ExternalBridge:
-                        return externalBridgeProvider != null ? externalBridgeProvider.RecentGestureCommands : System.Array.Empty<GestureCommand>();
+                        return externalBridgeProvider != null ? externalBridgeProvider.RecentGestureCommands : Array.Empty<GestureCommand>();
                     case InputMode.Mock:
                     default:
-                        return mockProvider != null ? mockProvider.RecentGestureCommands : System.Array.Empty<GestureCommand>();
+                        return mockProvider != null ? mockProvider.RecentGestureCommands : Array.Empty<GestureCommand>();
                 }
             }
         }
 
+        public override GestureAction CurrentCustomAction
+        {
+            get
+            {
+                if (!customGesturesEnabled)
+                {
+                    return GestureAction.None;
+                }
+
+                EnsureCustomGestureLibraryLoaded();
+                return customGestureRecognizer.TryResolve(CurrentGestureFrame, customGestureLibrary.Templates, Time.time, out var action)
+                    ? action
+                    : GestureAction.None;
+            }
+        }
+
         public InputMode Mode => mode;
+        public CustomGestureLibrary CustomGestures
+        {
+            get
+            {
+                EnsureCustomGestureLibraryCreated();
+                return customGestureLibrary;
+            }
+        }
+        public string LastCustomGestureName => customGestureRecognizer.LastMatchedName;
+        public float LastCustomGestureScore => customGestureRecognizer.LastScore;
+
+        public void ReloadCustomGestures()
+        {
+            EnsureCustomGestureLibraryCreated();
+            customGestureLibrary.LoadAll();
+            customGestureLibraryLoaded = true;
+            customGestureRecognizer.Reset();
+        }
+
+        public void SaveCustomGesture(CustomGestureTemplate template)
+        {
+            EnsureCustomGestureLibraryCreated();
+            if (customGestureLibrary.Save(template))
+            {
+                customGestureLibraryLoaded = true;
+                customGestureRecognizer.Reset();
+            }
+        }
 
         public override void ClearTransientInputs()
         {
@@ -122,6 +175,15 @@ namespace SpellGuard.InputSystem
                     mockProvider?.ClearTransientInputs();
                     break;
             }
+
+            customGestureRecognizer.Reset();
+        }
+
+        private void Awake()
+        {
+            EnsureCustomGestureLibraryCreated();
+            customGestureRecognizer.Configure(customGestureMinConfidence, customGestureWindowSeconds, customGestureCooldownSeconds);
+            ReloadCustomGestures();
         }
 
         private void Update()
@@ -151,7 +213,23 @@ namespace SpellGuard.InputSystem
             }
 
             mode = nextMode;
+            customGestureRecognizer.Reset();
             ModeChanged?.Invoke(mode);
+        }
+
+        private void EnsureCustomGestureLibraryLoaded()
+        {
+            if (customGestureLibraryLoaded)
+            {
+                return;
+            }
+
+            ReloadCustomGestures();
+        }
+
+        private void EnsureCustomGestureLibraryCreated()
+        {
+            customGestureLibrary ??= new CustomGestureLibrary();
         }
     }
 }
