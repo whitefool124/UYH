@@ -103,9 +103,9 @@ namespace SpellGuard.Core
                 return false;
             }
 
-            if (enemySpawner == null || gameFlowManager == null || debugHud == null || menuOverlay == null || gameSettings == null || flowController == null || audioController == null)
+            if (enemySpawner == null || gameFlowManager == null || menuOverlay == null || gameSettings == null || flowController == null || audioController == null)
             {
-                reason = "流程、战斗、UI 或音频组件引用不完整";
+                reason = "流程、战斗、玩家 UI 或音频组件引用不完整";
                 return false;
             }
 

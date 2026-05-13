@@ -10,6 +10,7 @@ namespace SpellGuard.Core
         [SerializeField] private bool bootstrapOnAwake = true;
 
         private GestureInputRouter subscribedInputRouter;
+        private GestureInputRouter.InputMode lastSyncedMode = GestureInputRouter.InputMode.Mock;
 
         public bool IsBootstrapped { get; private set; }
 
@@ -81,7 +82,7 @@ namespace SpellGuard.Core
             }
 
             SubscribeToInputRouter();
-            SyncInputBackendLifecycle();
+            SyncInputBackendLifecycle(lastSyncedMode, sceneContext.InputRouter != null ? sceneContext.InputRouter.Mode : GestureInputRouter.InputMode.Mock);
 
             IsBootstrapped = true;
         }
@@ -146,19 +147,32 @@ namespace SpellGuard.Core
         private void HandleInputModeChanged(GestureInputRouter.InputMode _)
         {
             sceneContext?.GameSettings?.SetInputMode(_);
-            SyncInputBackendLifecycle();
+            var previous = lastSyncedMode;
+            lastSyncedMode = _;
+            SyncInputBackendLifecycle(previous, _);
         }
 
-        private void SyncInputBackendLifecycle()
+        private void SyncInputBackendLifecycle(GestureInputRouter.InputMode previousMode, GestureInputRouter.InputMode nextMode)
         {
             if (sceneContext == null)
             {
                 return;
             }
 
-            var mode = sceneContext.InputRouter != null ? sceneContext.InputRouter.Mode : GestureInputRouter.InputMode.Mock;
-            var useNativeMediapipe = mode == GestureInputRouter.InputMode.NativeMediapipe;
-            var useExternalBridge = mode == GestureInputRouter.InputMode.ExternalBridge;
+            var useNativeMediapipe = nextMode == GestureInputRouter.InputMode.NativeMediapipe;
+            var useExternalBridge = nextMode == GestureInputRouter.InputMode.ExternalBridge;
+
+            if (previousMode == GestureInputRouter.InputMode.NativeMediapipe && !useNativeMediapipe)
+            {
+                sceneContext.NativeMediapipeRunner?.StopRunner();
+                sceneContext.WebcamFeed?.ForceStopSharedCamera();
+            }
+
+            if (previousMode == GestureInputRouter.InputMode.ExternalBridge && !useExternalBridge)
+            {
+                sceneContext.UdpGestureReceiver?.StopReceiver();
+                sceneContext.ExternalBridge?.ClearSnapshot();
+            }
 
             if (sceneContext.NativeMediapipeRunner != null)
             {
@@ -174,6 +188,7 @@ namespace SpellGuard.Core
             {
                 if (useExternalBridge)
                 {
+                    sceneContext.WebcamFeed?.ForceStopSharedCamera();
                     sceneContext.UdpGestureReceiver.StartReceiver();
                 }
                 else
@@ -199,6 +214,8 @@ namespace SpellGuard.Core
                     }
                 }
             }
+
+            lastSyncedMode = nextMode;
         }
     }
 }

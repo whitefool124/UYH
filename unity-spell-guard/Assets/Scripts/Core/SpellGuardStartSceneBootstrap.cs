@@ -19,6 +19,7 @@ namespace SpellGuard.Core
         [SerializeField] private bool bootstrapOnAwake = true;
 
         private GestureInputRouter subscribedInputRouter;
+        private GestureInputRouter.InputMode lastSyncedMode = GestureInputRouter.InputMode.Mock;
 
         private void Awake()
         {
@@ -73,7 +74,7 @@ namespace SpellGuard.Core
             }
 
             SubscribeToInputRouter();
-            SyncInputBackendLifecycle();
+            SyncInputBackendLifecycle(lastSyncedMode, inputRouter != null ? inputRouter.Mode : GestureInputRouter.InputMode.Mock);
         }
 
         private void SubscribeToInputRouter()
@@ -102,14 +103,27 @@ namespace SpellGuard.Core
         private void HandleInputModeChanged(GestureInputRouter.InputMode _)
         {
             settings?.SetInputMode(_);
-            SyncInputBackendLifecycle();
+            var previous = lastSyncedMode;
+            lastSyncedMode = _;
+            SyncInputBackendLifecycle(previous, _);
         }
 
-        private void SyncInputBackendLifecycle()
+        private void SyncInputBackendLifecycle(GestureInputRouter.InputMode previousMode, GestureInputRouter.InputMode nextMode)
         {
-            var mode = inputRouter != null ? inputRouter.Mode : GestureInputRouter.InputMode.Mock;
-            var useNativeMediapipe = mode == GestureInputRouter.InputMode.NativeMediapipe;
-            var useExternalBridge = mode == GestureInputRouter.InputMode.ExternalBridge;
+            var useNativeMediapipe = nextMode == GestureInputRouter.InputMode.NativeMediapipe;
+            var useExternalBridge = nextMode == GestureInputRouter.InputMode.ExternalBridge;
+
+            if (previousMode == GestureInputRouter.InputMode.NativeMediapipe && !useNativeMediapipe)
+            {
+                nativeMediapipeRunner?.StopRunner();
+                webcamFeed?.ForceStopSharedCamera();
+            }
+
+            if (previousMode == GestureInputRouter.InputMode.ExternalBridge && !useExternalBridge)
+            {
+                udpGestureReceiver?.StopReceiver();
+                externalBridge?.ClearSnapshot();
+            }
 
             if (nativeMediapipeRunner != null)
             {
@@ -125,6 +139,7 @@ namespace SpellGuard.Core
             {
                 if (useExternalBridge)
                 {
+                    webcamFeed?.ForceStopSharedCamera();
                     udpGestureReceiver.StartReceiver();
                 }
                 else
@@ -152,6 +167,8 @@ namespace SpellGuard.Core
                     nativeMediapipeProvider?.SetStatusText("摄像头不可用，已回退到 Mock");
                 }
             }
+
+            lastSyncedMode = nextMode;
         }
     }
 }
