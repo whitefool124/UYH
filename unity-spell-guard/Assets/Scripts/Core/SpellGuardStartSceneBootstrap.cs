@@ -141,7 +141,7 @@ namespace SpellGuard.Core
             if (useNativeMediapipe && !webcamFeed.IsRunning)
             {
                 webcamFeed.StartCamera();
-                if (!webcamFeed.IsRunning)
+                if (webcamFeed.Texture == null)
                 {
                     inputRouter?.SetMode(GestureInputRouter.InputMode.Mock);
                     if (nativeMediapipeRunner != null)
@@ -151,10 +151,6 @@ namespace SpellGuard.Core
 
                     nativeMediapipeProvider?.SetStatusText("摄像头不可用，已回退到 Mock");
                 }
-            }
-            else if (!useNativeMediapipe && webcamFeed.IsRunning)
-            {
-                webcamFeed.StopCamera();
             }
         }
     }

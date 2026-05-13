@@ -187,7 +187,7 @@ namespace SpellGuard.Core
                 if (useNativeMediapipe && !sceneContext.WebcamFeed.IsRunning)
                 {
                     sceneContext.WebcamFeed.StartCamera();
-                    if (!sceneContext.WebcamFeed.IsRunning)
+                    if (sceneContext.WebcamFeed.Texture == null)
                     {
                         sceneContext.InputRouter?.SetMode(GestureInputRouter.InputMode.Mock);
                         if (sceneContext.NativeMediapipeRunner != null)
@@ -197,10 +197,6 @@ namespace SpellGuard.Core
                         sceneContext.NativeMediapipeProvider?.SetStatusText("摄像头不可用，已回退到 Mock");
                         sceneContext.AudioController?.PlayMenuMusic();
                     }
-                }
-                else if (!useNativeMediapipe && sceneContext.WebcamFeed.IsRunning)
-                {
-                    sceneContext.WebcamFeed.StopCamera();
                 }
             }
         }

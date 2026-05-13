@@ -18,6 +18,9 @@ namespace SpellGuard.EditorTools
         private const string StartScenePath = "Assets/Scenes/SpellGuardStart.unity";
         private const string PrototypeScenePath = "Assets/Scenes/SpellGuardPrototype.unity";
         private const string GestureRecognitionProfilePath = "Assets/Configs/GestureRecognitionProfile_Default.asset";
+        private const string TutorialLevelConfigPath = "Assets/Configs/LevelConfig_Tutorial.asset";
+        private const string CombatLevelConfigPath = "Assets/Configs/LevelConfig_Combat.asset";
+        private const string LevelConfigLibraryPath = "Assets/Configs/LevelConfigLibrary_Default.asset";
 
         [MenuItem("Spell Guard/Create Start Scene")]
         public static void CreateStartScene()
@@ -105,6 +108,8 @@ namespace SpellGuard.EditorTools
 
             SetField(startMenu, "inputProvider", inputRouter);
             SetField(startMenu, "inputRouter", inputRouter);
+            SetField(startMenu, "webcamFeed", webcamFeed);
+            SetField(startMenu, "nativeMediapipeProvider", nativeMediapipeProvider);
             SetField(startMenu, "settings", settings);
 
             EnsureScenesFolder();
@@ -124,6 +129,7 @@ namespace SpellGuard.EditorTools
             RenderSettings.ambientLight = new Color(0.09f, 0.11f, 0.16f);
 
             var recognitionProfile = EnsureGestureRecognitionProfile();
+            var levelConfigLibrary = EnsureLevelConfigLibrary();
             var directionalLightObject = new GameObject("Directional Light");
             directionalLightObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
             var directionalLight = directionalLightObject.AddComponent<Light>();
@@ -351,6 +357,7 @@ namespace SpellGuard.EditorTools
             SetField(flowController, "playerRoot", player.transform);
             SetField(flowController, "enemySpawner", spawner);
             SetField(flowController, "gameFlow", gameFlow);
+            SetField(flowController, "levelConfigLibrary", levelConfigLibrary);
 
             SetField(motor, "inputProvider", inputRouter);
 
@@ -435,6 +442,48 @@ namespace SpellGuard.EditorTools
             return profile;
         }
 
+        private static LevelConfigLibrary EnsureLevelConfigLibrary()
+        {
+            EnsureConfigsFolder();
+            var tutorialLevel = AssetDatabase.LoadAssetAtPath<LevelConfig>(TutorialLevelConfigPath);
+            if (tutorialLevel == null)
+            {
+                tutorialLevel = ScriptableObject.CreateInstance<LevelConfig>();
+                SetSerializedString(tutorialLevel, "levelId", "tutorial_demo");
+                SetSerializedString(tutorialLevel, "displayName", "Tutorial Demo");
+                SetSerializedInt(tutorialLevel, "targetScore", 1);
+                SetSerializedInt(tutorialLevel, "playerHealth", 5);
+                SetSerializedBool(tutorialLevel, "spawnEnemies", false);
+                SetSerializedString(tutorialLevel, "tutorialHint", "训练关：完成指向确认和火/冰/盾三法术后，可进入正式守卫。");
+                AssetDatabase.CreateAsset(tutorialLevel, TutorialLevelConfigPath);
+            }
+
+            var combatLevel = AssetDatabase.LoadAssetAtPath<LevelConfig>(CombatLevelConfigPath);
+            if (combatLevel == null)
+            {
+                combatLevel = ScriptableObject.CreateInstance<LevelConfig>();
+                SetSerializedString(combatLevel, "levelId", "combat_demo");
+                SetSerializedString(combatLevel, "displayName", "Combat Demo");
+                SetSerializedInt(combatLevel, "targetScore", 12);
+                SetSerializedInt(combatLevel, "playerHealth", 5);
+                SetSerializedBool(combatLevel, "spawnEnemies", true);
+                SetSerializedString(combatLevel, "tutorialHint", "战斗关：左右位移、施法命中敌人，达到目标分数即胜利。");
+                AssetDatabase.CreateAsset(combatLevel, CombatLevelConfigPath);
+            }
+
+            var library = AssetDatabase.LoadAssetAtPath<LevelConfigLibrary>(LevelConfigLibraryPath);
+            if (library == null)
+            {
+                library = ScriptableObject.CreateInstance<LevelConfigLibrary>();
+                AssetDatabase.CreateAsset(library, LevelConfigLibraryPath);
+            }
+
+            SetField(library, "tutorialLevel", tutorialLevel);
+            SetField(library, "combatLevel", combatLevel);
+            AssetDatabase.SaveAssets();
+            return library;
+        }
+
         private static void EnsureConfigsFolder()
         {
             if (!AssetDatabase.IsValidFolder("Assets/Configs"))
@@ -471,6 +520,39 @@ namespace SpellGuard.EditorTools
             if (property != null)
             {
                 property.enumValueIndex = value;
+                serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        private static void SetSerializedString(Object target, string fieldName, string value)
+        {
+            var serializedObject = new SerializedObject(target);
+            var property = serializedObject.FindProperty(fieldName);
+            if (property != null)
+            {
+                property.stringValue = value;
+                serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        private static void SetSerializedInt(Object target, string fieldName, int value)
+        {
+            var serializedObject = new SerializedObject(target);
+            var property = serializedObject.FindProperty(fieldName);
+            if (property != null)
+            {
+                property.intValue = value;
+                serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        private static void SetSerializedBool(Object target, string fieldName, bool value)
+        {
+            var serializedObject = new SerializedObject(target);
+            var property = serializedObject.FindProperty(fieldName);
+            if (property != null)
+            {
+                property.boolValue = value;
                 serializedObject.ApplyModifiedPropertiesWithoutUndo();
             }
         }

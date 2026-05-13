@@ -58,6 +58,9 @@ namespace SpellGuard.Tests.EditMode
 
             var menuObject = new SerializedObject(startMenu);
             Assert.That(menuObject.FindProperty("inputProvider")?.objectReferenceValue, Is.SameAs(inputRouter));
+            Assert.That(menuObject.FindProperty("inputRouter")?.objectReferenceValue, Is.SameAs(inputRouter));
+            Assert.That(menuObject.FindProperty("webcamFeed")?.objectReferenceValue, Is.SameAs(webcamFeed));
+            Assert.That(menuObject.FindProperty("nativeMediapipeProvider")?.objectReferenceValue, Is.SameAs(nativeProvider));
             Assert.That(menuObject.FindProperty("settings")?.objectReferenceValue, Is.SameAs(settings));
             Assert.That(menuObject.FindProperty("gameplaySceneName")?.stringValue, Is.EqualTo("SpellGuardPrototype"));
 
@@ -91,6 +94,9 @@ namespace SpellGuard.Tests.EditMode
             var menuOverlay = Object.FindObjectOfType<SpellGuardMenuOverlay>(true);
             var flowController = Object.FindObjectOfType<SpellGuardFlowController>(true);
             var performanceMonitor = playerRoot != null ? playerRoot.GetComponent<GesturePerformanceMonitor>() : null;
+            var levelConfigLibrary = AssetDatabase.LoadAssetAtPath<LevelConfigLibrary>("Assets/Configs/LevelConfigLibrary_Default.asset");
+            var tutorialLevel = AssetDatabase.LoadAssetAtPath<LevelConfig>("Assets/Configs/LevelConfig_Tutorial.asset");
+            var combatLevel = AssetDatabase.LoadAssetAtPath<LevelConfig>("Assets/Configs/LevelConfig_Combat.asset");
 
             Assert.That(playerRoot, Is.Not.Null, "PlayerRoot should exist in the generated prototype scene.");
             Assert.That(ritualLane, Is.Not.Null, "Generated scene should include a ritual lane for arena composition.");
@@ -109,6 +115,9 @@ namespace SpellGuard.Tests.EditMode
             Assert.That(flowController, Is.Not.Null, "Generated scene should include the flow controller.");
             Assert.That(performanceMonitor, Is.Not.Null, "Generated scene should include a gesture performance monitor.");
             Assert.That(sceneContext.PerformanceMonitor, Is.SameAs(performanceMonitor));
+            Assert.That(levelConfigLibrary, Is.Not.Null, "Generated scene should create a default level config library asset.");
+            Assert.That(tutorialLevel, Is.Not.Null, "Generated scene should create a tutorial level config asset.");
+            Assert.That(combatLevel, Is.Not.Null, "Generated scene should create a combat level config asset.");
 
             var nativeRecognizerObject = new SerializedObject(nativeRecognizer);
             var nativeProviderProperty = nativeRecognizerObject.FindProperty("nativeProvider");
@@ -147,6 +156,7 @@ namespace SpellGuard.Tests.EditMode
             Assert.That(flowControllerObject.FindProperty("playerHealth")?.objectReferenceValue, Is.SameAs(playerHealth));
             Assert.That(flowControllerObject.FindProperty("enemySpawner")?.objectReferenceValue, Is.SameAs(sceneContext.EnemySpawner));
             Assert.That(flowControllerObject.FindProperty("gameFlow")?.objectReferenceValue, Is.SameAs(sceneContext.GameFlowManager));
+            Assert.That(flowControllerObject.FindProperty("levelConfigLibrary")?.objectReferenceValue, Is.SameAs(levelConfigLibrary));
 
             var motorObject = new SerializedObject(motor);
             Assert.That(motorObject.FindProperty("inputProvider")?.objectReferenceValue, Is.SameAs(inputRouter));
