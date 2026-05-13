@@ -8,14 +8,33 @@ namespace SpellGuard.Combat
         [SerializeField] private float speed = EnemyConfig.Default.Speed;
         [SerializeField] private int hitPoints = EnemyConfig.Default.HitPoints;
         [SerializeField] private float attackDistance = EnemyConfig.Default.AttackDistance;
+        [Header("Visual Feedback")]
+        [SerializeField] private Renderer[] feedbackRenderers;
+        [SerializeField] private Color normalTint = new Color(0.84f, 0.18f, 0.12f, 1f);
+        [SerializeField] private Color hitTint = new Color(1f, 0.72f, 0.22f, 1f);
+        [SerializeField] private Color frozenTint = new Color(0.36f, 0.82f, 1f, 1f);
+        [SerializeField] private float hitFlashSeconds = 0.18f;
 
         private Transform target;
         private PlayerHealth playerHealth;
         private float frozenUntil;
+        private float hitFlashUntil;
 
         public int CurrentHitPoints => hitPoints;
         public float Speed => speed;
         public float AttackDistance => attackDistance;
+        public bool IsFrozen => Time.time < frozenUntil;
+        public string FeedbackState => IsFrozen ? "Frozen" : Time.time < hitFlashUntil ? "HitFlash" : "Normal";
+
+        private void Awake()
+        {
+            if (feedbackRenderers == null || feedbackRenderers.Length == 0)
+            {
+                feedbackRenderers = GetComponentsInChildren<Renderer>();
+            }
+
+            ApplyTint(normalTint);
+        }
 
         public void Initialize(Transform targetTransform, PlayerHealth player)
         {
@@ -32,6 +51,8 @@ namespace SpellGuard.Combat
 
         private void Update()
         {
+            UpdateVisualFeedback();
+
             if (target == null || playerHealth == null || !playerHealth.IsAlive)
             {
                 return;
@@ -64,6 +85,8 @@ namespace SpellGuard.Combat
         public void ApplyDamage(int amount)
         {
             hitPoints -= amount;
+            hitFlashUntil = Time.time + Mathf.Max(0.05f, hitFlashSeconds);
+            ApplyTint(hitTint);
             SpellGuardAudioController.Instance?.PlayEnemyHitSfx();
             if (hitPoints <= 0)
             {
@@ -74,7 +97,37 @@ namespace SpellGuard.Combat
         public void ApplyFreeze(float duration)
         {
             frozenUntil = Mathf.Max(frozenUntil, Time.time + duration);
+            ApplyTint(frozenTint);
             SpellGuardAudioController.Instance?.PlayFreezeSfx();
+        }
+
+        private void UpdateVisualFeedback()
+        {
+            if (Time.time < frozenUntil)
+            {
+                ApplyTint(frozenTint);
+                return;
+            }
+
+            ApplyTint(Time.time < hitFlashUntil ? hitTint : normalTint);
+        }
+
+        private void ApplyTint(Color tint)
+        {
+            if (feedbackRenderers == null)
+            {
+                return;
+            }
+
+            foreach (var feedbackRenderer in feedbackRenderers)
+            {
+                if (feedbackRenderer == null || feedbackRenderer.material == null)
+                {
+                    continue;
+                }
+
+                feedbackRenderer.material.color = tint;
+            }
         }
     }
 }
