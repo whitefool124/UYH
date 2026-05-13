@@ -9,7 +9,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c261ed140771e83459ceb8d2b3d58ae1, type: 3}
+  m_Script: {fileID: 11500000, guid: 3a4b7b0f94a3439e8f0e5d9c4e11c702, type: 3}
   m_Name: LevelConfigLibrary_Default
   m_EditorClassIdentifier: 
   tutorialLevel: {fileID: 11400000, guid: 5394cb7f288b66947899f79c285b4aad, type: 2}
