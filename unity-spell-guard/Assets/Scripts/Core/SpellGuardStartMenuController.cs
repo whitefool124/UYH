@@ -13,7 +13,8 @@ namespace SpellGuard.Core
             Main,
             Tutorial,
             Settings,
-            GestureGuide
+            GestureGuide,
+            Calibration
         }
 
         [Serializable]
@@ -38,18 +39,20 @@ namespace SpellGuard.Core
 
         [SerializeField] private GestureInputProviderBase inputProvider;
         [SerializeField] private GestureInputRouter inputRouter;
+        [SerializeField] private WebcamFeedController webcamFeed;
+        [SerializeField] private NativeMediapipeGestureProvider nativeMediapipeProvider;
         [SerializeField] private SpellGuardGameSettings settings;
         [SerializeField] private string gameplaySceneName = "SpellGuardPrototype";
         [SerializeField] private float confirmHoldSeconds = 0.45f;
         [SerializeField] private float backHoldSeconds = 0.45f;
         [SerializeField] private bool debugLogs;
 
-        private readonly Region[] regions = new Region[8];
+        private readonly Region[] regions = new Region[10];
         private StartMenuScreen screen = StartMenuScreen.Main;
         private int regionCount;
         private int selectedIndex;
         private string holdKey;
-        private GestureType holdGesture = GestureType.None;
+        private GestureIntent holdIntent = GestureIntent.None;
         private float holdStartedAt;
         private float lastHandledMotionTime = -999f;
         private string lastActivatedKey;
@@ -99,6 +102,9 @@ namespace SpellGuard.Core
                 case StartMenuScreen.GestureGuide:
                     DrawGestureGuide(layout);
                     break;
+                case StartMenuScreen.Calibration:
+                    DrawCalibration(layout);
+                    break;
                 default:
                     DrawMain(layout);
                     break;
@@ -142,6 +148,12 @@ namespace SpellGuard.Core
             ResetSelection();
         }
 
+        public void OpenCalibration()
+        {
+            screen = StartMenuScreen.Calibration;
+            ResetSelection();
+        }
+
         private void Launch(SpellGuardStartSceneLaunchMode mode)
         {
             if (string.IsNullOrWhiteSpace(gameplaySceneName))
@@ -163,32 +175,25 @@ namespace SpellGuard.Core
                 return;
             }
 
-            var command = inputProvider.CurrentGestureCommand;
-            if (HandleMotionCommand(command))
+            var action = inputProvider.GetMenuAction(screen != StartMenuScreen.Main);
+            if (HandleTransientMenuAction(action))
             {
                 return;
             }
 
-            if (!command.IsValid || command.Kind != GestureCommandKind.StaticPose)
+            if (!action.IsValid || action.IsTransient)
             {
                 ClearHoldState();
                 return;
             }
 
-            switch (command.StaticGesture)
+            switch (action.Intent)
             {
-                case GestureType.Fist:
-                    UpdateHoldAction("confirm", GestureType.Fist, GetConfirmHoldSeconds(), ActivateSelectedRegion);
+                case GestureIntent.MenuConfirm:
+                    UpdateHoldAction("confirm", GestureIntent.MenuConfirm, GetConfirmHoldSeconds(), ActivateSelectedRegion);
                     break;
-                case GestureType.OpenPalm:
-                    if (screen == StartMenuScreen.Main)
-                    {
-                        ClearHoldState();
-                    }
-                    else
-                    {
-                        UpdateHoldAction("back", GestureType.OpenPalm, GetBackHoldSeconds(), OpenMainWithFeedback);
-                    }
+                case GestureIntent.MenuBack:
+                    UpdateHoldAction("back", GestureIntent.MenuBack, GetBackHoldSeconds(), OpenMainWithFeedback);
                     break;
                 default:
                     ClearHoldState();
@@ -196,32 +201,27 @@ namespace SpellGuard.Core
             }
         }
 
-        private bool HandleMotionCommand(GestureCommand command)
+        private bool HandleTransientMenuAction(GestureAction action)
         {
-            if (!command.IsValid || command.Kind != GestureCommandKind.Motion || command.TriggeredTime <= lastHandledMotionTime)
+            if (!action.IsValid || !action.IsTransient || action.TriggeredTime <= lastHandledMotionTime)
             {
                 return false;
             }
 
-            lastHandledMotionTime = command.TriggeredTime;
+            lastHandledMotionTime = action.TriggeredTime;
             ClearHoldState();
 
-            switch (command.MotionGesture)
+            switch (action.Intent)
             {
-                case MotionGestureType.SwipeLeftToRight:
-                case MotionGestureType.OpenPalmSlapLeftToRight:
-                case MotionGestureType.SwipeBottomToTop:
+                case GestureIntent.MenuPrevious:
                     MoveSelection(-1);
                     return true;
 
-                case MotionGestureType.SwipeRightToLeft:
-                case MotionGestureType.OpenPalmSlapRightToLeft:
-                case MotionGestureType.SwipeTopToBottom:
+                case GestureIntent.MenuNext:
                     MoveSelection(1);
                     return true;
 
-                case MotionGestureType.Snap:
-                case MotionGestureType.PointToFist:
+                case GestureIntent.MenuConfirm:
                     ActivateSelectedRegion();
                     return true;
             }
@@ -252,12 +252,12 @@ namespace SpellGuard.Core
             }
         }
 
-        private void UpdateHoldAction(string key, GestureType gesture, float requiredSeconds, Action action)
+        private void UpdateHoldAction(string key, GestureIntent intent, float requiredSeconds, Action action)
         {
-            if (holdKey != key || holdGesture != gesture)
+            if (holdKey != key || holdIntent != intent)
             {
                 holdKey = key;
-                holdGesture = gesture;
+                holdIntent = intent;
                 holdStartedAt = Time.unscaledTime;
             }
 
@@ -302,12 +302,18 @@ namespace SpellGuard.Core
                 case "gestures":
                     OpenGestureGuide();
                     break;
+                case "calibration":
+                    OpenCalibration();
+                    break;
                 case "confirm":
                 case "difficulty":
                 case "input-mode":
                 case "music-volume":
                 case "sfx-volume":
                     CycleSetting(key);
+                    break;
+                case "camera-device":
+                    CycleCameraDevice();
                     break;
                 case "back":
                     OpenMain();
@@ -334,6 +340,21 @@ namespace SpellGuard.Core
 
             SpellGuardAudioController.Instance?.ApplySettings(settings);
             Log($"cycle setting {key}");
+        }
+
+        private void CycleCameraDevice()
+        {
+            if (webcamFeed == null)
+            {
+                return;
+            }
+
+            var switched = webcamFeed.TryStartNextPhysicalCamera();
+            nativeMediapipeProvider?.SetStatusText(switched
+                ? $"已切换摄像头：{webcamFeed.ActiveDeviceName}"
+                : $"摄像头切换失败：{webcamFeed.StatusText}");
+            SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
+            Log($"cycle camera device {webcamFeed.ActiveDeviceName}");
         }
 
         private void MoveSelection(int delta)
@@ -383,12 +404,19 @@ namespace SpellGuard.Core
                     AddRegion("start", MakeNavButtonRect(layout, 1, 3));
                     AddRegion("back", MakeNavButtonRect(layout, 2, 3));
                     break;
+                case StartMenuScreen.Calibration:
+                    AddRegion("input-mode", MakeNavButtonRect(layout, 0, 4));
+                    AddRegion("camera-device", MakeNavButtonRect(layout, 1, 4));
+                    AddRegion("training", MakeNavButtonRect(layout, 2, 4));
+                    AddRegion("back", MakeNavButtonRect(layout, 3, 4));
+                    break;
                 default:
-                    AddRegion("start", MakeNavButtonRect(layout, 0, 5));
-                    AddRegion("tutorial", MakeNavButtonRect(layout, 1, 5));
-                    AddRegion("training", MakeNavButtonRect(layout, 2, 5));
-                    AddRegion("settings", MakeNavButtonRect(layout, 3, 5));
-                    AddRegion("gestures", MakeNavButtonRect(layout, 4, 5));
+                    AddRegion("start", MakeNavButtonRect(layout, 0, 6));
+                    AddRegion("tutorial", MakeNavButtonRect(layout, 1, 6));
+                    AddRegion("training", MakeNavButtonRect(layout, 2, 6));
+                    AddRegion("calibration", MakeNavButtonRect(layout, 3, 6));
+                    AddRegion("settings", MakeNavButtonRect(layout, 4, 6));
+                    AddRegion("gestures", MakeNavButtonRect(layout, 5, 6));
                     break;
             }
         }
@@ -401,6 +429,7 @@ namespace SpellGuard.Core
                 ("start", "开始守卫"),
                 ("tutorial", "上手教程"),
                 ("training", "手势训练场"),
+                ("calibration", "摄像头校准"),
                 ("settings", "战斗设置"),
                 ("gestures", "手势控制说明"),
             });
@@ -442,11 +471,74 @@ namespace SpellGuard.Core
             });
         }
 
+        private void DrawCalibration(StartLayout layout)
+        {
+            DrawHero(layout, "摄像头校准", "进入训练前确认识别状态", BuildCalibrationText(), "如果画面仍是 16x16，请切换摄像头或检查 Windows 摄像头权限。 ");
+            DrawCameraPreview(layout);
+            DrawNavPanel(layout, "校准操作", "可切输入模式或换摄像头", new[]
+            {
+                ("input-mode", $"输入：{GetInputModeLabel()}"),
+                ("camera-device", "切换摄像头"),
+                ("training", "进入训练场"),
+                ("back", "返回主菜单"),
+            });
+        }
+
         private string BuildMainText()
         {
             var bestScore = SpellGuardLocalProgress.LoadBestScore();
             var tutorial = SpellGuardLocalProgress.LoadTutorialSeen() ? "已阅读" : "未阅读";
             return $"欢迎进入符印守卫。\n\n推荐流程：上手教程 → 手势训练场 → 正式守卫。\n\n教程状态：{tutorial}\n历史最高分：{bestScore}\n\n开始场景承载菜单、设置和手势说明；进入战斗后只保留战斗/训练/结算流程。";
+        }
+
+        private string BuildCalibrationText()
+        {
+            var snapshot = nativeMediapipeProvider != null ? nativeMediapipeProvider.CurrentSnapshot : GestureSnapshot.Missing;
+            var cameraReady = webcamFeed != null && webcamFeed.HasReadyFrame;
+            var cameraStatus = webcamFeed != null ? webcamFeed.StatusText : "未绑定摄像头组件";
+            var cameraTexture = webcamFeed != null && webcamFeed.Texture != null ? $"{webcamFeed.Texture.width}x{webcamFeed.Texture.height}" : "None";
+            var cameraDevices = webcamFeed != null ? webcamFeed.GetDeviceListLabel() : "未绑定";
+            var nativeStatus = nativeMediapipeProvider != null ? nativeMediapipeProvider.StatusText : "未绑定 Native MediaPipe";
+            var currentGesture = snapshot.HandPresent ? snapshot.Gesture.ToChinese() : "None";
+            var confidence = snapshot.HandPresent ? Mathf.RoundToInt(snapshot.Confidence * 100f) + "%" : "0%";
+            var handDetected = snapshot.HandPresent ? "Yes" : "No";
+            var suggestion = cameraReady && snapshot.HandPresent
+                ? "保持手部完整进入画面中央，距离稳定后进入训练。"
+                : "请开启摄像头，并将单手放入画面中央、避免遮挡和过暗背景。";
+
+            return $"Camera: {(cameraReady ? "Ready" : "Not Ready")} · Texture: {cameraTexture}\nCamera Status: {cameraStatus}\nDevices: {cameraDevices}\nNative Status: {nativeStatus}\nHand Detected: {handDetected}\nCurrent Gesture: {currentGesture}\nConfidence: {confidence}\nSuggested Distance: {suggestion}";
+        }
+
+        private void DrawCameraPreview(StartLayout layout)
+        {
+            if (webcamFeed == null || webcamFeed.Texture == null)
+            {
+                return;
+            }
+
+            var preview = new Rect(
+                layout.HeroPanel.x + layout.Padding,
+                layout.HeroPanel.yMax - Mathf.Clamp(145f * layout.Scale, 118f, 170f),
+                layout.HeroPanel.width - layout.Padding * 2f,
+                Mathf.Clamp(128f * layout.Scale, 104f, 150f));
+
+            var previousColor = GUI.color;
+            GUI.color = new Color(0.02f, 0.025f, 0.04f, 0.85f);
+            GUI.Box(preview, GUIContent.none);
+            GUI.color = previousColor;
+
+            var content = Shrink(preview, 8f * layout.Scale, 8f * layout.Scale, 8f * layout.Scale, 8f * layout.Scale);
+            if (webcamFeed.MirrorPreview)
+            {
+                var previousMatrix = GUI.matrix;
+                GUIUtility.ScaleAroundPivot(new Vector2(-1f, 1f), new Vector2(content.x + content.width * 0.5f, content.y + content.height * 0.5f));
+                GUI.DrawTexture(content, webcamFeed.Texture, ScaleMode.ScaleToFit, false);
+                GUI.matrix = previousMatrix;
+            }
+            else
+            {
+                GUI.DrawTexture(content, webcamFeed.Texture, ScaleMode.ScaleToFit, false);
+            }
         }
 
         private void DrawHero(StartLayout layout, string title, string subtitle, string body, string hint)
@@ -481,7 +573,7 @@ namespace SpellGuard.Core
             }
             else if (selected && !string.IsNullOrEmpty(holdKey))
             {
-                var required = holdGesture == GestureType.OpenPalm ? GetBackHoldSeconds() : GetConfirmHoldSeconds();
+                var required = holdIntent == GestureIntent.MenuBack ? GetBackHoldSeconds() : GetConfirmHoldSeconds();
                 var progress = Mathf.Clamp01((Time.unscaledTime - holdStartedAt) / Mathf.Max(0.01f, required));
                 text = $"▶ {label}   {Mathf.RoundToInt(progress * 100f)}%";
             }
@@ -501,25 +593,23 @@ namespace SpellGuard.Core
         private void DrawGestureStatus(StartLayout layout)
         {
             var snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
-            var command = inputProvider != null ? inputProvider.CurrentGestureCommand : GestureCommand.None;
+            var action = inputProvider != null ? inputProvider.GetMenuAction(screen != StartMenuScreen.Main) : GestureAction.None;
             var selected = GetSelectedKeyLabel();
             var status = snapshot.HandPresent
-                ? $"当前识别：{snapshot.Gesture.ToChinese()} · 命令：{FormatCommand(command)} · 选中：{selected}"
+                ? $"当前识别：{snapshot.Gesture.ToChinese()} · 意图：{FormatAction(action)} · 选中：{selected}"
                 : $"未检测到手 · 选中：{selected}";
             var rect = new Rect(layout.SafeArea.x + layout.Padding, layout.SafeArea.yMax - layout.Padding - 28f * layout.Scale, layout.SafeArea.width - layout.Padding * 2f, 26f * layout.Scale);
             GUI.Label(rect, status, hintStyle);
         }
 
-        private static string FormatCommand(GestureCommand command)
+        private static string FormatAction(GestureAction action)
         {
-            if (!command.IsValid)
+            if (!action.IsValid)
             {
                 return "无";
             }
 
-            return command.Kind == GestureCommandKind.Motion
-                ? command.MotionGesture.ToString()
-                : command.StaticGesture.ToChinese();
+            return action.Intent.ToString();
         }
 
         private void DrawBackground(StartLayout layout)
@@ -744,7 +834,7 @@ namespace SpellGuard.Core
         private void ClearHoldState()
         {
             holdKey = null;
-            holdGesture = GestureType.None;
+            holdIntent = GestureIntent.None;
             holdStartedAt = 0f;
         }
 

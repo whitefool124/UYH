@@ -83,6 +83,7 @@ node: {
         [SerializeField] private int poolSize = 3;
         [SerializeField] private bool autoStart = false;
         [SerializeField] private int requiredStableFrames = 3;
+        [SerializeField] private float cameraWarmupTimeoutSeconds = 2.5f;
 
         private TextureFramePool textureFramePool;
         private CalculatorGraph calculatorGraph;
@@ -197,6 +198,7 @@ node: {
             {
                 StatusText = "原生识别缺少 Provider 或 WebcamFeed 引用";
                 targetProvider?.SetStatusText(StatusText);
+                runCoroutine = null;
                 yield break;
             }
 
@@ -216,10 +218,21 @@ node: {
             yield return resourceManager.PrepareAssetAsync("palm_detection_full.bytes", overwrite: true);
             mediapipeInitialized = true;
 
-            if (!webcamFeed.IsRunning)
+            if (!webcamFeed.HasReadyFrame)
             {
-                webcamFeed.StartCamera();
-                yield return new WaitUntil(() => webcamFeed.Texture != null && webcamFeed.Texture.width > 16);
+                if (!webcamFeed.HasTexture || !webcamFeed.IsRunning)
+                {
+                    webcamFeed.StartCamera();
+                }
+
+                yield return WaitForCameraReady();
+                if (!webcamFeed.HasReadyFrame)
+                {
+                    StatusText = $"摄像头无有效画面：{webcamFeed.StatusText}";
+                    targetProvider.SetStatusText(StatusText);
+                    runCoroutine = null;
+                    yield break;
+                }
             }
 
             textureFramePool = new TextureFramePool(webcamFeed.Texture.width, webcamFeed.Texture.height, TextureFormat.RGBA32, poolSize);
@@ -242,8 +255,9 @@ node: {
 
             while (enabled && calculatorGraph != null)
             {
-                if (webcamFeed.Texture == null || webcamFeed.Texture.width <= 16)
+                if (!webcamFeed.HasReadyFrame)
                 {
+                    targetProvider.SetStatusText($"摄像头画面暂不可用：{GetTextureSizeLabel()}");
                     yield return null;
                     continue;
                 }
@@ -273,6 +287,28 @@ node: {
                     image?.Dispose();
                 }
             }
+
+            runCoroutine = null;
+        }
+
+        private IEnumerator WaitForCameraReady()
+        {
+            var startedAt = Time.realtimeSinceStartup;
+            while (Time.realtimeSinceStartup - startedAt < cameraWarmupTimeoutSeconds)
+            {
+                if (webcamFeed.HasReadyFrame)
+                {
+                    yield break;
+                }
+
+                targetProvider.SetStatusText($"等待摄像头画面：{webcamFeed.ActiveDeviceName} {GetTextureSizeLabel()}；如无画面请回校准页手动切换摄像头");
+                yield return null;
+            }
+        }
+
+        private string GetTextureSizeLabel()
+        {
+            return webcamFeed.Texture == null ? "无纹理" : $"{webcamFeed.Texture.width}x{webcamFeed.Texture.height}";
         }
 
         private void OnLandmarksOutput(object stream, OutputStream<List<NormalizedLandmarkList>>.OutputEventArgs eventArgs)

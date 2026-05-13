@@ -9,6 +9,8 @@ namespace SpellGuard.Core
         private const string MusicVolumeIndexKey = "SpellGuard.Settings.MusicVolumeIndex";
         private const string SfxVolumeIndexKey = "SpellGuard.Settings.SfxVolumeIndex";
         private const string InputModeIndexKey = "SpellGuard.Settings.InputModeIndex";
+        private const string WebcamDeviceNameKey = "SpellGuard.Settings.WebcamDeviceName";
+        private const string IncludeVirtualCamerasKey = "SpellGuard.Settings.IncludeVirtualCameras";
         private const string BestScoreKey = "SpellGuard.Progress.BestScore";
         private const string TutorialSeenKey = "SpellGuard.Progress.TutorialSeen";
 
@@ -64,6 +66,28 @@ namespace SpellGuard.Core
         public static void SaveInputModeIndex(int value)
         {
             PlayerPrefs.SetInt(InputModeIndexKey, value);
+            PlayerPrefs.Save();
+        }
+
+        public static string LoadWebcamDeviceName()
+        {
+            return PlayerPrefs.GetString(WebcamDeviceNameKey, string.Empty);
+        }
+
+        public static void SaveWebcamDeviceName(string value)
+        {
+            PlayerPrefs.SetString(WebcamDeviceNameKey, value ?? string.Empty);
+            PlayerPrefs.Save();
+        }
+
+        public static bool LoadIncludeVirtualCameras(bool fallback)
+        {
+            return PlayerPrefs.GetInt(IncludeVirtualCamerasKey, fallback ? 1 : 0) == 1;
+        }
+
+        public static void SaveIncludeVirtualCameras(bool value)
+        {
+            PlayerPrefs.SetInt(IncludeVirtualCamerasKey, value ? 1 : 0);
             PlayerPrefs.Save();
         }
 

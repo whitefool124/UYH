@@ -326,6 +326,7 @@ namespace SpellGuard.UI
             }
             else if (flowController != null && flowController.Screen == SpellGuardScreen.Training)
             {
+                DrawQuickActionButton(new Rect(content.x + index++ * (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), "切换摄像头", CycleCameraDevice);
                 DrawQuickActionButton(new Rect(content.x + index++ * (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), flowController.TrainingComplete ? "开始正式守卫" : "完成训练后开始", () => flowController.StartRunFromTraining());
             }
             else if (flowController != null && flowController.Screen == SpellGuardScreen.Results)
@@ -347,7 +348,7 @@ namespace SpellGuard.UI
             {
                 SpellGuardScreen.Playing => 3,
                 SpellGuardScreen.Paused => 3,
-                SpellGuardScreen.Training => 3,
+                SpellGuardScreen.Training => 4,
                 SpellGuardScreen.Results => 3,
                 _ => 2,
             };
@@ -411,6 +412,19 @@ namespace SpellGuard.UI
                 SpellGuardScreen.Results => () => flowController.StartRun(),
                 _ => () => flowController.StartRun(),
             };
+        }
+
+        private void CycleCameraDevice()
+        {
+            if (webcamFeed == null)
+            {
+                return;
+            }
+
+            var switched = webcamFeed.TryStartNextPhysicalCamera();
+            nativeMediapipeProvider?.SetStatusText(switched
+                ? $"已切换摄像头：{webcamFeed.ActiveDeviceName}"
+                : $"摄像头切换失败：{webcamFeed.StatusText}");
         }
 
         private void DrawQuickActionButton(Rect rect, string label, System.Action action)
