@@ -7,6 +7,7 @@
 | Date | Unity Version | Test Suite | Scope | Passed | Failed | Evidence / Screenshot | Notes |
 |---|---|---|---|---:|---:|---|---|
 | 2026-05-12 | 2022.3.62f2c1 | PlayMode focused fixtures | `FpsGestureMotorTests`, `DemoRunRecorderTests` | 13 | 0 | 待补：`Docs/ThesisAssets/screenshots/test_runner_playmode_focused.png` | 通过 Unity MCP 反射执行受影响 fixture，验证移动闭环和 DemoRunRecorder 导出逻辑。 |
+| 2026-05-13 | 2022.3.62f2c1 | PlayMode focused fixture | `SpellGuardFlowControllerTests` | 命令行完成且无失败输出 | 0 | 待补：`Docs/ThesisAssets/screenshots/test_runner_playmode_flow.png` | `dotnet test SpellGuard.PlayModeTests.csproj --filter FullyQualifiedName~SpellGuardFlowControllerTests`，验证结果页法术构成统计和战斗重置。 |
 | 待补 | 2022.3.62f2c1 | PlayMode full suite | 全量 PlayMode | 待填 | 待填 | 待补：`Docs/ThesisAssets/screenshots/test_runner_playmode_full.png` | 在 Unity Test Runner 中执行全量 PlayMode 后填写。 |
 | 待补 | 2022.3.62f2c1 | EditMode full suite | 全量 EditMode | 待填 | 待填 | 待补：`Docs/ThesisAssets/screenshots/test_runner_editmode_full.png` | 在 Unity Test Runner 中执行全量 EditMode 后填写。 |
 

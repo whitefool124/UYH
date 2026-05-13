@@ -15,7 +15,7 @@ Docs/ThesisAssets/
 
 | 文件名 | 状态 | 论文位置 | 内容要求 | 生成方式 |
 |---|---|---|---|---|
-| `screenshots/start_menu.png` | 待补 | 第 5 章 系统界面实现 | 开始菜单主界面，能看到 Combat / Training / Settings 等入口。 | 打开 `SpellGuardStart.unity` 后截图。 |
+| `screenshots/start_menu.png` | 已归档 | 第 5 章 系统界面实现 | 开始菜单主界面，能看到 Combat / Training / Settings 等入口。 | 2026-05-13 通过 Unity MCP Scene View 截图归档。 |
 | `screenshots/settings_input_mode.png` | 待补 | 第 5 章 输入模式配置 | 设置页输入模式选项，显示 Mock / Native MediaPipe / ExternalBridge。 | Start Scene 设置页截图。 |
 | `screenshots/training_flow.png` | 待补 | 第 5 章 教学与训练流程 | 训练场目标、手势提示和训练完成条件。 | 进入 Training 后截图。 |
 | `screenshots/combat_scene.png` | 待补 | 第 5 章 战斗原型实现 | 第一人称战斗场景、敌人、HUD 与施法反馈。 | 进入 Combat 后截图。 |
