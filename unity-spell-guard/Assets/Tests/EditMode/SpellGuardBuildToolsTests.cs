@@ -49,6 +49,23 @@ namespace SpellGuard.Tests.EditMode
             Assert.That(report.Message, Does.Contain("[PASS] 第 2 个场景"));
             Assert.That(report.Message, Does.Contain("MediaPipe"));
             Assert.That(report.Message, Does.Contain("默认输入模式为 Mock"));
+            Assert.That(report.Message, Does.Contain("Developer Tools Scene 不进入正式构建"));
+        }
+
+        [Test]
+        public void ValidateBuildSettingsFailsWhenDeveloperToolsSceneIsIncludedInBuild()
+        {
+            EditorBuildSettings.scenes = new[]
+            {
+                new EditorBuildSettingsScene(SpellGuardBuildTools.StartScenePath, true),
+                new EditorBuildSettingsScene(SpellGuardBuildTools.PrototypeScenePath, true),
+                new EditorBuildSettingsScene(SpellGuardBuildTools.DeveloperToolsScenePath, true)
+            };
+
+            var report = SpellGuardBuildTools.ValidateBuildSettings();
+
+            Assert.That(report.IsValid, Is.False);
+            Assert.That(report.Message, Does.Contain("[FAIL] Developer Tools Scene 不进入正式构建"));
         }
 
         [Test]

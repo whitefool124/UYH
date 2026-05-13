@@ -14,6 +14,7 @@ namespace SpellGuard.EditorTools
     {
         public const string StartScenePath = "Assets/Scenes/SpellGuardStart.unity";
         public const string PrototypeScenePath = "Assets/Scenes/SpellGuardPrototype.unity";
+        public const string DeveloperToolsScenePath = "Assets/Scenes/SpellGuardDeveloperTools.unity";
         public const string BuildFolder = "Builds/Windows";
         public const string WindowsBuildPath = BuildFolder + "/SpellGuardDemo.exe";
         private const string MediapipePackageKey = "com.github.homuler.mediapipe";
@@ -42,6 +43,22 @@ namespace SpellGuard.EditorTools
             }
 
             EditorSceneManager.OpenScene(StartScenePath);
+        }
+
+        [MenuItem("Spell Guard/Developer/Open Developer Tools Scene")]
+        public static void OpenDeveloperToolsScene()
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                return;
+            }
+
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(DeveloperToolsScenePath) == null)
+            {
+                CreatePrototypeScene.CreateDeveloperToolsScene();
+            }
+
+            EditorSceneManager.OpenScene(DeveloperToolsScenePath);
         }
 
         [MenuItem("Spell Guard/Build/Build Windows Demo")]
@@ -88,6 +105,7 @@ namespace SpellGuard.EditorTools
             AppendCheck(builder, ManifestContainsMediapipePackage(), "Packages/manifest.json 包含 MediaPipe Unity 包。", ref isValid);
             AppendCheck(builder, DefaultInputModeIsMock(StartScenePath), "Start Scene 默认输入模式为 Mock。", ref isValid);
             AppendCheck(builder, DefaultInputModeIsMock(PrototypeScenePath), "Prototype Scene 默认输入模式为 Mock。", ref isValid);
+            AppendCheck(builder, !BuildSettingsContainsScene(scenes, DeveloperToolsScenePath), "Developer Tools Scene 不进入正式构建。", ref isValid);
 
             return new SpellGuardBuildValidationReport(isValid, builder.ToString().TrimEnd());
         }
@@ -95,6 +113,19 @@ namespace SpellGuard.EditorTools
         private static bool HasSceneAt(EditorBuildSettingsScene[] scenes, int index, string expectedPath)
         {
             return scenes.Length > index && scenes[index].enabled && string.Equals(scenes[index].path, expectedPath, StringComparison.Ordinal);
+        }
+
+        private static bool BuildSettingsContainsScene(EditorBuildSettingsScene[] scenes, string scenePath)
+        {
+            foreach (var scene in scenes)
+            {
+                if (scene.enabled && string.Equals(scene.path, scenePath, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool ManifestContainsMediapipePackage()
