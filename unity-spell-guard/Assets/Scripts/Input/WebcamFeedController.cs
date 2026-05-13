@@ -13,6 +13,7 @@ namespace SpellGuard.InputSystem
         [SerializeField] private bool mirrorPreview = true;
         [SerializeField] private int preferredDeviceIndex;
         [SerializeField] private bool includeVirtualCameras;
+        [SerializeField] private bool stopSharedCameraOnDisable = false;
 
         private WebCamTexture webcamTexture;
         private WebCamDevice activeDevice;
@@ -54,7 +55,14 @@ namespace SpellGuard.InputSystem
 
         private void OnDisable()
         {
-            ReleaseLocalReference();
+            if (stopSharedCameraOnDisable)
+            {
+                ForceStopSharedCamera();
+            }
+            else
+            {
+                ReleaseForSceneReuse();
+            }
         }
 
         public void StartCamera()
@@ -262,6 +270,16 @@ namespace SpellGuard.InputSystem
             hasActiveDevice = false;
             StatusText = "摄像头已停止";
             ActiveDeviceName = "无";
+        }
+
+        public void ForceStopSharedCamera()
+        {
+            StopCamera();
+        }
+
+        public void ReleaseForSceneReuse()
+        {
+            ReleaseLocalReference();
         }
 
         private bool AdoptSharedTextureIfAvailable()

@@ -126,6 +126,8 @@ namespace SpellGuard.InputSystem
                 pendingPackets.Clear();
             }
 
+            bridgeProvider?.ClearSnapshot();
+
             if (StatusText.StartsWith("UDP桥运行中") || StatusText.StartsWith("UDP已接收"))
             {
                 StatusText = "UDP桥已停止";

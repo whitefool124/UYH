@@ -126,7 +126,7 @@ node: {
             }
         }
 
-        private void OnDisable()
+        public void StopRunner()
         {
             if (runCoroutine != null)
             {
@@ -148,8 +148,9 @@ node: {
                         calculatorGraph.CloseAllPacketSources();
                         calculatorGraph.WaitUntilDone();
                     }
-                    catch (Exception)
+                    catch (Exception exception)
                     {
+                        Debug.LogWarning($"[Gesture][NativeRunner] stop graph warning: {exception.Message}", this);
                     }
                 }
 
@@ -170,6 +171,14 @@ node: {
                 Protobuf.ResetLogHandler();
                 mediapipeInitialized = false;
             }
+
+            StatusText = "原生识别已停止";
+            targetProvider?.SetStatusText(StatusText);
+        }
+
+        private void OnDisable()
+        {
+            StopRunner();
         }
 
         private void Update()

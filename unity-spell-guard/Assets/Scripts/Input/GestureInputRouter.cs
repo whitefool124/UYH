@@ -217,6 +217,12 @@ namespace SpellGuard.InputSystem
             ModeChanged?.Invoke(mode);
         }
 
+        public void SetCustomGesturesEnabled(bool enabled)
+        {
+            customGesturesEnabled = enabled;
+            customGestureRecognizer.Reset();
+        }
+
         private void EnsureCustomGestureLibraryLoaded()
         {
             if (customGestureLibraryLoaded)
