@@ -63,16 +63,24 @@ namespace SpellGuard.Player
             }
 
             var snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
-            var command = inputProvider != null ? inputProvider.CurrentGestureCommand : GestureCommand.None;
+            var action = inputProvider != null ? inputProvider.CurrentCustomAction : GestureAction.None;
+            if (!action.IsValid && inputProvider != null)
+            {
+                action = inputProvider.CurrentComboAction;
+            }
+            if (!action.IsValid && inputProvider != null)
+            {
+                action = inputProvider.CurrentSpellAction;
+            }
 
-            if (TryCastFromCommand(command))
+            if (TryCastFromAction(action))
             {
                 return;
             }
 
-            var spell = MapGestureToSpell(snapshot.Gesture);
+            var spell = MapIntentToSpell(action.Intent);
 
-            if (!snapshot.HandPresent || spell == SpellType.None)
+            if (!snapshot.HandPresent || !action.IsValid || action.IsTransient || spell == SpellType.None)
             {
                 if (Time.time < statusHoldUntil)
                 {
@@ -150,23 +158,23 @@ namespace SpellGuard.Player
             }
         }
 
-        private bool TryCastFromCommand(GestureCommand command)
+        private bool TryCastFromAction(GestureAction action)
         {
-            if (!command.IsValid || command.Kind != GestureCommandKind.Motion || command.TriggeredTime <= lastHandledMotionTime)
+            if (!action.IsValid || !action.IsTransient || action.TriggeredTime <= lastHandledMotionTime)
             {
                 return false;
             }
 
-            var spell = MapMotionToSpell(command.MotionGesture);
+            var spell = MapIntentToSpell(action.Intent);
             if (spell == SpellType.None)
             {
                 return false;
             }
 
-            lastHandledMotionTime = command.TriggeredTime;
+            lastHandledMotionTime = action.TriggeredTime;
             if (debugLogs)
             {
-                Debug.Log($"[Gesture][SpellInput] motionGesture={command.MotionGesture} mappedSpell={spell} confidence={command.Confidence:F2}", this);
+                Debug.Log($"[Gesture][SpellInput] intent={action.Intent} mappedSpell={spell} confidence={action.Confidence:F2}", this);
             }
             pendingSpell = SpellType.None;
             PendingProgress = 0f;
@@ -197,28 +205,16 @@ namespace SpellGuard.Player
             return 0;
         }
 
-        private static SpellType MapGestureToSpell(GestureType gesture)
+        private static SpellType MapIntentToSpell(GestureIntent intent)
         {
-            switch (gesture)
+            switch (intent)
             {
-                case GestureType.Fist:
+                case GestureIntent.CastFire:
                     return SpellType.Fire;
-                case GestureType.VSign:
+                case GestureIntent.CastIce:
                     return SpellType.Ice;
-                case GestureType.OpenPalm:
+                case GestureIntent.CastShield:
                     return SpellType.Shield;
-                default:
-                    return SpellType.None;
-            }
-        }
-
-        private static SpellType MapMotionToSpell(MotionGestureType gesture)
-        {
-            switch (gesture)
-            {
-                case MotionGestureType.Snap:
-                case MotionGestureType.PointToFist:
-                    return SpellType.Fire;
                 default:
                     return SpellType.None;
             }

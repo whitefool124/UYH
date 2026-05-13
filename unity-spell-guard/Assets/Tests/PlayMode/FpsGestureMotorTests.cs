@@ -100,7 +100,7 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         [Test]
-        public void PointHoldStartsForwardStep()
+        public void PointHoldDoesNotStartForwardStep()
         {
             SetPrivateField(motor, "inputProvider", testInputProvider);
             SetPrivateField(motor, "staticMoveHoldSeconds", 0f);
@@ -108,8 +108,8 @@ namespace SpellGuard.Tests.PlayMode
 
             InvokePrivateUpdate(motor);
 
-            Assert.That(motor.IsStepInProgress, Is.True);
-            Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.Forward));
+            Assert.That(motor.IsStepInProgress, Is.False);
+            Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.None));
         }
 
         [Test]
@@ -145,7 +145,7 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         [Test]
-        public void BodyShiftLeftStartsLeftStep()
+        public void BodyShiftLeftDoesNotStartStep()
         {
             SetPrivateField(motor, "inputProvider", testInputProvider);
             testInputProvider.snapshot = GestureSnapshot.Missing;
@@ -160,8 +160,8 @@ namespace SpellGuard.Tests.PlayMode
 
             InvokePrivateUpdate(motor);
 
-            Assert.That(motor.IsStepInProgress, Is.True);
-            Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.Left));
+            Assert.That(motor.IsStepInProgress, Is.False);
+            Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.None));
         }
 
         private static void InvokePrivateUpdate(FpsGestureMotor target)

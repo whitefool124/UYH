@@ -32,7 +32,7 @@ namespace SpellGuard.Player
         private bool stepInProgress;
         private float lastHandledMotionTime = -999f;
         private DiscreteMoveDirection currentStepDirection = DiscreteMoveDirection.None;
-        private GestureType heldMoveGesture = GestureType.None;
+        private GestureIntent heldMoveIntent = GestureIntent.None;
         private float heldMoveStartedAt = -999f;
         private bool heldMoveConsumed;
 
@@ -119,55 +119,50 @@ namespace SpellGuard.Player
                 return;
             }
 
-            if (TryHandleStaticMoveGesture(frame.PrimaryHand))
+            var action = GestureIntentMapper.ToMovementAction(frame);
+            if (TryHandleStaticMoveAction(action))
             {
                 return;
             }
 
-            var motion = frame.LatestMotion;
-            if (motion.IsValid && motion.TriggeredTime > lastHandledMotionTime)
+            if (action.IsValid && action.IsTransient && action.TriggeredTime > lastHandledMotionTime)
             {
-                switch (motion.Gesture)
+                switch (action.Intent)
                 {
-                    case MotionGestureType.SwipeRightToLeft:
-                    case MotionGestureType.OpenPalmSlapRightToLeft:
-                    case MotionGestureType.BodyShiftLeft:
-                        lastHandledMotionTime = motion.TriggeredTime;
+                    case GestureIntent.MoveLeft:
+                        lastHandledMotionTime = action.TriggeredTime;
                         BeginStep(-transform.right);
                         return;
 
-                    case MotionGestureType.SwipeLeftToRight:
-                    case MotionGestureType.OpenPalmSlapLeftToRight:
-                    case MotionGestureType.BodyShiftRight:
-                        lastHandledMotionTime = motion.TriggeredTime;
+                    case GestureIntent.MoveRight:
+                        lastHandledMotionTime = action.TriggeredTime;
                         BeginStep(transform.right);
                         return;
 
-                    case MotionGestureType.SwipeBottomToTop:
-                        lastHandledMotionTime = motion.TriggeredTime;
+                    case GestureIntent.MoveForward:
+                        lastHandledMotionTime = action.TriggeredTime;
                         BeginStep(transform.forward);
                         return;
 
-                    case MotionGestureType.SwipeTopToBottom:
-                        lastHandledMotionTime = motion.TriggeredTime;
+                    case GestureIntent.MoveBackward:
+                        lastHandledMotionTime = action.TriggeredTime;
                         BeginStep(-transform.forward);
                         return;
                 }
             }
         }
 
-        private bool TryHandleStaticMoveGesture(TrackedHandState primaryHand)
+        private bool TryHandleStaticMoveAction(GestureAction action)
         {
-            if (!primaryHand.IsTracked ||
-                (primaryHand.StaticGesture != GestureType.Point && primaryHand.StaticGesture != GestureType.OpenPalm))
+            if (!action.IsValid || action.IsTransient || action.Intent != GestureIntent.MoveBackward)
             {
                 ResetStaticMoveHold();
                 return false;
             }
 
-            if (heldMoveGesture != primaryHand.StaticGesture)
+            if (heldMoveIntent != action.Intent)
             {
-                heldMoveGesture = primaryHand.StaticGesture;
+                heldMoveIntent = action.Intent;
                 heldMoveStartedAt = Time.time;
                 heldMoveConsumed = false;
             }
@@ -178,13 +173,13 @@ namespace SpellGuard.Player
             }
 
             heldMoveConsumed = true;
-            BeginStep(primaryHand.StaticGesture == GestureType.Point ? transform.forward : -transform.forward);
+            BeginStep(-transform.forward);
             return true;
         }
 
         private void ResetStaticMoveHold()
         {
-            heldMoveGesture = GestureType.None;
+            heldMoveIntent = GestureIntent.None;
             heldMoveStartedAt = -999f;
             heldMoveConsumed = false;
         }
