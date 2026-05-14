@@ -24,6 +24,7 @@ namespace SpellGuard.InputSystem
         private float recordingStartedAt;
         private float nextSampleAt;
         private GestureHandedness handedness = GestureHandedness.Unknown;
+        private GestureHandedness targetHandedness = GestureHandedness.Right;
         private int invalidFrameCount;
 
         public CustomGestureRecorderState State { get; private set; } = CustomGestureRecorderState.Idle;
@@ -33,6 +34,7 @@ namespace SpellGuard.InputSystem
         public int CapturedFrameCount => frames.Count;
         public int InvalidFrameCount => invalidFrameCount;
         public bool IsBusy => State == CustomGestureRecorderState.Countdown || State == CustomGestureRecorderState.Recording;
+        public GestureHandedness TargetHandedness => targetHandedness;
 
         public void Configure(float countdown, float duration, float sampleInterval, float minConfidence)
         {
@@ -40,6 +42,11 @@ namespace SpellGuard.InputSystem
             recordSeconds = Mathf.Max(0.2f, duration);
             sampleIntervalSeconds = Mathf.Clamp(sampleInterval, 0.02f, 0.2f);
             minimumConfidence = Mathf.Clamp01(minConfidence);
+        }
+
+        public void SetTargetHandedness(GestureHandedness value)
+        {
+            targetHandedness = value == GestureHandedness.Left ? GestureHandedness.Left : GestureHandedness.Right;
         }
 
         public void Begin(float now)
@@ -53,7 +60,7 @@ namespace SpellGuard.InputSystem
             nextSampleAt = 0f;
             Progress = 0f;
             State = countdownSeconds > 0f ? CustomGestureRecorderState.Countdown : CustomGestureRecorderState.Recording;
-            StatusText = State == CustomGestureRecorderState.Countdown ? "自定义手势倒计时：准备摆出动作" : "正在录制自定义手势";
+            StatusText = State == CustomGestureRecorderState.Countdown ? $"自定义手势倒计时：准备摆出{FormatHandedness(targetHandedness)}动作" : $"正在录制{FormatHandedness(targetHandedness)}自定义手势";
             if (State == CustomGestureRecorderState.Recording)
             {
                 StartRecording(now);
@@ -103,7 +110,7 @@ namespace SpellGuard.InputSystem
                 nextSampleAt = now + sampleIntervalSeconds;
             }
 
-            StatusText = $"正在录制自定义手势：{Mathf.RoundToInt(Progress * 100f)}%";
+            StatusText = $"正在录制{FormatHandedness(targetHandedness)}自定义手势：{Mathf.RoundToInt(Progress * 100f)}%";
             if (now - recordingStartedAt < recordSeconds)
             {
                 return false;
@@ -114,7 +121,7 @@ namespace SpellGuard.InputSystem
             Progress = 1f;
             StatusText = LastSample != null
                 ? $"样本有效：{LastSample.Frames.Count} 帧，可继续录制或保存"
-                : "样本无效：请确保单手完整入镜且置信度足够";
+                : $"样本无效：请确保{FormatHandedness(targetHandedness)}单手完整入镜且置信度足够";
             return LastSample != null;
         }
 
@@ -126,7 +133,7 @@ namespace SpellGuard.InputSystem
             nextSampleAt = now;
             State = CustomGestureRecorderState.Recording;
             Progress = 0f;
-            StatusText = "正在录制自定义手势";
+            StatusText = $"正在录制{FormatHandedness(targetHandedness)}自定义手势";
         }
 
         private void CaptureFrame(GestureFrame frame, float now)
@@ -173,9 +180,15 @@ namespace SpellGuard.InputSystem
             hand = frame.PrimaryHand;
             return frame.HasPrimaryHand &&
                    hand.IsTracked &&
+                   hand.Handedness == targetHandedness &&
                    hand.Confidence >= minimumConfidence &&
                    hand.Landmarks != null &&
                    hand.Landmarks.Length >= CustomGestureFeatureExtractor.RequiredLandmarkCount;
+        }
+
+        private static string FormatHandedness(GestureHandedness value)
+        {
+            return value == GestureHandedness.Left ? "左手" : "右手";
         }
     }
 }

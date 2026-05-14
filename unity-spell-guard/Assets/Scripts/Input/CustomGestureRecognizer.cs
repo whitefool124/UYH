@@ -6,6 +6,7 @@ namespace SpellGuard.InputSystem
     public sealed class CustomGestureRecognizer
     {
         public const float DefaultDynamicThreshold = 0.18f;
+        private const float AmbiguousMatchMargin = 0.035f;
         private const int ResampledFrameCount = 12;
 
         private readonly List<CustomGestureFrameSample> window = new List<CustomGestureFrameSample>();
@@ -54,8 +55,10 @@ namespace SpellGuard.InputSystem
                 return false;
             }
 
+            var runtimeHandedness = frame.PrimaryHand.Handedness;
             CustomGestureTemplate bestTemplate = null;
             var bestScore = float.PositiveInfinity;
+            var secondBestScore = float.PositiveInfinity;
             for (var templateIndex = 0; templateIndex < templates.Count; templateIndex++)
             {
                 var template = templates[templateIndex];
@@ -64,14 +67,26 @@ namespace SpellGuard.InputSystem
                     continue;
                 }
 
+                if (template.RequiredHandedness != GestureHandedness.Unknown
+                    && runtimeHandedness != GestureHandedness.Unknown
+                    && template.RequiredHandedness != runtimeHandedness)
+                {
+                    continue;
+                }
+
                 for (var sampleIndex = 0; sampleIndex < template.Samples.Count; sampleIndex++)
                 {
                     var sample = template.Samples[sampleIndex];
-                    var score = ScoreSample(sample, runtimeFeatures);
+                    var score = ScoreSample(sample, runtimeFeatures, runtimeHandedness);
                     if (score < bestScore)
                     {
+                        secondBestScore = bestScore;
                         bestScore = score;
                         bestTemplate = template;
+                    }
+                    else if (score < secondBestScore)
+                    {
+                        secondBestScore = score;
                     }
                 }
             }
@@ -82,10 +97,16 @@ namespace SpellGuard.InputSystem
                 return false;
             }
 
+            if (secondBestScore <= bestTemplate.MatchThreshold && secondBestScore - bestScore < AmbiguousMatchMargin)
+            {
+                lastMatchedName = "相近手势冲突";
+                return false;
+            }
+
             var primaryHand = frame.PrimaryHand;
             action = new GestureAction
             {
-                Intent = bestTemplate.TargetIntent,
+                Intent = GestureIntent.CustomGesture,
                 Confidence = Mathf.Clamp01(1f - bestScore / Mathf.Max(0.001f, bestTemplate.MatchThreshold)),
                 TriggeredTime = now,
                 SourceKind = GestureCommandKind.Motion,
@@ -123,9 +144,16 @@ namespace SpellGuard.InputSystem
             window.RemoveAll(sample => sample.Time < cutoff);
         }
 
-        private float ScoreSample(CustomGestureSample sample, List<float[]> currentFeatures)
+        private float ScoreSample(CustomGestureSample sample, List<float[]> currentFeatures, GestureHandedness runtimeHandedness)
         {
             if (sample == null || sample.Frames == null || sample.Frames.Count < 3)
+            {
+                return float.PositiveInfinity;
+            }
+
+            if (sample.Handedness != GestureHandedness.Unknown
+                && runtimeHandedness != GestureHandedness.Unknown
+                && sample.Handedness != runtimeHandedness)
             {
                 return float.PositiveInfinity;
             }
@@ -149,7 +177,7 @@ namespace SpellGuard.InputSystem
         {
             return template != null &&
                    template.Kind == CustomGestureKind.DynamicMotion &&
-                   CustomGestureLibrary.IsAllowedTargetIntent(template.TargetIntent) &&
+                    CustomGestureLibrary.IsAllowedTargetIntent(template.TargetIntent) &&
                    template.Samples != null &&
                    template.Samples.Count > 0;
         }

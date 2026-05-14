@@ -8,6 +8,7 @@ namespace SpellGuard.InputSystem
     public sealed class CustomGestureLibrary
     {
         private const string FolderName = "CustomGestures";
+        private const string ProjectLibraryFolder = "ProjectGestureLibrary";
         private readonly List<CustomGestureTemplate> templates = new List<CustomGestureTemplate>();
         private readonly string folderPath;
 
@@ -17,7 +18,7 @@ namespace SpellGuard.InputSystem
             public CustomGestureTemplate Template;
         }
 
-        public CustomGestureLibrary() : this(Path.Combine(Application.persistentDataPath, FolderName))
+        public CustomGestureLibrary() : this(GetDefaultProjectLibraryPath())
         {
         }
 
@@ -38,6 +39,7 @@ namespace SpellGuard.InputSystem
             }
 
             var files = Directory.GetFiles(folderPath, "*.json", SearchOption.TopDirectoryOnly);
+            Array.Sort(files, StringComparer.OrdinalIgnoreCase);
             for (var index = 0; index < files.Length; index++)
             {
                 if (TryLoad(files[index], out var template))
@@ -83,7 +85,7 @@ namespace SpellGuard.InputSystem
 
         public static bool IsAllowedTargetIntent(GestureIntent intent)
         {
-            return intent == GestureIntent.CastFire || intent == GestureIntent.CastIce || intent == GestureIntent.CastShield;
+            return intent == GestureIntent.CustomGesture || intent == GestureIntent.CastFire || intent == GestureIntent.CastIce || intent == GestureIntent.CastShield;
         }
 
         public string GetTemplatePath(string gestureId)
@@ -115,7 +117,7 @@ namespace SpellGuard.InputSystem
         private static bool TrySanitizeTemplate(CustomGestureTemplate template, out CustomGestureTemplate sanitized)
         {
             sanitized = null;
-            if (template == null || !IsAllowedTargetIntent(template.TargetIntent))
+            if (template == null)
             {
                 return false;
             }
@@ -133,10 +135,41 @@ namespace SpellGuard.InputSystem
             }
 
             template.Kind = CustomGestureKind.DynamicMotion;
+            template.TargetIntent = GestureIntent.CustomGesture;
             template.MatchThreshold = Mathf.Clamp(template.MatchThreshold <= 0f ? CustomGestureRecognizer.DefaultDynamicThreshold : template.MatchThreshold, 0.01f, 2f);
             template.Samples ??= new List<CustomGestureSample>();
+            template.RequiredHandedness = ResolveTemplateHandedness(template);
             sanitized = template;
             return true;
+        }
+
+        private static string GetDefaultProjectLibraryPath()
+        {
+            return Path.Combine(Application.dataPath, ProjectLibraryFolder, FolderName);
+        }
+
+        private static GestureHandedness ResolveTemplateHandedness(CustomGestureTemplate template)
+        {
+            if (template.RequiredHandedness != GestureHandedness.Unknown)
+            {
+                return template.RequiredHandedness;
+            }
+
+            if (template.Samples == null)
+            {
+                return GestureHandedness.Unknown;
+            }
+
+            for (var index = 0; index < template.Samples.Count; index++)
+            {
+                var sample = template.Samples[index];
+                if (sample != null && sample.Handedness != GestureHandedness.Unknown)
+                {
+                    return sample.Handedness;
+                }
+            }
+
+            return GestureHandedness.Unknown;
         }
 
         private void ReplaceInMemory(CustomGestureTemplate template)

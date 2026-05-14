@@ -16,7 +16,8 @@ namespace SpellGuard.InputSystem
         public string GestureId;
         public string DisplayName;
         public CustomGestureKind Kind = CustomGestureKind.DynamicMotion;
-        public GestureIntent TargetIntent = GestureIntent.CastFire;
+        public GestureHandedness RequiredHandedness = GestureHandedness.Unknown;
+        public GestureIntent TargetIntent = GestureIntent.CustomGesture;
         public float MatchThreshold = CustomGestureRecognizer.DefaultDynamicThreshold;
         public List<CustomGestureSample> Samples = new List<CustomGestureSample>();
 

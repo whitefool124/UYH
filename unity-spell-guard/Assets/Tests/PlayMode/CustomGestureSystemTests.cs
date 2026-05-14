@@ -36,7 +36,7 @@ namespace SpellGuard.Tests.PlayMode
             }
 
             var library = new CustomGestureLibrary(folder);
-            var template = BuildTemplate(GestureIntent.CastIce);
+            var template = BuildTemplate(GestureIntent.CustomGesture);
 
             Assert.That(library.Save(template), Is.True);
             File.WriteAllText(Path.Combine(folder, "broken.json"), "not-json");
@@ -45,7 +45,17 @@ namespace SpellGuard.Tests.PlayMode
             reloaded.LoadAll();
 
             Assert.That(reloaded.Templates.Count, Is.EqualTo(1));
-            Assert.That(reloaded.Templates[0].TargetIntent, Is.EqualTo(GestureIntent.CastIce));
+            Assert.That(reloaded.Templates[0].TargetIntent, Is.EqualTo(GestureIntent.CustomGesture));
+            Assert.That(reloaded.Templates[0].RequiredHandedness, Is.EqualTo(GestureHandedness.Right));
+        }
+
+        [Test]
+        public void DefaultLibraryUsesProjectGestureFolder()
+        {
+            var library = new CustomGestureLibrary();
+
+            Assert.That(library.FolderPath, Does.Contain("ProjectGestureLibrary"));
+            Assert.That(library.FolderPath, Does.Contain("CustomGestures"));
         }
 
         [Test]
@@ -62,6 +72,24 @@ namespace SpellGuard.Tests.PlayMode
 
             Assert.That(recorder.LastSample, Is.Not.Null);
             Assert.That(recorder.LastSample.Frames.Count, Is.GreaterThanOrEqualTo(3));
+            Assert.That(recorder.LastSample.Handedness, Is.EqualTo(GestureHandedness.Right));
+        }
+
+        [Test]
+        public void RecorderRejectsFramesFromUnselectedHand()
+        {
+            var recorder = new CustomGestureRecorder();
+            recorder.Configure(0f, 0.24f, 0.06f, 0.5f);
+            recorder.SetTargetHandedness(GestureHandedness.Left);
+            recorder.Begin(10f);
+
+            for (var index = 0; index < 6; index++)
+            {
+                recorder.Update(BuildFrame(10f + index * 0.06f, index * 0.02f, GestureHandedness.Right), 10f + index * 0.06f);
+            }
+
+            Assert.That(recorder.LastSample, Is.Null);
+            Assert.That(recorder.InvalidFrameCount, Is.GreaterThan(0));
         }
 
         [Test]
@@ -69,23 +97,83 @@ namespace SpellGuard.Tests.PlayMode
         {
             var recognizer = new CustomGestureRecognizer();
             recognizer.Configure(0.5f, 1.6f, 0.1f);
-            var template = BuildTemplate(GestureIntent.CastShield);
+            var template = BuildTemplate(GestureIntent.CustomGesture);
             var templates = new List<CustomGestureTemplate> { template };
             var matched = false;
             var action = GestureAction.None;
 
             for (var index = 0; index < 18; index++)
             {
-                matched = recognizer.TryResolve(BuildFrame(20f + index * 0.06f, index * 0.02f), templates, 20f + index * 0.06f, out action) || matched;
+                if (recognizer.TryResolve(BuildFrame(20f + index * 0.06f, index * 0.02f), templates, 20f + index * 0.06f, out var resolvedAction))
+                {
+                    matched = true;
+                    action = resolvedAction;
+                }
             }
 
             Assert.That(matched, Is.True);
-            Assert.That(action.Intent, Is.EqualTo(GestureIntent.CastShield));
+            Assert.That(action.Intent, Is.EqualTo(GestureIntent.CustomGesture));
             Assert.That(action.SourceKind, Is.EqualTo(GestureCommandKind.Motion));
         }
 
         [Test]
-        public void LibraryRejectsNonSpellIntent()
+        public void RecognizerOutputsCustomGestureForLegacySpellTemplate()
+        {
+            var recognizer = new CustomGestureRecognizer();
+            recognizer.Configure(0.5f, 1.6f, 0.1f);
+            var templates = new List<CustomGestureTemplate> { BuildTemplate(GestureIntent.CastFire) };
+            var action = GestureAction.None;
+
+            for (var index = 0; index < 18; index++)
+            {
+                if (recognizer.TryResolve(BuildFrame(25f + index * 0.06f, index * 0.02f), templates, 25f + index * 0.06f, out var resolvedAction))
+                {
+                    action = resolvedAction;
+                }
+            }
+
+            Assert.That(action.Intent, Is.EqualTo(GestureIntent.CustomGesture));
+        }
+
+        [Test]
+        public void RecognizerRejectsAmbiguousSimilarTemplates()
+        {
+            var recognizer = new CustomGestureRecognizer();
+            recognizer.Configure(0.5f, 1.6f, 0.1f);
+            var templates = new List<CustomGestureTemplate>
+            {
+                BuildTemplate(GestureIntent.CastFire),
+                BuildTemplate(GestureIntent.CastShield, "custom_conflict", 0.002f)
+            };
+
+            var matched = false;
+            for (var index = 0; index < 18; index++)
+            {
+                matched = recognizer.TryResolve(BuildFrame(30f + index * 0.06f, index * 0.02f), templates, 30f + index * 0.06f, out _) || matched;
+            }
+
+            Assert.That(matched, Is.False);
+            Assert.That(recognizer.LastMatchedName, Is.EqualTo("相近手势冲突"));
+        }
+
+        [Test]
+        public void RecognizerRejectsOppositeHandedTemplate()
+        {
+            var recognizer = new CustomGestureRecognizer();
+            recognizer.Configure(0.5f, 1.6f, 0.1f);
+            var templates = new List<CustomGestureTemplate> { BuildTemplate(GestureIntent.CastFire) };
+            var matched = false;
+
+            for (var index = 0; index < 18; index++)
+            {
+                matched = recognizer.TryResolve(BuildFrame(40f + index * 0.06f, index * 0.02f, GestureHandedness.Left), templates, 40f + index * 0.06f, out _) || matched;
+            }
+
+            Assert.That(matched, Is.False);
+        }
+
+        [Test]
+        public void LibraryNormalizesUnsupportedIntentToCustomGesture()
         {
             var folder = Path.Combine(Application.temporaryCachePath, "CustomGestureRejectTests");
             if (Directory.Exists(folder))
@@ -96,10 +184,11 @@ namespace SpellGuard.Tests.PlayMode
             var library = new CustomGestureLibrary(folder);
             var template = BuildTemplate(GestureIntent.MoveLeft);
 
-            Assert.That(library.Save(template), Is.False);
+            Assert.That(library.Save(template), Is.True);
+            Assert.That(library.Templates[0].TargetIntent, Is.EqualTo(GestureIntent.CustomGesture));
         }
 
-        private static CustomGestureTemplate BuildTemplate(GestureIntent intent)
+        private static CustomGestureTemplate BuildTemplate(GestureIntent intent, string gestureId = "custom_test", float phaseOffset = 0f)
         {
             var frames = new List<CustomGestureFrameSample>();
             for (var index = 0; index < 18; index++)
@@ -108,13 +197,13 @@ namespace SpellGuard.Tests.PlayMode
                 {
                     Time = index * 0.06f,
                     Confidence = 1f,
-                    Landmarks = BuildLandmarks(Vector2.zero, 1f, index * 0.02f)
+                    Landmarks = BuildLandmarks(Vector2.zero, 1f, index * 0.02f + phaseOffset)
                 });
             }
 
             return new CustomGestureTemplate
             {
-                GestureId = "custom_test",
+                GestureId = gestureId,
                 DisplayName = "Custom Test",
                 Kind = CustomGestureKind.DynamicMotion,
                 TargetIntent = intent,
@@ -132,7 +221,7 @@ namespace SpellGuard.Tests.PlayMode
             };
         }
 
-        private static GestureFrame BuildFrame(float time, float phase)
+        private static GestureFrame BuildFrame(float time, float phase, GestureHandedness handedness = GestureHandedness.Right)
         {
             var landmarks = BuildLandmarks(Vector2.zero, 1f, phase);
             var snapshot = new GestureSnapshot
@@ -143,7 +232,7 @@ namespace SpellGuard.Tests.PlayMode
                 Confidence = 1f
             };
 
-            return LegacyGestureRuntimeAdapter.BuildSingleHandFrame(snapshot, landmarks, Mathf.RoundToInt(time * 100f), time, GestureSourceKind.Mock, MotionGestureEvent.None, GestureHandedness.Right, 7);
+            return LegacyGestureRuntimeAdapter.BuildSingleHandFrame(snapshot, landmarks, Mathf.RoundToInt(time * 100f), time, GestureSourceKind.Mock, MotionGestureEvent.None, handedness, 7);
         }
 
         private static Vector2[] BuildLandmarks(Vector2 offset, float scale, float phase)
