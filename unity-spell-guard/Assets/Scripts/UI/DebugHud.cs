@@ -569,7 +569,7 @@ namespace SpellGuard.UI
             var statusY = content.y + 26f * layout.Scale;
             var perfStatus = performanceMonitor != null && performanceMonitor.IsRecording ? "性能采集中" : "性能暂停";
             var runStatus = demoRunRecorder != null && demoRunRecorder.IsRecording ? "流程采集中" : "流程暂停";
-            GUI.Label(new Rect(content.x, statusY, content.width, 22f * layout.Scale), $"录入：{flowController.CustomGestureDisplayName} → {flowController.CustomGestureTargetLabel} · 样本 {flowController.CustomGestureSampleCount}/{flowController.CustomGestureRequiredSamples}", accentStyle);
+            GUI.Label(new Rect(content.x, statusY, content.width, 22f * layout.Scale), $"项目手势库：{flowController.CustomGestureDisplayName} · {flowController.CustomGestureTargetLabel} · 样本 {flowController.CustomGestureSampleCount}/{flowController.CustomGestureRequiredSamples}", accentStyle);
             GUI.Label(new Rect(content.x, statusY + 22f * layout.Scale, content.width, 22f * layout.Scale), $"数据：{perfStatus} / {runStatus} · F8 性能开关 · F9 导出性能 CSV", labelStyle);
 
             var buttonY = statusY + 52f * layout.Scale;
@@ -579,7 +579,7 @@ namespace SpellGuard.UI
             DrawQuickActionButton(new Rect(content.x, buttonY, buttonWidth, buttonHeight), "录制样本", () => flowController.StartCustomGestureRecording());
             DrawQuickActionButton(new Rect(content.x + (buttonWidth + gap), buttonY, buttonWidth, buttonHeight), "保存模板", () => flowController.SaveCustomGestureTemplate());
             DrawQuickActionButton(new Rect(content.x + (buttonWidth + gap) * 2f, buttonY, buttonWidth, buttonHeight), "重载测试", () => flowController.ReloadCustomGestureTemplates());
-            DrawQuickActionButton(new Rect(content.x + (buttonWidth + gap) * 3f, buttonY, buttonWidth, buttonHeight), "换绑定", () => flowController.CycleCustomGestureTarget());
+            DrawQuickActionButton(new Rect(content.x + (buttonWidth + gap) * 3f, buttonY, buttonWidth, buttonHeight), "换左右手", () => flowController.CycleCustomGestureHandedness());
 
             buttonY += buttonHeight + gap;
             DrawQuickActionButton(new Rect(content.x, buttonY, buttonWidth, buttonHeight), "换槽位", () => flowController.CycleCustomGestureSlot());

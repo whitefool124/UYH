@@ -235,7 +235,7 @@ namespace SpellGuard.UI
                     else if (key == "reset-training") flowController.ResetTrainingStats();
                     else if (key == "start-from-training") flowController.StartRunFromTraining();
                     else if (flowController.DeveloperToolsEnabled && key == "custom-slot") flowController.CycleCustomGestureSlot();
-                    else if (flowController.DeveloperToolsEnabled && key == "custom-target") flowController.CycleCustomGestureTarget();
+                    else if (flowController.DeveloperToolsEnabled && key == "custom-target") flowController.CycleCustomGestureHandedness();
                     else if (flowController.DeveloperToolsEnabled && key == "custom-record") flowController.StartCustomGestureRecording();
                     else if (flowController.DeveloperToolsEnabled && key == "custom-save") flowController.SaveCustomGestureTemplate();
                     else if (flowController.DeveloperToolsEnabled && key == "custom-reload") flowController.ReloadCustomGestureTemplates();
@@ -443,7 +443,7 @@ namespace SpellGuard.UI
             if (flowController.DeveloperToolsEnabled)
             {
                 AddRegion("custom-slot", "切换 Custom", MakeTrainingRect(layout, 2, 0));
-                AddRegion("custom-target", "绑定法术", MakeTrainingRect(layout, 0, 1));
+                AddRegion("custom-target", "切换左右手", MakeTrainingRect(layout, 0, 1));
                 AddRegion("custom-record", "录制样本", MakeTrainingRect(layout, 1, 1));
                 AddRegion("custom-save", "保存模板", MakeTrainingRect(layout, 2, 1));
                 AddRegion("custom-reload", "重新加载/测试", MakeTrainingRect(layout, 0, 2));
@@ -463,7 +463,7 @@ namespace SpellGuard.UI
             if (flowController.DeveloperToolsEnabled)
             {
                 DrawRegion("custom-slot", $"模板：{viewData.CustomGestureDisplayName}", MakeTrainingRect(layout, 2, 0));
-                DrawRegion("custom-target", $"绑定：{viewData.CustomGestureTargetLabel}", MakeTrainingRect(layout, 0, 1));
+                DrawRegion("custom-target", $"手别：{viewData.CustomGestureTargetLabel}", MakeTrainingRect(layout, 0, 1));
                 DrawRegion("custom-record", viewData.CustomGestureRecording ? "录制中..." : "录制样本", MakeTrainingRect(layout, 1, 1));
                 DrawRegion("custom-save", "保存模板", MakeTrainingRect(layout, 2, 1));
                 DrawRegion("custom-reload", "重新加载/测试", MakeTrainingRect(layout, 0, 2));
@@ -509,7 +509,7 @@ namespace SpellGuard.UI
             var nextStep = viewData.TrainingComplete ? "可点‘开始正式守卫’进入战斗" : viewData.TrainingStepLabel;
             var score = float.IsInfinity(viewData.CustomGestureLastScore) ? "-" : viewData.CustomGestureLastScore.ToString("F3");
             var customGestureText = viewData.DeveloperToolsEnabled
-                ? $"\n开发者靶场：无敌人 / 无限时间 / 专注识别历史。\n自定义手势：{viewData.CustomGestureDisplayName} → {viewData.CustomGestureTargetLabel}\n样本：{viewData.CustomGestureSampleCount}/{viewData.CustomGestureRequiredSamples} · {viewData.CustomGestureStatusText}\n测试：重复动作后触发法术；最近识别 {viewData.CustomGestureLastMatchedName}，分数 {score}"
+                ? $"\n开发者靶场：无敌人 / 无限时间 / 专注识别历史。\n项目手势库：{viewData.CustomGestureDisplayName} · 手别 {viewData.CustomGestureTargetLabel}\n样本：{viewData.CustomGestureSampleCount}/{viewData.CustomGestureRequiredSamples} · {viewData.CustomGestureStatusText}\n测试：重复动作后只验证库内匹配；最近识别 {viewData.CustomGestureLastMatchedName}，分数 {score}"
                 : "\n自定义手势录入已从玩家流程移至开发者专用场景。";
             return $"基础训练：{completion} · 当前：{nextStep}\n反馈：{viewData.TrainingStepFeedback}\n火/冰/盾：{viewData.TrainingFireCasts}/{viewData.TrainingIceCasts}/{viewData.TrainingShieldCasts} · Swipe/特殊：{viewData.TrainingSwipeCommands}/{viewData.TrainingSpecialCommands}{customGestureText}";
         }
