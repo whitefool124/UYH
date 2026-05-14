@@ -56,8 +56,8 @@ namespace SpellGuard.Core
         private int bestScore;
         private bool tutorialSeen;
         private int customGestureSlotIndex = 1;
-        private GestureIntent customGestureTargetIntent = GestureIntent.CastFire;
-        private string customGestureStatusText = "自定义手势：选择目标法术后开始录制。";
+        private GestureHandedness customGestureTargetHandedness = GestureHandedness.Right;
+        private string customGestureStatusText = "项目手势库：选择左/右手后开始录制。";
 
         public SpellGuardRunResult CurrentRunResult => gameFlow != null ? gameFlow.RunResult : SpellGuardRunResult.None;
         public int TargetScoreToWin => gameFlow != null ? gameFlow.TargetScoreToWin : 0;
@@ -93,7 +93,7 @@ namespace SpellGuard.Core
         public string SfxVolumeLabel => settings != null ? settings.SfxVolumeLabel : "未绑定";
         public string InputModeLabel => inputRouter != null ? FormatInputMode(inputRouter.Mode) : settings != null ? settings.InputModeLabel : "未绑定";
         public string CustomGestureDisplayName => $"Custom {customGestureSlotIndex}";
-        public string CustomGestureTargetLabel => FormatCustomGestureIntent(customGestureTargetIntent);
+        public string CustomGestureTargetLabel => FormatCustomGestureHandedness(customGestureTargetHandedness);
         public string CustomGestureStatusText => customGestureStatusText;
         public int CustomGestureSampleCount => pendingCustomGestureSamples.Count;
         public int CustomGestureRequiredSamples => Mathf.Max(1, customGestureRequiredSamples);
@@ -292,13 +292,15 @@ namespace SpellGuard.Core
 
         public void CycleCustomGestureTarget()
         {
-            customGestureTargetIntent = customGestureTargetIntent switch
-            {
-                GestureIntent.CastFire => GestureIntent.CastIce,
-                GestureIntent.CastIce => GestureIntent.CastShield,
-                _ => GestureIntent.CastFire
-            };
-            customGestureStatusText = $"自定义手势目标已切换：{CustomGestureTargetLabel}";
+            CycleCustomGestureHandedness();
+        }
+
+        public void CycleCustomGestureHandedness()
+        {
+            customGestureTargetHandedness = customGestureTargetHandedness == GestureHandedness.Left ? GestureHandedness.Right : GestureHandedness.Left;
+            pendingCustomGestureSamples.Clear();
+            customGestureRecorder.Cancel();
+            customGestureStatusText = $"录入手别已切换：{CustomGestureTargetLabel}，请重新录制样本。";
             HintText = customGestureStatusText;
         }
 
@@ -310,10 +312,11 @@ namespace SpellGuard.Core
             }
 
             ConfigureCustomGestureRecorder();
+            customGestureRecorder.SetTargetHandedness(customGestureTargetHandedness);
             inputRouter?.SetCustomGesturesEnabled(false);
             customGestureRecorder.Begin(Time.time);
             customGestureStatusText = customGestureRecorder.StatusText;
-            HintText = "保持单手完整入镜，系统会录制 1.2 秒 landmark 序列。";
+            HintText = $"保持{CustomGestureTargetLabel}完整入镜，系统会录制 1.2 秒 landmark 序列。";
             inputProvider?.ClearTransientInputs();
         }
 
@@ -328,10 +331,11 @@ namespace SpellGuard.Core
 
             var template = new CustomGestureTemplate
             {
-                GestureId = $"custom_{customGestureSlotIndex}",
-                DisplayName = CustomGestureDisplayName,
+                GestureId = BuildCustomGestureId(),
+                DisplayName = $"{CustomGestureDisplayName} {CustomGestureTargetLabel}",
                 Kind = CustomGestureKind.DynamicMotion,
-                TargetIntent = customGestureTargetIntent,
+                RequiredHandedness = customGestureTargetHandedness,
+                TargetIntent = GestureIntent.CustomGesture,
                 MatchThreshold = CustomGestureRecognizer.DefaultDynamicThreshold,
                 Samples = new List<CustomGestureSample>(pendingCustomGestureSamples)
             };
@@ -339,7 +343,7 @@ namespace SpellGuard.Core
             inputRouter?.SaveCustomGesture(template);
             customGestureRecorder.MarkSaved();
             inputRouter?.SetCustomGesturesEnabled(true);
-            customGestureStatusText = $"已保存 {template.DisplayName} → {CustomGestureTargetLabel}，进入测试模式重复动作即可触发法术。";
+            customGestureStatusText = $"已保存 {template.DisplayName} 到项目手势库；该录入不绑定法术。";
             HintText = customGestureStatusText;
             SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
         }
@@ -412,11 +416,11 @@ namespace SpellGuard.Core
             inputProvider?.ClearTransientInputs();
             inputRouter?.ReloadCustomGestures();
             ConfigureCustomGestureRecorder();
-            customGestureStatusText = "自定义手势：可录制 5 个样本并绑定火/冰/盾。";
+            customGestureStatusText = "项目手势库：可按左/右手分别录制 5 个样本，不绑定法术。";
             SpellGuardAudioController.Instance?.PlayMenuMusic();
             HintText = developerToolsMode
                 ? "开发者靶场：无敌人、无倒计时，专注录入自定义手势、测试识别历史与采集论文数据。"
-                : "训练：完成基础目标，也可以录入自定义手势绑定火/冰/盾。";
+                : "训练：完成基础目标；自定义手势录入仅维护项目手势库，不绑定法术。";
             if (CurrentLevelConfig != null && !string.IsNullOrWhiteSpace(CurrentLevelConfig.TutorialHint))
             {
                 HintText = developerToolsMode ? HintText : CurrentLevelConfig.TutorialHint;
@@ -637,8 +641,8 @@ namespace SpellGuard.Core
             pendingCustomGestureSamples.Add(customGestureRecorder.LastSample);
             customGestureStatusText = $"已录入样本 {pendingCustomGestureSamples.Count}/{CustomGestureRequiredSamples}。";
             HintText = pendingCustomGestureSamples.Count >= CustomGestureRequiredSamples
-                ? "样本已足够，点击保存模板后即可测试识别。"
-                : "样本有效，继续录制同一个动作。";
+                ? "样本已足够，点击保存模板写入项目手势库。"
+                : $"样本有效，继续录制同一个{CustomGestureTargetLabel}动作。";
             SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
         }
 
@@ -700,15 +704,15 @@ namespace SpellGuard.Core
             };
         }
 
-        private static string FormatCustomGestureIntent(GestureIntent intent)
+        private static string FormatCustomGestureHandedness(GestureHandedness handedness)
         {
-            return intent switch
-            {
-                GestureIntent.CastFire => "火焰术",
-                GestureIntent.CastIce => "冰霜术",
-                GestureIntent.CastShield => "护盾术",
-                _ => "未绑定"
-            };
+            return handedness == GestureHandedness.Left ? "左手" : "右手";
+        }
+
+        private string BuildCustomGestureId()
+        {
+            var handSuffix = customGestureTargetHandedness == GestureHandedness.Left ? "left" : "right";
+            return $"custom_{customGestureSlotIndex}_{handSuffix}";
         }
 
         private void ApplyLevelConfig(LevelConfig config, bool allowEnemySpawning)
