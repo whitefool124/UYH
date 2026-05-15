@@ -19,6 +19,7 @@ namespace SpellGuard.Combat
         private PlayerHealth playerHealth;
         private float frozenUntil;
         private float hitFlashUntil;
+        private MaterialPropertyBlock propertyBlock;
 
         public int CurrentHitPoints => hitPoints;
         public float Speed => speed;
@@ -33,6 +34,7 @@ namespace SpellGuard.Combat
                 feedbackRenderers = GetComponentsInChildren<Renderer>();
             }
 
+            propertyBlock = new MaterialPropertyBlock();
             ApplyTint(normalTint);
         }
 
@@ -121,12 +123,15 @@ namespace SpellGuard.Combat
 
             foreach (var feedbackRenderer in feedbackRenderers)
             {
-                if (feedbackRenderer == null || feedbackRenderer.material == null)
+                if (feedbackRenderer == null || feedbackRenderer.sharedMaterial == null)
                 {
                     continue;
                 }
 
-                feedbackRenderer.material.color = tint;
+                feedbackRenderer.GetPropertyBlock(propertyBlock);
+                propertyBlock.SetColor("_Color", tint);
+                propertyBlock.SetColor("_BaseColor", tint);
+                feedbackRenderer.SetPropertyBlock(propertyBlock);
             }
         }
     }
