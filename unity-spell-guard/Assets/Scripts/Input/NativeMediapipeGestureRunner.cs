@@ -92,6 +92,7 @@ node: {
         private Coroutine runCoroutine;
         private bool mediapipeInitialized;
         private bool graphRunning;
+        private bool stopping;
 
         private readonly object resultLock = new object();
         private List<NormalizedLandmarkList> latestLandmarkLists;
@@ -122,12 +123,15 @@ node: {
         {
             if (runCoroutine == null && targetProvider != null && webcamFeed != null)
             {
+                stopping = false;
                 runCoroutine = StartCoroutine(Run());
             }
         }
 
         public void StopRunner()
         {
+            stopping = true;
+
             if (runCoroutine != null)
             {
                 StopCoroutine(runCoroutine);
@@ -203,6 +207,8 @@ node: {
 
         private IEnumerator Run()
         {
+            stopping = false;
+
             if (targetProvider == null || webcamFeed == null)
             {
                 StatusText = "原生识别缺少 Provider 或 WebcamFeed 引用";
@@ -262,7 +268,7 @@ node: {
 
             var waitForEndOfFrame = new WaitForEndOfFrame();
 
-            while (enabled && calculatorGraph != null)
+            while (enabled && !stopping && calculatorGraph != null)
             {
                 if (!webcamFeed.HasReadyFrame)
                 {
@@ -279,16 +285,40 @@ node: {
 
                 yield return waitForEndOfFrame;
 
+                if (stopping || calculatorGraph == null || outputVideoStream == null)
+                {
+                    textureFrame.Release();
+                    break;
+                }
+
                 var sourceTexture = webcamFeed.Texture;
+                if (sourceTexture == null)
+                {
+                    textureFrame.Release();
+                    yield return null;
+                    continue;
+                }
+
                 textureFrame.ReadTextureOnCPU(sourceTexture, false, webcamFeed.IsVerticallyFlipped);
                 var imageFrame = textureFrame.BuildImageFrame();
                 textureFrame.Release();
+
+                if (stopping || calculatorGraph == null)
+                {
+                    imageFrame.Dispose();
+                    break;
+                }
 
                 latestTimestamp = GetCurrentTimestampMicrosec();
                 calculatorGraph.AddPacketToInputStream(InputStreamName, Packet.CreateImageFrameAt(imageFrame, latestTimestamp));
 
                 var outputTask = outputVideoStream.WaitNextAsync();
-                yield return new WaitUntil(() => outputTask.IsCompleted);
+                yield return new WaitUntil(() => stopping || outputTask.IsCompleted);
+
+                if (stopping || !outputTask.IsCompleted)
+                {
+                    break;
+                }
 
                 if (outputTask.Result.ok && outputTask.Result.packet != null)
                 {

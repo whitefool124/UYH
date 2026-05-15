@@ -19,6 +19,7 @@ namespace SpellGuard.InputSystem
         private UdpClient udpClient;
         private Thread receiveThread;
         private volatile bool running;
+        private volatile bool stopRequested;
         private int packetCount;
 
         public bool IsRunning => running;
@@ -86,6 +87,7 @@ namespace SpellGuard.InputSystem
             {
                 udpClient = new UdpClient(listenPort);
                 running = true;
+                stopRequested = false;
                 packetCount = 0;
                 receiveThread = new Thread(ReceiveLoop)
                 {
@@ -106,17 +108,22 @@ namespace SpellGuard.InputSystem
         [ContextMenu("Stop Receiver")]
         public void StopReceiver()
         {
+            stopRequested = true;
             running = false;
 
-            if (udpClient != null)
+            var client = udpClient;
+            if (client != null)
             {
-                udpClient.Close();
+                client.Close();
                 udpClient = null;
             }
 
             if (receiveThread != null && receiveThread.IsAlive)
             {
-                receiveThread.Join(150);
+                if (!receiveThread.Join(500))
+                {
+                    Debug.LogWarning("UDP桥接收线程未能在关闭窗口内退出。", this);
+                }
             }
 
             receiveThread = null;
@@ -136,7 +143,7 @@ namespace SpellGuard.InputSystem
 
         private void ReceiveLoop()
         {
-            while (running && udpClient != null)
+            while (running && !stopRequested && udpClient != null)
             {
                 try
                 {
@@ -162,14 +169,24 @@ namespace SpellGuard.InputSystem
                 }
                 catch (SocketException)
                 {
-                    if (running)
+                    if (running && !stopRequested)
                     {
                         StatusText = "UDP桥连接中断";
                     }
                 }
+                catch (ObjectDisposedException)
+                {
+                    if (running && !stopRequested)
+                    {
+                        StatusText = "UDP桥连接已关闭";
+                    }
+                }
                 catch (Exception exception)
                 {
-                    StatusText = $"UDP桥接收失败：{exception.Message}";
+                    if (running && !stopRequested)
+                    {
+                        StatusText = $"UDP桥接收失败：{exception.Message}";
+                    }
                 }
             }
         }
