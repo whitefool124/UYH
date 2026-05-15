@@ -35,6 +35,9 @@ namespace SpellGuard.UI
         [SerializeField] private SpellGuardFlowController flowController;
         [SerializeField] private bool debugLogs = true;
 
+        private const float DefaultMenuDwellSeconds = 0.8f;
+        private const float DefaultMenuBackHoldSeconds = 0.65f;
+
         private readonly Region[] regions = new Region[16];
         private int regionCount;
         private string focusedKey;
@@ -133,7 +136,7 @@ namespace SpellGuard.UI
                     backStartedAt = Time.unscaledTime;
                 }
 
-                if (Time.unscaledTime - backStartedAt >= settings.MenuBackHoldSeconds)
+                if (Time.unscaledTime - backStartedAt >= GetMenuBackHoldSeconds())
                 {
                     flowController.ReturnToMenu();
                 }
@@ -753,7 +756,12 @@ namespace SpellGuard.UI
                 return flowController.TrainingMenuHoldSeconds;
             }
 
-            return settings != null ? settings.MenuDwellSeconds : 0.8f;
+            return settings != null ? settings.MenuDwellSeconds : DefaultMenuDwellSeconds;
+        }
+
+        private float GetMenuBackHoldSeconds()
+        {
+            return settings != null ? settings.MenuBackHoldSeconds : DefaultMenuBackHoldSeconds;
         }
 
         private bool IsRecentlyActivated(string key)

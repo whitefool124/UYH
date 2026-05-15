@@ -10,8 +10,8 @@ namespace SpellGuard.Audio
 
         private static SpellGuardAudioController instance;
 
-        private AudioSource musicSource;
-        private AudioSource sfxSource;
+        [SerializeField] private AudioSource musicSource;
+        [SerializeField] private AudioSource sfxSource;
         private AudioClip menuMusicClip;
         private AudioClip combatMusicClip;
         private AudioClip uiClickClip;
@@ -144,21 +144,18 @@ namespace SpellGuard.Audio
 
         private void EnsureSources()
         {
-            musicSource = GetComponent<AudioSource>();
             if (musicSource == null)
             {
-                musicSource = gameObject.AddComponent<AudioSource>();
+                musicSource = GetComponent<AudioSource>();
+                if (musicSource == null)
+                {
+                    musicSource = gameObject.AddComponent<AudioSource>();
+                }
             }
 
             musicSource.playOnAwake = false;
             musicSource.loop = true;
             musicSource.spatialBlend = 0f;
-
-            var sources = GetComponents<AudioSource>();
-            if (sources.Length > 1)
-            {
-                sfxSource = sources[1];
-            }
 
             if (sfxSource == null)
             {
