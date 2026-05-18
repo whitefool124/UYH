@@ -11,9 +11,8 @@ namespace SpellGuard.Core
         private enum StartMenuScreen
         {
             Main,
-            Tutorial,
+            Guide,
             Settings,
-            GestureGuide,
             Calibration
         }
 
@@ -43,6 +42,7 @@ namespace SpellGuard.Core
         [SerializeField] private NativeMediapipeGestureProvider nativeMediapipeProvider;
         [SerializeField] private SpellGuardGameSettings settings;
         [SerializeField] private string gameplaySceneName = "SpellGuardPrototype";
+        [SerializeField] private string developerToolsSceneName = "SpellGuardDeveloperTools";
         [SerializeField] private float confirmHoldSeconds = 0.45f;
         [SerializeField] private float backHoldSeconds = 0.45f;
         [SerializeField] private bool debugLogs;
@@ -93,14 +93,8 @@ namespace SpellGuard.Core
 
             switch (screen)
             {
-                case StartMenuScreen.Tutorial:
-                    DrawTutorial(layout);
-                    break;
-                case StartMenuScreen.Settings:
-                    DrawSettings(layout);
-                    break;
-                case StartMenuScreen.GestureGuide:
-                    DrawGestureGuide(layout);
+                case StartMenuScreen.Guide:
+                    DrawGuide(layout);
                     break;
                 case StartMenuScreen.Calibration:
                     DrawCalibration(layout);
@@ -118,9 +112,23 @@ namespace SpellGuard.Core
             Launch(SpellGuardStartSceneLaunchMode.Combat);
         }
 
+        public void LaunchDeveloperTools()
+        {
+            if (string.IsNullOrWhiteSpace(developerToolsSceneName))
+            {
+                Debug.LogError("开始场景未配置开发者场景名。", this);
+                return;
+            }
+
+            inputProvider?.ClearTransientInputs();
+            SpellGuardAudioController.Instance?.PlayUiClickSfx();
+            SpellGuardStartSceneLaunch.Request(SpellGuardStartSceneLaunchMode.DeveloperTools);
+            SceneManager.LoadScene(developerToolsSceneName);
+        }
+
         public void LaunchTraining()
         {
-            Debug.LogWarning("手势训练/自定义录入已迁移到开发者专用场景，请通过 Spell Guard/Developer/Open Developer Tools Scene 打开。", this);
+            LaunchDeveloperTools();
         }
 
         public void OpenMain()
@@ -131,7 +139,7 @@ namespace SpellGuard.Core
 
         public void OpenTutorial()
         {
-            screen = StartMenuScreen.Tutorial;
+            screen = StartMenuScreen.Guide;
             SpellGuardLocalProgress.SaveTutorialSeen(true);
             ResetSelection();
         }
@@ -144,8 +152,7 @@ namespace SpellGuard.Core
 
         public void OpenGestureGuide()
         {
-            screen = StartMenuScreen.GestureGuide;
-            ResetSelection();
+            OpenTutorial();
         }
 
         public void OpenCalibration()
@@ -291,14 +298,14 @@ namespace SpellGuard.Core
                 case "start":
                     LaunchCombat();
                     break;
-                case "tutorial":
+                case "developer-tools":
+                    LaunchDeveloperTools();
+                    break;
+                case "guide":
                     OpenTutorial();
                     break;
                 case "settings":
                     OpenSettings();
-                    break;
-                case "gestures":
-                    OpenGestureGuide();
                     break;
                 case "calibration":
                     OpenCalibration();
@@ -348,6 +355,12 @@ namespace SpellGuard.Core
             }
 
             var switched = webcamFeed.TryStartNextPhysicalCamera();
+            if (switched && inputRouter != null && inputRouter.Mode == GestureInputRouter.InputMode.NativeMediapipe)
+            {
+                inputRouter.SetMode(GestureInputRouter.InputMode.Mock);
+                inputRouter.SetMode(GestureInputRouter.InputMode.NativeMediapipe);
+            }
+
             nativeMediapipeProvider?.SetStatusText(switched
                 ? $"已切换摄像头：{webcamFeed.ActiveDeviceName}"
                 : $"摄像头切换失败：{webcamFeed.StatusText}");
@@ -392,11 +405,7 @@ namespace SpellGuard.Core
                     AddRegion("sfx-volume", MakeNavButtonRect(layout, 4, 6));
                     AddRegion("back", MakeNavButtonRect(layout, 5, 6));
                     break;
-                case StartMenuScreen.Tutorial:
-                    AddRegion("start", MakeNavButtonRect(layout, 0, 2));
-                    AddRegion("back", MakeNavButtonRect(layout, 1, 2));
-                    break;
-                case StartMenuScreen.GestureGuide:
+                case StartMenuScreen.Guide:
                     AddRegion("start", MakeNavButtonRect(layout, 0, 2));
                     AddRegion("back", MakeNavButtonRect(layout, 1, 2));
                     break;
@@ -407,41 +416,41 @@ namespace SpellGuard.Core
                     break;
                 default:
                     AddRegion("start", MakeNavButtonRect(layout, 0, 5));
-                    AddRegion("tutorial", MakeNavButtonRect(layout, 1, 5));
+                    AddRegion("guide", MakeNavButtonRect(layout, 1, 5));
                     AddRegion("calibration", MakeNavButtonRect(layout, 2, 5));
                     AddRegion("settings", MakeNavButtonRect(layout, 3, 5));
-                    AddRegion("gestures", MakeNavButtonRect(layout, 4, 5));
+                    AddRegion("developer-tools", MakeNavButtonRect(layout, 4, 5));
                     break;
             }
         }
 
         private void DrawMain(StartLayout layout)
         {
-            DrawHero(layout, "SPELL GUARD", "体感施法守卫", BuildMainText(), "手势：挥动切换选项，握拳确认；进入子页后张掌返回。无需用手指对准按钮。 ");
-            DrawNavPanel(layout, "开始场景", "离散手势菜单", new[]
+            DrawHero(layout, "SPELL GUARD", "体感施法守卫", BuildMainText(), "挥动切换，握拳确认，张掌返回。 ");
+            DrawNavPanel(layout, "主菜单", "选择下一步", new[]
             {
                 ("start", "开始守卫"),
-                ("tutorial", "上手教程"),
+                ("guide", "玩法说明"),
                 ("calibration", "摄像头校准"),
-                ("settings", "战斗设置"),
-                ("gestures", "手势控制说明"),
+                ("settings", "设置"),
+                ("developer-tools", "开发者工具"),
             });
         }
 
-        private void DrawTutorial(StartLayout layout)
+        private void DrawGuide(StartLayout layout)
         {
-            DrawHero(layout, "上手教程", "先理解目标，再开始守卫", "核心目标：阻止敌人突破仪式通道，达到目标分数即胜利。\n\n战斗中使用握拳释放火焰术，V 手势释放冰霜术，张掌释放护盾术；左右/上下挥动用于离散换位。\n\n自定义手势录入与论文数据采集已迁移到开发者专用场景，不再作为玩家流程入口。", "挥动切换选项，握拳确认；张掌返回主菜单。 ");
-            DrawNavPanel(layout, "教程操作", "读完后选择下一步", new[]
+            DrawHero(layout, "玩法说明", "守住仪式核心", "目标：阻止敌人突破通道，达到目标分数即胜利。\n\n战斗：握拳=火焰，V 手势=冰霜，张掌=护盾。\n\n移动：左右/上下挥动进行换位。\n\n菜单：挥动切换，握拳确认，张掌返回。", "准备好后直接开始守卫。 ");
+            DrawNavPanel(layout, "下一步", "", new[]
             {
-                ("start", "直接开始"),
+                ("start", "开始守卫"),
                 ("back", "返回主菜单"),
             });
         }
 
         private void DrawSettings(StartLayout layout)
         {
-            DrawHero(layout, "战斗设置", "适配不同演示环境", "这里调整的是正式战斗和训练共用参数。\n\n手势控制：挥动切换当前设置项，握拳确认并切换该项数值。\n\n屏幕适配：开始场景 UI 使用安全区和 16:9 基准缩放，按钮保持不低于 44px 的可读高度。", "张掌返回主菜单。 ");
-            DrawNavPanel(layout, "可调参数", "选中后握拳切换", new[]
+            DrawHero(layout, "设置", "演示前确认", "输入模式、施法确认、敌人节奏和音量。\n\n正式演示建议使用 Mock；需要真实摄像头时先到校准页确认画面。", "张掌返回主菜单。 ");
+            DrawNavPanel(layout, "设置项", "", new[]
             {
                 ("input-mode", $"输入模式：{GetInputModeLabel()}"),
                 ("confirm", $"结印确认：{GetConfirmLabel()}"),
@@ -452,22 +461,12 @@ namespace SpellGuard.Core
             });
         }
 
-        private void DrawGestureGuide(StartLayout layout)
-        {
-            DrawHero(layout, "手势控制规划", "开始场景统一用非指向式菜单手势", "1. 选项固定高亮：界面始终显示当前选中项，不读取手部坐标命中按钮。\n2. 挥动切换：左右或上下挥动在选项间循环切换。\n3. 确认：握拳保持约半秒，或触发 Snap / PointToFist 动态命令。\n4. 返回：子页面张掌保持约半秒返回主菜单。\n5. 屏幕适配：横屏左右双栏，窄屏上下堆叠，所有按钮按 safe area 重新计算。", "当前实现已移除手部定位式菜单选择。 ");
-            DrawNavPanel(layout, "下一步", "训练或直接战斗", new[]
-            {
-                ("start", "开始守卫"),
-                ("back", "返回主菜单"),
-            });
-        }
-
         private void DrawCalibration(StartLayout layout)
         {
             EnsureCalibrationCameraPreview();
             DrawCalibrationHero(layout);
             DrawCameraPreview(layout);
-            DrawNavPanel(layout, "校准操作", "可切输入模式或换摄像头", new[]
+            DrawNavPanel(layout, "校准", "", new[]
             {
                 ("input-mode", $"输入：{GetInputModeLabel()}"),
                 ("camera-device", "切换摄像头"),
@@ -479,7 +478,7 @@ namespace SpellGuard.Core
         {
             DrawPanel(layout.HeroPanel, new Color(0.045f, 0.06f, 0.1f, 0.96f), new Color(0.35f, 0.82f, 1f, 0.95f));
             GUI.Label(layout.Title, "摄像头校准", titleStyle);
-            GUI.Label(new Rect(layout.Title.x, layout.Title.yMax + 4f * layout.Scale, layout.Title.width, 28f * layout.Scale), "进入训练前确认识别状态", subtitleStyle);
+            GUI.Label(new Rect(layout.Title.x, layout.Title.yMax + 4f * layout.Scale, layout.Title.width, 28f * layout.Scale), "确认摄像头是否可用", subtitleStyle);
 
             var preview = GetCalibrationPreviewRect(layout);
             var bodyRect = new Rect(
@@ -490,31 +489,28 @@ namespace SpellGuard.Core
             GUI.Label(bodyRect, BuildCalibrationText(), bodyStyle);
 
             var hintRect = new Rect(layout.Hint.x, layout.Hint.y, layout.Hint.width, layout.Hint.height);
-            GUI.Label(hintRect, "预览框固定在下方；若仍无画面，先切换输入为 Native MediaPipe，再点‘切换摄像头’。", hintStyle);
+            GUI.Label(hintRect, "无画面时先切换到 Native MediaPipe，再尝试切换摄像头。", hintStyle);
         }
 
         private string BuildMainText()
         {
             var bestScore = SpellGuardLocalProgress.LoadBestScore();
             var tutorial = SpellGuardLocalProgress.LoadTutorialSeen() ? "已阅读" : "未阅读";
-            return $"欢迎进入符印守卫。\n\n推荐流程：上手教程 → 摄像头校准 → 正式守卫。\n\n教程状态：{tutorial}\n历史最高分：{bestScore}\n\n玩家流程只保留正式体验；自定义手势录入、性能测试和论文数据采集在开发者专用场景中进行。";
+            return $"欢迎进入符印守卫。\n\n推荐流程：玩法说明 → 摄像头校准 → 开始守卫。\n\n教程状态：{tutorial}\n历史最高分：{bestScore}";
         }
 
         private string BuildCalibrationText()
         {
             var snapshot = nativeMediapipeProvider != null ? nativeMediapipeProvider.CurrentSnapshot : GestureSnapshot.Missing;
             var cameraReady = webcamFeed != null && webcamFeed.HasReadyFrame;
-            var cameraStatus = webcamFeed != null ? webcamFeed.StatusText : "未绑定摄像头组件";
-            var cameraTexture = webcamFeed != null && webcamFeed.Texture != null ? $"{webcamFeed.Texture.width}x{webcamFeed.Texture.height}" : "None";
-            var nativeStatus = nativeMediapipeProvider != null ? nativeMediapipeProvider.StatusText : "未绑定 Native MediaPipe";
-            var currentGesture = snapshot.HandPresent ? snapshot.Gesture.ToChinese() : "None";
-            var confidence = snapshot.HandPresent ? Mathf.RoundToInt(snapshot.Confidence * 100f) + "%" : "0%";
-            var handDetected = snapshot.HandPresent ? "Yes" : "No";
-            var suggestion = cameraReady && snapshot.HandPresent
-                ? "保持手部完整进入画面中央，距离稳定后进入训练。"
-                : "请开启摄像头，并将单手放入画面中央、避免遮挡和过暗背景。";
+            var cameraState = cameraReady ? "可用" : "未就绪";
+            var inputMode = GetInputModeLabel();
+            var gestureState = snapshot.HandPresent ? snapshot.Gesture.ToChinese() : "未检测到手";
+            var suggestion = cameraReady
+                ? "画面正常，可以开始守卫。"
+                : "正式演示可使用 Mock；真实摄像头请切到 Native MediaPipe 后重试。";
 
-            return $"Camera: {(cameraReady ? "Ready" : "Not Ready")} · Texture: {cameraTexture}\nCamera Status: {cameraStatus}\nNative Status: {nativeStatus}\nHand Detected: {handDetected} · Gesture: {currentGesture} · Confidence: {confidence}\nSuggestion: {suggestion}";
+            return $"摄像头：{cameraState}\n输入模式：{inputMode}\n识别：{gestureState}\n建议：{suggestion}";
         }
 
         private void DrawCameraPreview(StartLayout layout)
@@ -529,13 +525,13 @@ namespace SpellGuard.Core
             var content = Shrink(preview, 8f * layout.Scale, 8f * layout.Scale, 8f * layout.Scale, 8f * layout.Scale);
             if (webcamFeed == null || webcamFeed.Texture == null)
             {
-                GUI.Label(content, "摄像头预览未启动\n请切换到 Native MediaPipe 或点击‘切换摄像头’", bodyStyle);
+                GUI.Label(content, "摄像头预览未启动\n切到 Native MediaPipe 或点击‘切换摄像头’", bodyStyle);
                 return;
             }
 
             if (!webcamFeed.HasReadyFrame)
             {
-                GUI.Label(content, $"摄像头启动中：{webcamFeed.ActiveDeviceName}\n当前纹理 {webcamFeed.Texture.width}x{webcamFeed.Texture.height}\n请等待 1-2 秒，或点击‘切换摄像头’", bodyStyle);
+                GUI.Label(content, $"摄像头启动中：{webcamFeed.ActiveDeviceName}\n请等待 1-2 秒，或点击‘切换摄像头’", bodyStyle);
                 return;
             }
 

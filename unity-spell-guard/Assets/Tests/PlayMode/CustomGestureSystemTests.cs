@@ -188,6 +188,40 @@ namespace SpellGuard.Tests.PlayMode
             Assert.That(library.Templates[0].TargetIntent, Is.EqualTo(GestureIntent.CustomGesture));
         }
 
+        [Test]
+        public void LibraryPreservesStaticPoseTemplateKind()
+        {
+            var folder = Path.Combine(Application.temporaryCachePath, "CustomGestureStaticLibraryTests");
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, true);
+            }
+
+            var library = new CustomGestureLibrary(folder);
+            var template = BuildStaticTemplate(GestureIntent.CustomGesture);
+
+            Assert.That(library.Save(template), Is.True);
+
+            var reloaded = new CustomGestureLibrary(folder);
+            reloaded.LoadAll();
+
+            Assert.That(reloaded.Templates.Count, Is.EqualTo(1));
+            Assert.That(reloaded.Templates[0].Kind, Is.EqualTo(CustomGestureKind.StaticPose));
+            Assert.That(reloaded.Templates[0].MatchThreshold, Is.EqualTo(CustomGestureRecognizer.DefaultStaticThreshold));
+        }
+
+        [Test]
+        public void RecognizerOutputsStaticPoseActionForMatchingTemplate()
+        {
+            var recognizer = new CustomGestureRecognizer();
+            recognizer.Configure(0.5f, 1.6f, 0.1f);
+            var templates = new List<CustomGestureTemplate> { BuildStaticTemplate(GestureIntent.CustomGesture) };
+
+            Assert.That(recognizer.TryResolve(BuildFrame(50f, 0f), templates, 50f, out var action), Is.True);
+            Assert.That(action.Intent, Is.EqualTo(GestureIntent.CustomGesture));
+            Assert.That(action.SourceKind, Is.EqualTo(GestureCommandKind.StaticPose));
+        }
+
         private static CustomGestureTemplate BuildTemplate(GestureIntent intent, string gestureId = "custom_test", float phaseOffset = 0f)
         {
             var frames = new List<CustomGestureFrameSample>();
@@ -216,6 +250,36 @@ namespace SpellGuard.Tests.PlayMode
                         Handedness = GestureHandedness.Right,
                         DurationSeconds = 1.08f,
                         Frames = frames
+                    }
+                }
+            };
+        }
+
+        private static CustomGestureTemplate BuildStaticTemplate(GestureIntent intent)
+        {
+            return new CustomGestureTemplate
+            {
+                GestureId = "custom_static_test",
+                DisplayName = "Custom Static Test",
+                Kind = CustomGestureKind.StaticPose,
+                TargetIntent = intent,
+                MatchThreshold = 0f,
+                Samples = new List<CustomGestureSample>
+                {
+                    new CustomGestureSample
+                    {
+                        SampleId = "static_sample_test",
+                        Handedness = GestureHandedness.Right,
+                        DurationSeconds = 0.12f,
+                        Frames = new List<CustomGestureFrameSample>
+                        {
+                            new CustomGestureFrameSample
+                            {
+                                Time = 0f,
+                                Confidence = 1f,
+                                Landmarks = BuildLandmarks(Vector2.zero, 1f, 0f)
+                            }
+                        }
                     }
                 }
             };

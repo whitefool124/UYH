@@ -177,11 +177,29 @@ namespace SpellGuard.Core
             if (sceneContext.NativeMediapipeRunner != null)
             {
                 sceneContext.NativeMediapipeRunner.enabled = useNativeMediapipe;
-                if (useNativeMediapipe)
+            }
+
+            if (sceneContext.WebcamFeed != null && useNativeMediapipe && !sceneContext.WebcamFeed.IsRunning)
+            {
+                sceneContext.WebcamFeed.StartCamera();
+                if (sceneContext.WebcamFeed.Texture == null)
                 {
-                    sceneContext.NativeMediapipeRunner.Configure(sceneContext.NativeMediapipeProvider, sceneContext.WebcamFeed);
-                    sceneContext.NativeMediapipeRunner.StartRunner();
+                    sceneContext.InputRouter?.SetMode(GestureInputRouter.InputMode.Mock);
+                    if (sceneContext.NativeMediapipeRunner != null)
+                    {
+                        sceneContext.NativeMediapipeRunner.enabled = false;
+                    }
+                    sceneContext.NativeMediapipeProvider?.SetStatusText("摄像头不可用，已回退到 Mock");
+                    sceneContext.AudioController?.PlayMenuMusic();
+                    lastSyncedMode = GestureInputRouter.InputMode.Mock;
+                    return;
                 }
+            }
+
+            if (sceneContext.NativeMediapipeRunner != null && useNativeMediapipe)
+            {
+                sceneContext.NativeMediapipeRunner.Configure(sceneContext.NativeMediapipeProvider, sceneContext.WebcamFeed);
+                sceneContext.NativeMediapipeRunner.StartRunner();
             }
 
             if (sceneContext.UdpGestureReceiver != null)
@@ -194,24 +212,6 @@ namespace SpellGuard.Core
                 else
                 {
                     sceneContext.UdpGestureReceiver.StopReceiver();
-                }
-            }
-
-            if (sceneContext.WebcamFeed != null)
-            {
-                if (useNativeMediapipe && !sceneContext.WebcamFeed.IsRunning)
-                {
-                    sceneContext.WebcamFeed.StartCamera();
-                    if (sceneContext.WebcamFeed.Texture == null)
-                    {
-                        sceneContext.InputRouter?.SetMode(GestureInputRouter.InputMode.Mock);
-                        if (sceneContext.NativeMediapipeRunner != null)
-                        {
-                            sceneContext.NativeMediapipeRunner.enabled = false;
-                        }
-                        sceneContext.NativeMediapipeProvider?.SetStatusText("摄像头不可用，已回退到 Mock");
-                        sceneContext.AudioController?.PlayMenuMusic();
-                    }
                 }
             }
 

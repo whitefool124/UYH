@@ -134,9 +134,9 @@ namespace SpellGuard.InputSystem
                 template.DisplayName = gestureId;
             }
 
-            template.Kind = CustomGestureKind.DynamicMotion;
+            var defaultThreshold = template.Kind == CustomGestureKind.StaticPose ? CustomGestureRecognizer.DefaultStaticThreshold : CustomGestureRecognizer.DefaultDynamicThreshold;
             template.TargetIntent = GestureIntent.CustomGesture;
-            template.MatchThreshold = Mathf.Clamp(template.MatchThreshold <= 0f ? CustomGestureRecognizer.DefaultDynamicThreshold : template.MatchThreshold, 0.01f, 2f);
+            template.MatchThreshold = Mathf.Clamp(template.MatchThreshold <= 0f ? defaultThreshold : template.MatchThreshold, 0.01f, 2f);
             template.Samples ??= new List<CustomGestureSample>();
             template.RequiredHandedness = ResolveTemplateHandedness(template);
             sanitized = template;

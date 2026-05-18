@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: GestureRecognitionProfile_Default
   m_EditorClassIdentifier: SpellGuard.InputSystem::SpellGuard.InputSystem.GestureRecognitionProfile
   historySeconds: 0.7
+  sampleJitterDeadZone: 0.015
   swipeMinDistance: 0.09
   swipeMaxVerticalDrift: 0.22
   swipeMinSpeed: 0.2

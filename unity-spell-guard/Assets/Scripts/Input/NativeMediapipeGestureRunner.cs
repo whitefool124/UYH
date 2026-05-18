@@ -19,6 +19,7 @@ namespace SpellGuard.InputSystem
         private const string InputStreamName = "input_video";
         private const string OutputVideoStreamName = "output_video";
         private const string LandmarksStreamName = "landmarks";
+        private const string HandednessStreamName = "handedness";
 
         private const string GraphConfig = @"input_stream: ""input_video""
 output_stream: ""output_video""
@@ -89,6 +90,7 @@ node: {
         private CalculatorGraph calculatorGraph;
         private OutputStream<ImageFrame> outputVideoStream;
         private OutputStream<List<NormalizedLandmarkList>> landmarksStream;
+        private OutputStream<List<ClassificationList>> handednessStream;
         private Coroutine runCoroutine;
         private bool mediapipeInitialized;
         private bool graphRunning;
@@ -96,6 +98,7 @@ node: {
 
         private readonly object resultLock = new object();
         private List<NormalizedLandmarkList> latestLandmarkLists;
+        private List<ClassificationList> latestHandednessLists;
         private bool latestLandmarksDirty;
 
         private GestureType candidateGesture = GestureType.None;
@@ -142,6 +145,8 @@ node: {
             outputVideoStream = null;
             landmarksStream?.Dispose();
             landmarksStream = null;
+            handednessStream?.Dispose();
+            handednessStream = null;
 
             if (calculatorGraph != null)
             {
@@ -185,15 +190,22 @@ node: {
             StopRunner();
         }
 
+        private void OnApplicationQuit()
+        {
+            StopRunner();
+        }
+
         private void Update()
         {
             List<NormalizedLandmarkList> landmarkLists = null;
+            List<ClassificationList> handednessLists = null;
             lock (resultLock)
             {
                 if (latestLandmarksDirty)
                 {
                     latestLandmarksDirty = false;
                     landmarkLists = latestLandmarkLists;
+                    handednessLists = latestHandednessLists;
                 }
             }
 
@@ -202,7 +214,7 @@ node: {
                 return;
             }
 
-            ApplyResult(landmarkLists);
+            ApplyResult(landmarkLists, handednessLists);
         }
 
         private IEnumerator Run()
@@ -245,7 +257,7 @@ node: {
                 {
                     StatusText = $"摄像头无有效画面：{webcamFeed.StatusText}";
                     targetProvider.SetStatusText(StatusText);
-                    runCoroutine = null;
+                    StopRunner();
                     yield break;
                 }
             }
@@ -255,11 +267,13 @@ node: {
 
             outputVideoStream = new OutputStream<ImageFrame>(calculatorGraph, OutputVideoStreamName, true);
             landmarksStream = new OutputStream<List<NormalizedLandmarkList>>(calculatorGraph, LandmarksStreamName, true);
+            handednessStream = new OutputStream<List<ClassificationList>>(calculatorGraph, HandednessStreamName, true);
 
             var config = CalculatorGraphConfig.Parser.ParseFromTextFormat(GraphConfig);
             calculatorGraph.Initialize(config);
             outputVideoStream.StartPolling();
             landmarksStream.AddListener(OnLandmarksOutput);
+            handednessStream.AddListener(OnHandednessOutput);
             calculatorGraph.StartRun(BuildSidePacket());
             graphRunning = true;
             latestTimestamp = 0L;
@@ -268,66 +282,78 @@ node: {
 
             var waitForEndOfFrame = new WaitForEndOfFrame();
 
-            while (enabled && !stopping && calculatorGraph != null)
+            try
             {
-                if (!webcamFeed.HasReadyFrame)
+                while (enabled && !stopping && calculatorGraph != null)
                 {
-                    targetProvider.SetStatusText($"摄像头画面暂不可用：{GetTextureSizeLabel()}");
-                    yield return null;
-                    continue;
-                }
+                    if (!webcamFeed.HasReadyFrame)
+                    {
+                        targetProvider.SetStatusText($"摄像头画面暂不可用：{GetTextureSizeLabel()}");
+                        yield return null;
+                        continue;
+                    }
 
-                if (!textureFramePool.TryGetTextureFrame(out var textureFrame))
-                {
-                    yield return null;
-                    continue;
-                }
+                    if (!textureFramePool.TryGetTextureFrame(out var textureFrame))
+                    {
+                        yield return null;
+                        continue;
+                    }
 
-                yield return waitForEndOfFrame;
+                    yield return waitForEndOfFrame;
 
-                if (stopping || calculatorGraph == null || outputVideoStream == null)
-                {
+                    if (stopping || calculatorGraph == null || outputVideoStream == null)
+                    {
+                        textureFrame.Release();
+                        break;
+                    }
+
+                    var sourceTexture = webcamFeed.Texture;
+                    if (sourceTexture == null)
+                    {
+                        textureFrame.Release();
+                        yield return null;
+                        continue;
+                    }
+
+                    textureFrame.ReadTextureOnCPU(sourceTexture, false, webcamFeed.IsVerticallyFlipped);
+                    var imageFrame = textureFrame.BuildImageFrame();
                     textureFrame.Release();
-                    break;
-                }
 
-                var sourceTexture = webcamFeed.Texture;
-                if (sourceTexture == null)
-                {
-                    textureFrame.Release();
-                    yield return null;
-                    continue;
-                }
+                    if (stopping || calculatorGraph == null)
+                    {
+                        imageFrame.Dispose();
+                        break;
+                    }
 
-                textureFrame.ReadTextureOnCPU(sourceTexture, false, webcamFeed.IsVerticallyFlipped);
-                var imageFrame = textureFrame.BuildImageFrame();
-                textureFrame.Release();
+                    latestTimestamp = GetCurrentTimestampMicrosec();
+                    calculatorGraph.AddPacketToInputStream(InputStreamName, Packet.CreateImageFrameAt(imageFrame, latestTimestamp));
 
-                if (stopping || calculatorGraph == null)
-                {
-                    imageFrame.Dispose();
-                    break;
-                }
+                    var outputTask = outputVideoStream.WaitNextAsync();
+                    yield return new WaitUntil(() => stopping || outputTask.IsCompleted);
 
-                latestTimestamp = GetCurrentTimestampMicrosec();
-                calculatorGraph.AddPacketToInputStream(InputStreamName, Packet.CreateImageFrameAt(imageFrame, latestTimestamp));
+                    if (stopping || !outputTask.IsCompleted)
+                    {
+                        break;
+                    }
 
-                var outputTask = outputVideoStream.WaitNextAsync();
-                yield return new WaitUntil(() => stopping || outputTask.IsCompleted);
-
-                if (stopping || !outputTask.IsCompleted)
-                {
-                    break;
-                }
-
-                if (outputTask.Result.ok && outputTask.Result.packet != null)
-                {
-                    var image = outputTask.Result.packet.Get();
-                    image?.Dispose();
+                    if (outputTask.Result.ok && outputTask.Result.packet != null)
+                    {
+                        var image = outputTask.Result.packet.Get();
+                        image?.Dispose();
+                    }
                 }
             }
-
-            runCoroutine = null;
+            finally
+            {
+                if (!stopping && calculatorGraph != null)
+                {
+                    StopRunner();
+                }
+                else
+                {
+                    runCoroutine = null;
+                }
+            }
         }
 
         private IEnumerator WaitForCameraReady()
@@ -361,6 +387,16 @@ node: {
             }
         }
 
+        private void OnHandednessOutput(object stream, OutputStream<List<ClassificationList>>.OutputEventArgs eventArgs)
+        {
+            var packet = eventArgs.packet;
+            var value = packet == null ? null : packet.Get(ClassificationList.Parser);
+            lock (resultLock)
+            {
+                latestHandednessLists = value;
+            }
+        }
+
         private PacketMap BuildSidePacket()
         {
             var sidePacket = new PacketMap();
@@ -388,7 +424,7 @@ node: {
             return sidePacket;
         }
 
-        private void ApplyResult(List<NormalizedLandmarkList> landmarkLists)
+        private void ApplyResult(List<NormalizedLandmarkList> landmarkLists, List<ClassificationList> handednessLists)
         {
             if (landmarkLists == null || landmarkLists.Count == 0 || landmarkLists[0] == null || landmarkLists[0].Landmark.Count <= 8)
             {
@@ -400,6 +436,8 @@ node: {
             }
 
             var hand = landmarkLists[0];
+            var handedness = ResolveHandedness(handednessLists);
+            targetProvider.SetPrimaryHandMetadata(0, handedness);
             var pointerTip = hand.Landmark[8];
             var rawGesture = ClassifyGestureFromLandmarks(hand);
             var gesture = StabilizeGesture(rawGesture);
@@ -412,8 +450,50 @@ node: {
 
             targetProvider.SetHandLandmarks(landmarks);
             targetProvider.SetSnapshot(true, gesture, new Vector2(pointerTip.X, pointerTip.Y), 1f);
-            StatusText = $"原生识别：{gesture.ToChinese()}";
+            StatusText = $"原生识别：{gesture.ToChinese()} · {FormatHandedness(handedness)}";
             targetProvider.SetStatusText(StatusText);
+        }
+
+        private static GestureHandedness ResolveHandedness(List<ClassificationList> handednessLists)
+        {
+            if (handednessLists == null || handednessLists.Count == 0 || handednessLists[0] == null || handednessLists[0].Classification.Count == 0)
+            {
+                return GestureHandedness.Unknown;
+            }
+
+            var label = handednessLists[0].Classification[0].Label;
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                return GestureHandedness.Unknown;
+            }
+
+            var normalized = label.Trim().ToLowerInvariant();
+            if (normalized == "left")
+            {
+                return GestureHandedness.Left;
+            }
+
+            if (normalized == "right")
+            {
+                return GestureHandedness.Right;
+            }
+
+            return GestureHandedness.Unknown;
+        }
+
+        private static string FormatHandedness(GestureHandedness value)
+        {
+            if (value == GestureHandedness.Left)
+            {
+                return "左手";
+            }
+
+            if (value == GestureHandedness.Right)
+            {
+                return "右手";
+            }
+
+            return "未知手";
         }
 
         private GestureType StabilizeGesture(GestureType rawGesture)

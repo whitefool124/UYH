@@ -11,4 +11,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/SpellGuardPrototype.unity
     guid: 2e612804685da6c4db1c0be94b04b8a0
+  - enabled: 1
+    path: Assets/Scenes/SpellGuardDeveloperTools.unity
+    guid: e29f7ff5f3f075749b4e3b540026658f
   m_configObjects: {}

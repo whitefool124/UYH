@@ -27,6 +27,7 @@ namespace SpellGuard.Core
         [SerializeField] private KeyCode pauseToggleKey = KeyCode.Escape;
         [SerializeField] private string startSceneName = "SpellGuardStart";
         [SerializeField] private bool developerToolsMode;
+        [SerializeField] private bool disableGameplayGestureCommandsInDeveloperTools = true;
         [Header("Custom Gesture Training")]
         [SerializeField] private float customGestureCountdownSeconds = 3f;
         [SerializeField] private float customGestureRecordSeconds = 1.2f;
@@ -57,7 +58,14 @@ namespace SpellGuard.Core
         private bool tutorialSeen;
         private int customGestureSlotIndex = 1;
         private GestureHandedness customGestureTargetHandedness = GestureHandedness.Right;
+        private CustomGestureKind customGestureKind = CustomGestureKind.DynamicMotion;
+        private bool customGestureHasReviewSample;
+        private int customGestureValidationTemplateIndex;
+        private bool customGestureValidationActive;
+        private float customGestureValidationSuccessAt = -999f;
+        private string customGestureTemplateName = string.Empty;
         private string customGestureStatusText = "项目手势库：选择左/右手后开始录制。";
+        private string customGestureValidationStatusText = "验证页：请先加载模板库并选择一个目标手势。";
 
         public SpellGuardRunResult CurrentRunResult => gameFlow != null ? gameFlow.RunResult : SpellGuardRunResult.None;
         public int TargetScoreToWin => gameFlow != null ? gameFlow.TargetScoreToWin : 0;
@@ -86,6 +94,7 @@ namespace SpellGuard.Core
         public string TrainingStepFeedback { get; private set; } = "第 1 步：使用 Point 完成一次指向确认。";
         public bool TrainingComplete => trainingStep == TrainingGestureStep.Complete;
         public bool DeveloperToolsEnabled => developerToolsMode;
+        public bool DeveloperToolsGestureCommandsDisabled => developerToolsMode && disableGameplayGestureCommandsInDeveloperTools;
         public bool IsCustomGestureRecording => customGestureRecorder.IsBusy;
         public string ConfirmLabel => settings != null ? settings.ConfirmLabel : "未绑定";
         public string DifficultyLabel => settings != null ? settings.DifficultyLabel : "未绑定";
@@ -93,6 +102,8 @@ namespace SpellGuard.Core
         public string SfxVolumeLabel => settings != null ? settings.SfxVolumeLabel : "未绑定";
         public string InputModeLabel => inputRouter != null ? FormatInputMode(inputRouter.Mode) : settings != null ? settings.InputModeLabel : "未绑定";
         public string CustomGestureDisplayName => $"Custom {customGestureSlotIndex}";
+        public string CustomGestureTemplateName => customGestureTemplateName;
+        public string CustomGestureKindLabel => FormatCustomGestureKind(customGestureKind);
         public string CustomGestureTargetLabel => FormatCustomGestureHandedness(customGestureTargetHandedness);
         public string CustomGestureStatusText => customGestureStatusText;
         public int CustomGestureSampleCount => pendingCustomGestureSamples.Count;
@@ -100,6 +111,10 @@ namespace SpellGuard.Core
         public bool CustomGestureRecording => customGestureRecorder.IsBusy;
         public string CustomGestureLastMatchedName => inputRouter != null ? inputRouter.LastCustomGestureName : "无";
         public float CustomGestureLastScore => inputRouter != null ? inputRouter.LastCustomGestureScore : float.PositiveInfinity;
+        public int CustomGestureTemplateCount => inputRouter != null ? inputRouter.CustomGestureTemplateCount : 0;
+        public bool CustomGestureValidationActive => customGestureValidationActive;
+        public string CustomGestureValidationTargetLabel => GetCustomGestureValidationTargetLabel();
+        public string CustomGestureValidationStatusText => customGestureValidationStatusText;
         public event Action<SpellType, int, SpellGuardScreen> SpellResolvedForDiagnostics;
 
         public LevelConfig CurrentLevelConfig { get; private set; }
@@ -108,11 +123,13 @@ namespace SpellGuard.Core
         {
             return screen switch
             {
-                SpellGuardScreen.Menu => new SpellGuardRuntimeStatus("主菜单", "先看教程，或进入训练场热身，再开始守卫"),
+                SpellGuardScreen.Menu => developerToolsMode
+                    ? new SpellGuardRuntimeStatus("开发者实验室", "干净环境：三维内容隐藏，游戏手势指令禁用，只保留识别采集与自定义手势")
+                    : new SpellGuardRuntimeStatus("主菜单", "先看教程，或进入训练场热身，再开始守卫"),
                 SpellGuardScreen.Settings => new SpellGuardRuntimeStatus("设置", $"输入模式：{InputModeLabel} | 结印确认：{ConfirmLabel} | 敌人节奏：{DifficultyLabel}"),
                 SpellGuardScreen.Tutorial => new SpellGuardRuntimeStatus("上手教程", "先理解流程，再进入训练场或直接开始战斗"),
                 SpellGuardScreen.Training => developerToolsMode
-                    ? new SpellGuardRuntimeStatus("开发者靶场", "无敌人、无限时间：录入自定义手势并观察识别历史")
+                    ? new SpellGuardRuntimeStatus("开发者实验室", "游戏手势指令已禁用：只采集识别数据、录入自定义手势并导出实验结果")
                     : new SpellGuardRuntimeStatus("训练场", "练习位移、施法与返回菜单"),
                 SpellGuardScreen.Playing => new SpellGuardRuntimeStatus("战斗中", $"推进、施法、换位并完成 {TargetScoreToWin} 分防守目标"),
                 SpellGuardScreen.Paused => new SpellGuardRuntimeStatus("战斗暂停", "暂停中：可继续、重开本局，或返回主菜单"),
@@ -154,13 +171,19 @@ namespace SpellGuard.Core
                 TrainingComplete,
                 developerToolsMode,
                 CustomGestureDisplayName,
+                customGestureTemplateName,
+                CustomGestureKindLabel,
                 CustomGestureTargetLabel,
                 customGestureStatusText,
                 CustomGestureSampleCount,
                 CustomGestureRequiredSamples,
                 CustomGestureRecording,
                 CustomGestureLastMatchedName,
-                CustomGestureLastScore);
+                CustomGestureLastScore,
+                CustomGestureTemplateCount,
+                CustomGestureValidationActive,
+                CustomGestureValidationTargetLabel,
+                CustomGestureValidationStatusText);
         }
 
         private void OnEnable()
@@ -205,6 +228,7 @@ namespace SpellGuard.Core
             HandlePauseToggle();
             ApplyModeState();
             UpdateCustomGestureRecording();
+            UpdateCustomGestureValidation();
 
             if (screen == SpellGuardScreen.Playing && gameFlow != null && gameFlow.GameOver)
             {
@@ -263,6 +287,16 @@ namespace SpellGuard.Core
             LogFlowEvent("cycle input mode setting");
         }
 
+        public void SetInputMode(GestureInputRouter.InputMode mode)
+        {
+            settings?.SetInputMode(mode);
+            inputRouter?.SetMode(mode);
+            HintText = $"输入模式已切换：{FormatInputMode(mode)}";
+            SpellGuardAudioController.Instance?.PlayUiClickSfx();
+            inputProvider?.ClearTransientInputs();
+            LogFlowEvent($"set input mode {mode}");
+        }
+
         public void CycleMusicVolumeSetting()
         {
             settings?.CycleMusicVolume();
@@ -281,12 +315,28 @@ namespace SpellGuard.Core
             LogFlowEvent("cycle sfx volume setting");
         }
 
+        public void SetCustomGestureTemplateName(string value)
+        {
+            customGestureTemplateName = value ?? string.Empty;
+        }
+
+        public void CycleCustomGestureKind()
+        {
+            customGestureKind = customGestureKind == CustomGestureKind.StaticPose ? CustomGestureKind.DynamicMotion : CustomGestureKind.StaticPose;
+            pendingCustomGestureSamples.Clear();
+            customGestureHasReviewSample = false;
+            customGestureRecorder.Cancel();
+            customGestureStatusText = $"录制类型已切换：{CustomGestureKindLabel}。这是采集设置，不是和标准手势匹配；请重新采样。";
+            HintText = customGestureStatusText;
+        }
+
         public void CycleCustomGestureSlot()
         {
             customGestureSlotIndex = customGestureSlotIndex >= 3 ? 1 : customGestureSlotIndex + 1;
             pendingCustomGestureSamples.Clear();
+            customGestureHasReviewSample = false;
             customGestureRecorder.Cancel();
-            customGestureStatusText = $"已切换到 {CustomGestureDisplayName}，请重新录制 5 个样本。";
+            customGestureStatusText = $"已切换到 {CustomGestureDisplayName}，样本会重新开始采集。";
             HintText = customGestureStatusText;
         }
 
@@ -299,8 +349,9 @@ namespace SpellGuard.Core
         {
             customGestureTargetHandedness = customGestureTargetHandedness == GestureHandedness.Left ? GestureHandedness.Right : GestureHandedness.Left;
             pendingCustomGestureSamples.Clear();
+            customGestureHasReviewSample = false;
             customGestureRecorder.Cancel();
-            customGestureStatusText = $"录入手别已切换：{CustomGestureTargetLabel}，请重新录制样本。";
+            customGestureStatusText = $"采集手已切换：{CustomGestureTargetLabel}。录制时会自动读取摄像头识别出的左右手；如果识别不到会提示等待左右手识别。";
             HintText = customGestureStatusText;
         }
 
@@ -313,11 +364,49 @@ namespace SpellGuard.Core
 
             ConfigureCustomGestureRecorder();
             customGestureRecorder.SetTargetHandedness(customGestureTargetHandedness);
+            var frame = inputProvider != null ? inputProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.Unknown);
+            if (!customGestureRecorder.CanBegin(frame, out var reason))
+            {
+                customGestureHasReviewSample = false;
+                customGestureStatusText = $"无法开始采集：{reason}。这是基础采集质量检查，不是和某个手势模板打分。";
+                HintText = customGestureStatusText;
+                SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
+                return;
+            }
+
+            customGestureHasReviewSample = false;
             inputRouter?.SetCustomGesturesEnabled(false);
             customGestureRecorder.Begin(Time.time);
             customGestureStatusText = customGestureRecorder.StatusText;
-            HintText = $"保持{CustomGestureTargetLabel}完整入镜，系统会录制 1.2 秒 landmark 序列。";
+            HintText = $"录制单个未知{CustomGestureKindLabel}样本：照你的想法做动作；系统只检查是否采到手、自动识别左右手、置信度和 21 个关键点。";
             inputProvider?.ClearTransientInputs();
+        }
+
+        public void AcceptCustomGestureSample()
+        {
+            if (!customGestureHasReviewSample || customGestureRecorder.LastSample == null)
+            {
+                customGestureStatusText = "没有可采用的样本，请先录制。";
+                HintText = customGestureStatusText;
+                return;
+            }
+
+            pendingCustomGestureSamples.Add(customGestureRecorder.LastSample);
+            customGestureHasReviewSample = false;
+            inputRouter?.SetCustomGesturesEnabled(true);
+            customGestureRecorder.Cancel();
+            customGestureStatusText = $"已采用未知{CustomGestureKindLabel}样本 {pendingCustomGestureSamples.Count}/{CustomGestureRequiredSamples}。";
+            HintText = pendingCustomGestureSamples.Count >= CustomGestureRequiredSamples ? "样本已足够：在名称输入框命名新手势，然后点击保存模板。" : "样本已采用：继续录制下一个样本；每个样本都是同一个新手势的重复示范。";
+            SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
+        }
+
+        public void DiscardCustomGestureSample()
+        {
+            customGestureHasReviewSample = false;
+            inputRouter?.SetCustomGesturesEnabled(true);
+            customGestureRecorder.Cancel();
+            customGestureStatusText = "已丢弃当前样本。下一步：重新录制同一个新手势的一次示范。";
+            HintText = customGestureStatusText;
         }
 
         public void SaveCustomGestureTemplate()
@@ -329,21 +418,30 @@ namespace SpellGuard.Core
                 return;
             }
 
+            var displayName = customGestureTemplateName.Trim();
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                customGestureStatusText = "请先在名称输入框命名这个新手势，再保存。";
+                HintText = customGestureStatusText;
+                return;
+            }
+
             var template = new CustomGestureTemplate
             {
-                GestureId = BuildCustomGestureId(),
-                DisplayName = $"{CustomGestureDisplayName} {CustomGestureTargetLabel}",
-                Kind = CustomGestureKind.DynamicMotion,
-                RequiredHandedness = customGestureTargetHandedness,
+                GestureId = BuildCustomGestureId(displayName),
+                DisplayName = displayName,
+                Kind = customGestureKind,
+                RequiredHandedness = pendingCustomGestureSamples[0].Handedness,
                 TargetIntent = GestureIntent.CustomGesture,
-                MatchThreshold = CustomGestureRecognizer.DefaultDynamicThreshold,
+                MatchThreshold = customGestureKind == CustomGestureKind.StaticPose ? CustomGestureRecognizer.DefaultStaticThreshold : CustomGestureRecognizer.DefaultDynamicThreshold,
                 Samples = new List<CustomGestureSample>(pendingCustomGestureSamples)
             };
 
             inputRouter?.SaveCustomGesture(template);
+            customGestureHasReviewSample = false;
             customGestureRecorder.MarkSaved();
             inputRouter?.SetCustomGesturesEnabled(true);
-            customGestureStatusText = $"已保存 {template.DisplayName} 到项目手势库；该录入不绑定法术。";
+            customGestureStatusText = $"已保存“{template.DisplayName}”到项目手势库；它现在才成为可验证的模板，不绑定法术。";
             HintText = customGestureStatusText;
             SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
         }
@@ -352,9 +450,72 @@ namespace SpellGuard.Core
         {
             inputRouter?.ReloadCustomGestures();
             inputRouter?.SetCustomGesturesEnabled(true);
-            customGestureStatusText = $"已重新加载模板库，最近识别：{CustomGestureLastMatchedName}";
+            ClampCustomGestureValidationTarget();
+            customGestureStatusText = $"已加载模板库。现在可以进入验证页，选择库里的目标手势持续监测；当前目标：{CustomGestureValidationTargetLabel}";
+            customGestureValidationStatusText = CustomGestureTemplateCount > 0
+                ? $"已加载 {CustomGestureTemplateCount} 个模板。当前验证目标：{CustomGestureValidationTargetLabel}。"
+                : "模板库为空：请先录制并保存一个自定义手势。";
             HintText = customGestureStatusText;
             inputProvider?.ClearTransientInputs();
+        }
+
+        public void CycleCustomGestureValidationTarget()
+        {
+            ReloadCustomGestureTemplates();
+            var count = CustomGestureTemplateCount;
+            if (count <= 0)
+            {
+                customGestureValidationTemplateIndex = 0;
+                customGestureValidationActive = false;
+                customGestureValidationStatusText = "模板库为空：请先录制并保存一个自定义手势。";
+                HintText = customGestureValidationStatusText;
+                return;
+            }
+
+            customGestureValidationTemplateIndex = (customGestureValidationTemplateIndex + 1) % count;
+            customGestureValidationActive = true;
+            customGestureValidationSuccessAt = -999f;
+            customGestureValidationStatusText = $"验证目标已切换：{CustomGestureValidationTargetLabel}。请直接做这个手势，系统会持续监测。";
+            HintText = customGestureValidationStatusText;
+            inputProvider?.ClearTransientInputs();
+        }
+
+        public void ToggleCustomGestureValidation()
+        {
+            ReloadCustomGestureTemplates();
+            if (CustomGestureTemplateCount <= 0)
+            {
+                customGestureValidationActive = false;
+                customGestureValidationStatusText = "模板库为空：请先录制并保存一个自定义手势。";
+                HintText = customGestureValidationStatusText;
+                return;
+            }
+
+            customGestureValidationActive = !customGestureValidationActive;
+            customGestureValidationSuccessAt = -999f;
+            customGestureValidationStatusText = customGestureValidationActive
+                ? $"开始验证：目标是 {CustomGestureValidationTargetLabel}。请持续做这个手势，命中后会明确提示成功。"
+                : $"已暂停验证：当前目标仍是 {CustomGestureValidationTargetLabel}。";
+            HintText = customGestureValidationStatusText;
+            inputProvider?.ClearTransientInputs();
+        }
+
+        public void StartCustomGestureValidation()
+        {
+            ReloadCustomGestureTemplates();
+            customGestureValidationActive = CustomGestureTemplateCount > 0;
+            customGestureValidationSuccessAt = -999f;
+            customGestureValidationStatusText = customGestureValidationActive
+                ? $"验证页已就绪：目标是 {CustomGestureValidationTargetLabel}。请做这个手势，系统会持续监测。"
+                : "模板库为空：请先录制并保存一个自定义手势。";
+            HintText = customGestureValidationStatusText;
+            inputProvider?.ClearTransientInputs();
+        }
+
+        public void StopCustomGestureValidation()
+        {
+            customGestureValidationActive = false;
+            customGestureValidationStatusText = "已离开验证页。";
         }
 
         public void RecordTrainingPointerCheck()
@@ -416,10 +577,10 @@ namespace SpellGuard.Core
             inputProvider?.ClearTransientInputs();
             inputRouter?.ReloadCustomGestures();
             ConfigureCustomGestureRecorder();
-            customGestureStatusText = "项目手势库：可按左/右手分别录制 5 个样本，不绑定法术。";
+            customGestureStatusText = "项目手势库：先选类型和采集手，再录制 5 个同一新手势样本；保存前不做匹配评分。";
             SpellGuardAudioController.Instance?.PlayMenuMusic();
             HintText = developerToolsMode
-                ? "开发者靶场：无敌人、无倒计时，专注录入自定义手势、测试识别历史与采集论文数据。"
+                ? "开发者实验室：游戏手势指令已禁用；仅保留摄像头识别、自定义手势录入与论文数据采集。"
                 : "训练：完成基础目标；自定义手势录入仅维护项目手势库，不绑定法术。";
             if (CurrentLevelConfig != null && !string.IsNullOrWhiteSpace(CurrentLevelConfig.TutorialHint))
             {
@@ -511,7 +672,8 @@ namespace SpellGuard.Core
         private void ApplyModeState()
         {
             var interactive3D = screen == SpellGuardScreen.Playing || screen == SpellGuardScreen.Training;
-            var allowGameplayInput = interactive3D && !IsCustomGestureRecording;
+            var gameplayCommandsBlocked = DeveloperToolsGestureCommandsDisabled && screen == SpellGuardScreen.Training;
+            var allowGameplayInput = interactive3D && !IsCustomGestureRecording && !gameplayCommandsBlocked;
             motor?.SetInputEnabled(allowGameplayInput);
             if (!interactive3D)
             {
@@ -620,7 +782,7 @@ namespace SpellGuard.Core
 
         private void ConfigureCustomGestureRecorder()
         {
-            customGestureRecorder.Configure(customGestureCountdownSeconds, customGestureRecordSeconds, customGestureSampleIntervalSeconds, customGestureMinimumConfidence);
+            customGestureRecorder.Configure(customGestureCountdownSeconds, customGestureRecordSeconds, customGestureSampleIntervalSeconds, customGestureMinimumConfidence, customGestureKind);
         }
 
         private void UpdateCustomGestureRecording()
@@ -638,12 +800,71 @@ namespace SpellGuard.Core
                 return;
             }
 
-            pendingCustomGestureSamples.Add(customGestureRecorder.LastSample);
-            customGestureStatusText = $"已录入样本 {pendingCustomGestureSamples.Count}/{CustomGestureRequiredSamples}。";
-            HintText = pendingCustomGestureSamples.Count >= CustomGestureRequiredSamples
-                ? "样本已足够，点击保存模板写入项目手势库。"
-                : $"样本有效，继续录制同一个{CustomGestureTargetLabel}动作。";
+            customGestureHasReviewSample = true;
+            inputRouter?.SetCustomGesturesEnabled(true);
+            customGestureStatusText = $"样本待确认：有效 {customGestureRecorder.LastSample.Frames.Count} 帧。满意请点“采用样本”，否则点“重录样本”；这不是匹配评分。";
+            HintText = customGestureStatusText;
             SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
+        }
+
+        private void UpdateCustomGestureValidation()
+        {
+            if (screen != SpellGuardScreen.Training || !developerToolsMode || !customGestureValidationActive || customGestureRecorder.IsBusy)
+            {
+                return;
+            }
+
+            if (inputRouter == null)
+            {
+                customGestureValidationStatusText = "验证不可用：没有输入路由器。";
+                return;
+            }
+
+            ClampCustomGestureValidationTarget();
+            if (!inputRouter.TryEvaluateCustomGestureTemplate(customGestureValidationTemplateIndex, inputRouter.CurrentGestureFrame, Time.time, out var targetLabel, out var requiredHandedness, out var matched))
+            {
+                customGestureValidationActive = false;
+                customGestureValidationStatusText = "模板库为空：请先录制并保存一个自定义手势。";
+                return;
+            }
+
+            var handLabel = FormatCustomGestureHandedness(requiredHandedness);
+            if (matched)
+            {
+                if (Time.unscaledTime - customGestureValidationSuccessAt > 0.6f)
+                {
+                    SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
+                }
+
+                customGestureValidationSuccessAt = Time.unscaledTime;
+                customGestureValidationStatusText = $"验证成功：已做出“{targetLabel}”（{handLabel}）。继续保持会持续提示。";
+                HintText = customGestureValidationStatusText;
+                return;
+            }
+
+            if (Time.unscaledTime - customGestureValidationSuccessAt <= 1.2f)
+            {
+                return;
+            }
+
+            customGestureValidationStatusText = $"正在验证“{targetLabel}”（{handLabel}）：请做出这个目标手势，命中后会显示验证成功。";
+        }
+
+        private void ClampCustomGestureValidationTarget()
+        {
+            var count = CustomGestureTemplateCount;
+            if (count <= 0)
+            {
+                customGestureValidationTemplateIndex = 0;
+                return;
+            }
+
+            customGestureValidationTemplateIndex = Mathf.Clamp(customGestureValidationTemplateIndex, 0, count - 1);
+        }
+
+        private string GetCustomGestureValidationTargetLabel()
+        {
+            return inputRouter != null ? inputRouter.GetCustomGestureTemplateLabel(customGestureValidationTemplateIndex) : "无";
         }
 
         private void RefreshSpellCasterSubscription()
@@ -706,13 +927,50 @@ namespace SpellGuard.Core
 
         private static string FormatCustomGestureHandedness(GestureHandedness handedness)
         {
-            return handedness == GestureHandedness.Left ? "左手" : "右手";
+            return handedness switch
+            {
+                GestureHandedness.Left => "左手",
+                GestureHandedness.Right => "右手",
+                _ => "未知手"
+            };
         }
 
-        private string BuildCustomGestureId()
+        private static string FormatCustomGestureKind(CustomGestureKind kind)
         {
-            var handSuffix = customGestureTargetHandedness == GestureHandedness.Left ? "left" : "right";
-            return $"custom_{customGestureSlotIndex}_{handSuffix}";
+            return kind == CustomGestureKind.StaticPose ? "静态" : "动态";
+        }
+
+        private string BuildCustomGestureId(string displayName)
+        {
+            var handSuffix = pendingCustomGestureSamples.Count > 0 && pendingCustomGestureSamples[0].Handedness == GestureHandedness.Left ? "left" : pendingCustomGestureSamples.Count > 0 && pendingCustomGestureSamples[0].Handedness == GestureHandedness.Right ? "right" : "unknown";
+            var kindSuffix = customGestureKind == CustomGestureKind.StaticPose ? "static" : "dynamic";
+            var nameSuffix = SanitizeCustomGestureIdPart(displayName);
+            return $"custom_{nameSuffix}_{kindSuffix}_{handSuffix}";
+        }
+
+        private static string SanitizeCustomGestureIdPart(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "unnamed";
+            }
+
+            var chars = new char[value.Length];
+            var count = 0;
+            for (var i = 0; i < value.Length; i += 1)
+            {
+                var c = char.ToLowerInvariant(value[i]);
+                if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
+                {
+                    chars[count++] = c;
+                }
+                else if (c == ' ' || c == '-' || c == '_')
+                {
+                    chars[count++] = '_';
+                }
+            }
+
+            return count > 0 ? new string(chars, 0, count) : "gesture";
         }
 
         private void ApplyLevelConfig(LevelConfig config, bool allowEnemySpawning)

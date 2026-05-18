@@ -19,6 +19,7 @@ namespace SpellGuard.InputSystem
         [SerializeField] private GestureRecognitionProfile recognitionProfile;
         [SerializeField] private bool debugLogs = true;
         [SerializeField] private float historySeconds = 0.7f;
+        [SerializeField] private float sampleJitterDeadZone = 0.015f;
         [SerializeField] private float swipeMinDistance = 0.09f;
         [SerializeField] private float swipeMaxVerticalDrift = 0.22f;
         [SerializeField] private float swipeMinSpeed = 0.2f;
@@ -43,6 +44,10 @@ namespace SpellGuard.InputSystem
         private float lastSnapTime = -999f;
         private float lastTransitionTime = -999f;
         private bool snapPrimed;
+        private bool hasLastAcceptedSample;
+        private Vector2 lastAcceptedPalm;
+        private float lastAcceptedTipDistance;
+        private GestureType lastAcceptedGesture = GestureType.None;
         private float snapPrimedTime;
         private GestureType lastObservedGesture = GestureType.None;
         private float lastObservedGestureStartTime = -999f;
@@ -80,6 +85,7 @@ namespace SpellGuard.InputSystem
             }
 
             historySeconds = recognitionProfile.historySeconds;
+            sampleJitterDeadZone = recognitionProfile.sampleJitterDeadZone;
             swipeMinDistance = recognitionProfile.swipeMinDistance;
             swipeMaxVerticalDrift = recognitionProfile.swipeMaxVerticalDrift;
             swipeMinSpeed = recognitionProfile.swipeMinSpeed;
@@ -126,7 +132,21 @@ namespace SpellGuard.InputSystem
 
             var sampleTime = nativeProvider.LastSampleTime > 0f ? nativeProvider.LastSampleTime : Time.time;
             var sample = BuildHandSample(nativeProvider.HandLandmarks, snapshot.ViewportPosition, snapshot.Gesture, sampleTime);
+            var tipDistance = sample.HasSnapData ? Vector2.Distance(sample.ThumbTip, sample.MiddleTip) : 0f;
+            if (hasLastAcceptedSample
+                && Vector2.Distance(sample.Palm, lastAcceptedPalm) < sampleJitterDeadZone
+                && Mathf.Abs(tipDistance - lastAcceptedTipDistance) < sampleJitterDeadZone
+                && sample.Gesture == lastAcceptedGesture)
+            {
+                TrimHistory(sample.Time);
+                return;
+            }
+
             handHistory.Enqueue(sample);
+            hasLastAcceptedSample = true;
+            lastAcceptedPalm = sample.Palm;
+            lastAcceptedTipDistance = tipDistance;
+            lastAcceptedGesture = sample.Gesture;
             TrimHistory(sample.Time);
 
             if (TryDetectGestureTransition(sample, out var transition))
@@ -355,12 +375,18 @@ namespace SpellGuard.InputSystem
         {
             handHistory.Clear();
             handHistory.Enqueue(latest);
+            hasLastAcceptedSample = true;
+            lastAcceptedPalm = latest.Palm;
+            lastAcceptedTipDistance = latest.HasSnapData ? Vector2.Distance(latest.ThumbTip, latest.MiddleTip) : 0f;
+            lastAcceptedGesture = latest.Gesture;
         }
 
         private void ResetState()
         {
             handHistory.Clear();
             snapPrimed = false;
+            hasLastAcceptedSample = false;
+            lastAcceptedGesture = GestureType.None;
             lastObservedGesture = GestureType.None;
             lastObservedGestureStartTime = -999f;
         }

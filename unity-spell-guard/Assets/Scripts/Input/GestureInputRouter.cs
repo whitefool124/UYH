@@ -13,7 +13,7 @@ namespace SpellGuard.InputSystem
         }
 
         [SerializeField] private InputMode mode = InputMode.Mock;
-        [SerializeField] private KeyCode toggleModeKey = KeyCode.F1;
+        [SerializeField] private KeyCode toggleModeKey = KeyCode.None;
         [SerializeField] private MockGestureInputProvider mockProvider;
         [SerializeField] private NativeMediapipeGestureProvider nativeMediapipeProvider;
         [SerializeField] private ExternalGestureBridgeProvider externalBridgeProvider;
@@ -141,6 +141,45 @@ namespace SpellGuard.InputSystem
         }
         public string LastCustomGestureName => customGestureRecognizer.LastMatchedName;
         public float LastCustomGestureScore => customGestureRecognizer.LastScore;
+        public int CustomGestureTemplateCount
+        {
+            get
+            {
+                EnsureCustomGestureLibraryLoaded();
+                return customGestureLibrary.Templates.Count;
+            }
+        }
+
+        public string GetCustomGestureTemplateLabel(int index)
+        {
+            EnsureCustomGestureLibraryLoaded();
+            if (index < 0 || index >= customGestureLibrary.Templates.Count)
+            {
+                return "无";
+            }
+
+            var template = customGestureLibrary.Templates[index];
+            var name = string.IsNullOrWhiteSpace(template.DisplayName) ? template.GestureId : template.DisplayName;
+            return $"{index + 1}/{customGestureLibrary.Templates.Count} {name} · {FormatKind(template.Kind)} · {FormatHandedness(template.RequiredHandedness)}";
+        }
+
+        public bool TryEvaluateCustomGestureTemplate(int index, GestureFrame frame, float now, out string targetLabel, out GestureHandedness requiredHandedness, out bool matched)
+        {
+            EnsureCustomGestureLibraryLoaded();
+            targetLabel = "无";
+            requiredHandedness = GestureHandedness.Unknown;
+            matched = false;
+            if (index < 0 || index >= customGestureLibrary.Templates.Count)
+            {
+                return false;
+            }
+
+            var template = customGestureLibrary.Templates[index];
+            targetLabel = string.IsNullOrWhiteSpace(template.DisplayName) ? template.GestureId : template.DisplayName;
+            requiredHandedness = template.RequiredHandedness;
+            matched = customGestureRecognizer.TryResolveSingle(frame, template, now);
+            return true;
+        }
 
         public void ReloadCustomGestures()
         {
@@ -188,7 +227,7 @@ namespace SpellGuard.InputSystem
 
         private void Update()
         {
-            if (Input.GetKeyDown(toggleModeKey))
+            if (toggleModeKey != KeyCode.None && Input.GetKeyDown(toggleModeKey))
             {
                 switch (mode)
                 {
@@ -236,6 +275,21 @@ namespace SpellGuard.InputSystem
         private void EnsureCustomGestureLibraryCreated()
         {
             customGestureLibrary ??= new CustomGestureLibrary();
+        }
+
+        private static string FormatKind(CustomGestureKind kind)
+        {
+            return kind == CustomGestureKind.StaticPose ? "静态" : "动态";
+        }
+
+        private static string FormatHandedness(GestureHandedness handedness)
+        {
+            return handedness switch
+            {
+                GestureHandedness.Left => "左手",
+                GestureHandedness.Right => "右手",
+                _ => "未知手"
+            };
         }
     }
 }

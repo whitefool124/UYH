@@ -8,6 +8,9 @@
 [Mm]emoryCaptures/
 [Rr]ecordings/
 [Pp]ackages/packages-lock.json
+[Pp]ackages/com.farlocus.locus/
+AutomatedTestResults/
+Locus/
 Assets/AssetStoreTools*
 
 # Visual Studio / Rider

@@ -7,6 +7,7 @@ namespace SpellGuard.InputSystem
     {
         [Header("Shared History")]
         [Min(0.05f)] public float historySeconds = 0.7f;
+        [Min(0f)] public float sampleJitterDeadZone = 0.015f;
 
         [Header("Swipe")]
         [Min(0f)] public float swipeMinDistance = 0.09f;

@@ -77,6 +77,9 @@ namespace SpellGuard.InputSystem
         {
             switch (action.Intent)
             {
+                case GestureIntent.TrainingSwipe:
+                case GestureIntent.TrainingSpecialConfirm:
+                    return action;
                 case GestureIntent.MenuPrevious:
                 case GestureIntent.MenuNext:
                 case GestureIntent.MoveLeft:

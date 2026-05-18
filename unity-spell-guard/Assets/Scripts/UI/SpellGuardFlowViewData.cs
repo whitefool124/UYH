@@ -36,13 +36,19 @@ namespace SpellGuard.UI
             bool trainingComplete,
             bool developerToolsEnabled,
             string customGestureDisplayName,
+            string customGestureTemplateName,
+            string customGestureKindLabel,
             string customGestureTargetLabel,
             string customGestureStatusText,
             int customGestureSampleCount,
             int customGestureRequiredSamples,
             bool customGestureRecording,
             string customGestureLastMatchedName,
-            float customGestureLastScore)
+            float customGestureLastScore,
+            int customGestureTemplateCount,
+            bool customGestureValidationActive,
+            string customGestureValidationTargetLabel,
+            string customGestureValidationStatusText)
         {
             Screen = screen;
             HintText = hintText;
@@ -74,6 +80,8 @@ namespace SpellGuard.UI
             TrainingComplete = trainingComplete;
             DeveloperToolsEnabled = developerToolsEnabled;
             CustomGestureDisplayName = customGestureDisplayName;
+            CustomGestureTemplateName = customGestureTemplateName;
+            CustomGestureKindLabel = customGestureKindLabel;
             CustomGestureTargetLabel = customGestureTargetLabel;
             CustomGestureStatusText = customGestureStatusText;
             CustomGestureSampleCount = customGestureSampleCount;
@@ -81,6 +89,10 @@ namespace SpellGuard.UI
             CustomGestureRecording = customGestureRecording;
             CustomGestureLastMatchedName = customGestureLastMatchedName;
             CustomGestureLastScore = customGestureLastScore;
+            CustomGestureTemplateCount = customGestureTemplateCount;
+            CustomGestureValidationActive = customGestureValidationActive;
+            CustomGestureValidationTargetLabel = customGestureValidationTargetLabel;
+            CustomGestureValidationStatusText = customGestureValidationStatusText;
         }
 
         public SpellGuardScreen Screen { get; }
@@ -113,6 +125,8 @@ namespace SpellGuard.UI
         public bool TrainingComplete { get; }
         public bool DeveloperToolsEnabled { get; }
         public string CustomGestureDisplayName { get; }
+        public string CustomGestureTemplateName { get; }
+        public string CustomGestureKindLabel { get; }
         public string CustomGestureTargetLabel { get; }
         public string CustomGestureStatusText { get; }
         public int CustomGestureSampleCount { get; }
@@ -120,5 +134,9 @@ namespace SpellGuard.UI
         public bool CustomGestureRecording { get; }
         public string CustomGestureLastMatchedName { get; }
         public float CustomGestureLastScore { get; }
+        public int CustomGestureTemplateCount { get; }
+        public bool CustomGestureValidationActive { get; }
+        public string CustomGestureValidationTargetLabel { get; }
+        public string CustomGestureValidationStatusText { get; }
     }
 }

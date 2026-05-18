@@ -20,12 +20,14 @@ namespace SpellGuard.InputSystem
         private float recordSeconds = 1.2f;
         private float sampleIntervalSeconds = 0.06f;
         private float minimumConfidence = 0.55f;
+        private CustomGestureKind recordingKind = CustomGestureKind.DynamicMotion;
         private float stateStartedAt;
         private float recordingStartedAt;
         private float nextSampleAt;
         private GestureHandedness handedness = GestureHandedness.Unknown;
         private GestureHandedness targetHandedness = GestureHandedness.Right;
         private int invalidFrameCount;
+        private string lastFailureReason = "无";
 
         public CustomGestureRecorderState State { get; private set; } = CustomGestureRecorderState.Idle;
         public CustomGestureSample LastSample { get; private set; }
@@ -33,15 +35,22 @@ namespace SpellGuard.InputSystem
         public float Progress { get; private set; }
         public int CapturedFrameCount => frames.Count;
         public int InvalidFrameCount => invalidFrameCount;
+        public string LastFailureReason => lastFailureReason;
         public bool IsBusy => State == CustomGestureRecorderState.Countdown || State == CustomGestureRecorderState.Recording;
         public GestureHandedness TargetHandedness => targetHandedness;
 
-        public void Configure(float countdown, float duration, float sampleInterval, float minConfidence)
+        public void Configure(float countdown, float duration, float sampleInterval, float minConfidence, CustomGestureKind kind)
         {
             countdownSeconds = Mathf.Max(0f, countdown);
-            recordSeconds = Mathf.Max(0.2f, duration);
+            recordSeconds = Mathf.Max(0.2f, kind == CustomGestureKind.StaticPose ? Mathf.Min(duration, 1.2f) : duration);
             sampleIntervalSeconds = Mathf.Clamp(sampleInterval, 0.02f, 0.2f);
             minimumConfidence = Mathf.Clamp01(minConfidence);
+            recordingKind = kind;
+        }
+
+        public void Configure(float countdown, float duration, float sampleInterval, float minConfidence)
+        {
+            Configure(countdown, duration, sampleInterval, minConfidence, CustomGestureKind.DynamicMotion);
         }
 
         public void SetTargetHandedness(GestureHandedness value)
@@ -49,18 +58,24 @@ namespace SpellGuard.InputSystem
             targetHandedness = value == GestureHandedness.Left ? GestureHandedness.Left : GestureHandedness.Right;
         }
 
+        public bool CanBegin(GestureFrame frame, out string reason)
+        {
+            return TryGetValidPrimaryHand(frame, out _, out reason);
+        }
+
         public void Begin(float now)
         {
             frames.Clear();
             LastSample = null;
             invalidFrameCount = 0;
+            lastFailureReason = "无";
             handedness = GestureHandedness.Unknown;
             stateStartedAt = now;
             recordingStartedAt = 0f;
             nextSampleAt = 0f;
             Progress = 0f;
             State = countdownSeconds > 0f ? CustomGestureRecorderState.Countdown : CustomGestureRecorderState.Recording;
-            StatusText = State == CustomGestureRecorderState.Countdown ? $"自定义手势倒计时：准备摆出{FormatHandedness(targetHandedness)}动作" : $"正在录制{FormatHandedness(targetHandedness)}自定义手势";
+            StatusText = State == CustomGestureRecorderState.Countdown ? $"{FormatKind(recordingKind)}倒计时：准备录制手部动作" : $"正在录制{FormatKind(recordingKind)}";
             if (State == CustomGestureRecorderState.Recording)
             {
                 StartRecording(now);
@@ -72,6 +87,7 @@ namespace SpellGuard.InputSystem
             frames.Clear();
             LastSample = null;
             invalidFrameCount = 0;
+            lastFailureReason = "已取消";
             Progress = 0f;
             State = CustomGestureRecorderState.Idle;
             StatusText = "已取消自定义手势录制";
@@ -89,7 +105,7 @@ namespace SpellGuard.InputSystem
             {
                 Progress = countdownSeconds <= 0f ? 1f : Mathf.Clamp01((now - stateStartedAt) / countdownSeconds);
                 var remaining = Mathf.CeilToInt(Mathf.Max(0f, countdownSeconds - (now - stateStartedAt)));
-                StatusText = $"自定义手势倒计时：{remaining}";
+                StatusText = $"{FormatKind(recordingKind)}倒计时：{remaining}";
                 if (now - stateStartedAt >= countdownSeconds)
                 {
                     StartRecording(now);
@@ -110,7 +126,7 @@ namespace SpellGuard.InputSystem
                 nextSampleAt = now + sampleIntervalSeconds;
             }
 
-            StatusText = $"正在录制{FormatHandedness(targetHandedness)}自定义手势：{Mathf.RoundToInt(Progress * 100f)}%";
+            StatusText = $"正在录制{FormatKind(recordingKind)}：{Mathf.RoundToInt(Progress * 100f)}% · 有效 {frames.Count} / 无效 {invalidFrameCount}";
             if (now - recordingStartedAt < recordSeconds)
             {
                 return false;
@@ -121,7 +137,7 @@ namespace SpellGuard.InputSystem
             Progress = 1f;
             StatusText = LastSample != null
                 ? $"样本有效：{LastSample.Frames.Count} 帧，可继续录制或保存"
-                : $"样本无效：请确保{FormatHandedness(targetHandedness)}单手完整入镜且置信度足够";
+                : $"样本无效：{lastFailureReason}（有效 {frames.Count} / 无效 {invalidFrameCount}）";
             return LastSample != null;
         }
 
@@ -129,18 +145,20 @@ namespace SpellGuard.InputSystem
         {
             frames.Clear();
             invalidFrameCount = 0;
+            lastFailureReason = "无";
             recordingStartedAt = now;
             nextSampleAt = now;
             State = CustomGestureRecorderState.Recording;
             Progress = 0f;
-            StatusText = $"正在录制{FormatHandedness(targetHandedness)}自定义手势";
+            StatusText = $"正在录制{FormatKind(recordingKind)}";
         }
 
         private void CaptureFrame(GestureFrame frame, float now)
         {
-            if (!TryGetValidPrimaryHand(frame, out var hand))
+            if (!TryGetValidPrimaryHand(frame, out var hand, out var reason))
             {
                 invalidFrameCount += 1;
+                lastFailureReason = reason;
                 return;
             }
 
@@ -161,8 +179,10 @@ namespace SpellGuard.InputSystem
 
         private CustomGestureSample BuildSample(float now)
         {
-            if (frames.Count < 3)
+            var requiredFrames = recordingKind == CustomGestureKind.StaticPose ? 1 : 3;
+            if (frames.Count < requiredFrames)
             {
+                lastFailureReason = frames.Count == 0 ? lastFailureReason : $"有效帧不足：{frames.Count}/{requiredFrames}";
                 return null;
             }
 
@@ -175,20 +195,61 @@ namespace SpellGuard.InputSystem
             };
         }
 
-        private bool TryGetValidPrimaryHand(GestureFrame frame, out TrackedHandState hand)
+        private bool TryGetValidPrimaryHand(GestureFrame frame, out TrackedHandState hand, out string reason)
         {
             hand = frame.PrimaryHand;
-            return frame.HasPrimaryHand &&
-                   hand.IsTracked &&
-                   hand.Handedness == targetHandedness &&
-                   hand.Confidence >= minimumConfidence &&
-                   hand.Landmarks != null &&
-                   hand.Landmarks.Length >= CustomGestureFeatureExtractor.RequiredLandmarkCount;
+            if (!frame.HasPrimaryHand)
+            {
+                reason = "未检测到主手";
+                return false;
+            }
+
+            if (!hand.IsTracked)
+            {
+                reason = "主手未稳定追踪";
+                return false;
+            }
+
+            if (hand.Handedness == GestureHandedness.Unknown)
+            {
+                reason = "正在等待左右手识别";
+                return false;
+            }
+
+            if (hand.Confidence < minimumConfidence)
+            {
+                reason = $"追踪置信度不足：{hand.Confidence:F2} < {minimumConfidence:F2}";
+                return false;
+            }
+
+            if (hand.Landmarks == null || hand.Landmarks.Length < CustomGestureFeatureExtractor.RequiredLandmarkCount)
+            {
+                reason = "landmark 不完整";
+                return false;
+            }
+
+            reason = "无";
+            return true;
         }
 
         private static string FormatHandedness(GestureHandedness value)
         {
-            return value == GestureHandedness.Left ? "左手" : "右手";
+            if (value == GestureHandedness.Left)
+            {
+                return "左手";
+            }
+
+            if (value == GestureHandedness.Right)
+            {
+                return "右手";
+            }
+
+            return "未知手";
+        }
+
+        private static string FormatKind(CustomGestureKind value)
+        {
+            return value == CustomGestureKind.StaticPose ? "静态手势" : "动态手势";
         }
     }
 }

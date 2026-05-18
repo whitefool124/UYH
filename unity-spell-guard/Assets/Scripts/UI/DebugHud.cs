@@ -76,6 +76,12 @@ namespace SpellGuard.UI
                 return;
             }
 
+            if (IsCleanDeveloperScreen())
+            {
+                DrawDeveloperCameraPreviewIfNeeded();
+                return;
+            }
+
             var layout = GetLayout();
             EnsureStyles(layout.Scale);
 
@@ -93,7 +99,7 @@ namespace SpellGuard.UI
 
         private void DrawDeveloperCameraPreviewIfNeeded()
         {
-            if (!alwaysShowDeveloperCameraPreview || !IsGameplayOrTrainingScreen())
+            if (!alwaysShowDeveloperCameraPreview || !IsDeveloperGameplayOrTrainingScreen())
             {
                 return;
             }
@@ -132,9 +138,17 @@ namespace SpellGuard.UI
             }
         }
 
-        private bool IsGameplayOrTrainingScreen()
+        private bool IsCleanDeveloperScreen()
         {
             return flowController != null &&
+                   flowController.DeveloperToolsEnabled &&
+                   flowController.Screen == SpellGuardScreen.Training;
+        }
+
+        private bool IsDeveloperGameplayOrTrainingScreen()
+        {
+            return flowController != null &&
+                   flowController.DeveloperToolsEnabled &&
                    (flowController.Screen == SpellGuardScreen.Training || flowController.Screen == SpellGuardScreen.Playing);
         }
 
@@ -217,7 +231,9 @@ namespace SpellGuard.UI
             DrawPanel(layout.SecondaryPanel, new Color(0.06f, 0.08f, 0.12f, 0.9f), new Color(0.32f, 0.55f, 0.96f, 0.94f));
             GUILayout.BeginArea(Shrink(layout.SecondaryPanel, layout.Padding, layout.Padding + 22f * layout.Scale, layout.Padding, layout.Padding));
             GUILayout.Label("识别与调试信息", subTitleStyle);
-            GUILayout.Label("F1 切换输入模式 · 左右摆手横移 · 上下摆手前后移 · Fist / V / Palm / Snap 施法", labelStyle);
+            GUILayout.Label(flowController != null && flowController.DeveloperToolsGestureCommandsDisabled
+                ? "游戏指令：已禁用（仅采集识别与自定义手势）"
+                : "输入模式请用界面按钮切换 · 左右摆手横移 · 上下摆手前后移 · Fist / V / Palm / Snap 施法", labelStyle);
             GUILayout.Space(4f * layout.Scale);
             GUILayout.Label($"手位：{snapshot.ViewportPosition:F2}", labelStyle);
             if (frame.HandCount > 0)
@@ -498,6 +514,12 @@ namespace SpellGuard.UI
             }
 
             var switched = webcamFeed.TryStartNextPhysicalCamera();
+            if (switched && inputRouter != null && inputRouter.Mode == GestureInputRouter.InputMode.NativeMediapipe)
+            {
+                inputRouter.SetMode(GestureInputRouter.InputMode.Mock);
+                inputRouter.SetMode(GestureInputRouter.InputMode.NativeMediapipe);
+            }
+
             nativeMediapipeProvider?.SetStatusText(switched
                 ? $"已切换摄像头：{webcamFeed.ActiveDeviceName}"
                 : $"摄像头切换失败：{webcamFeed.StatusText}");

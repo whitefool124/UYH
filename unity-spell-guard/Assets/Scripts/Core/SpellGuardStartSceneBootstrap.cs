@@ -128,11 +128,29 @@ namespace SpellGuard.Core
             if (nativeMediapipeRunner != null)
             {
                 nativeMediapipeRunner.enabled = useNativeMediapipe;
-                if (useNativeMediapipe)
+            }
+
+            if (webcamFeed != null && useNativeMediapipe && !webcamFeed.IsRunning)
+            {
+                webcamFeed.StartCamera();
+                if (webcamFeed.Texture == null)
                 {
-                    nativeMediapipeRunner.Configure(nativeMediapipeProvider, webcamFeed);
-                    nativeMediapipeRunner.StartRunner();
+                    inputRouter?.SetMode(GestureInputRouter.InputMode.Mock);
+                    if (nativeMediapipeRunner != null)
+                    {
+                        nativeMediapipeRunner.enabled = false;
+                    }
+
+                    nativeMediapipeProvider?.SetStatusText("摄像头不可用，已回退到 Mock");
+                    lastSyncedMode = GestureInputRouter.InputMode.Mock;
+                    return;
                 }
+            }
+
+            if (nativeMediapipeRunner != null && useNativeMediapipe)
+            {
+                nativeMediapipeRunner.Configure(nativeMediapipeProvider, webcamFeed);
+                nativeMediapipeRunner.StartRunner();
             }
 
             if (udpGestureReceiver != null)
@@ -145,26 +163,6 @@ namespace SpellGuard.Core
                 else
                 {
                     udpGestureReceiver.StopReceiver();
-                }
-            }
-
-            if (webcamFeed == null)
-            {
-                return;
-            }
-
-            if (useNativeMediapipe && !webcamFeed.IsRunning)
-            {
-                webcamFeed.StartCamera();
-                if (webcamFeed.Texture == null)
-                {
-                    inputRouter?.SetMode(GestureInputRouter.InputMode.Mock);
-                    if (nativeMediapipeRunner != null)
-                    {
-                        nativeMediapipeRunner.enabled = false;
-                    }
-
-                    nativeMediapipeProvider?.SetStatusText("摄像头不可用，已回退到 Mock");
                 }
             }
 
