@@ -215,6 +215,21 @@ def build_packet(hand_present, gesture, x=0.5, y=0.5, confidence=0.0, landmarks=
     }
 
 
+def build_summary(frame_count, hand_frame_count, confidence_sum, start_time, last_gesture, source):
+    elapsed_seconds = max(0.001, time.time() - start_time)
+    average_confidence = confidence_sum / hand_frame_count if hand_frame_count else 0.0
+    return {
+        "frames": frame_count,
+        "handFrames": hand_frame_count,
+        "handRatio": hand_frame_count / frame_count if frame_count else 0.0,
+        "avgConfidence": average_confidence,
+        "elapsedSeconds": elapsed_seconds,
+        "fps": frame_count / elapsed_seconds if elapsed_seconds > 0 else 0.0,
+        "lastGesture": last_gesture,
+        "source": source,
+    }
+
+
 def describe_bridge_source(base_source, input_video_path):
     if not input_video_path:
         return base_source
@@ -247,11 +262,57 @@ def main():
         return 1
 
     stabilizer = GestureStabilizer()
-    mp_hands = mp.solutions.hands
-    mp_pose = mp.solutions.pose
-    mp_draw = mp.solutions.drawing_utils
     yolo_detector = None
     bridge_source = "mediapipeHandsBridge"
+
+    mp_hands = None
+    mp_pose = None
+    mp_draw = None
+    hands_context = None
+    pose_context = None
+
+    if hasattr(mp, "solutions"):
+        mp_hands = mp.solutions.hands
+        mp_pose = mp.solutions.pose
+        mp_draw = mp.solutions.drawing_utils
+        hands_context = mp_hands.Hands(
+            max_num_hands=1,
+            model_complexity=1,
+            min_detection_confidence=args.min_detection_confidence,
+            min_tracking_confidence=args.min_tracking_confidence,
+        )
+        pose_context = mp_pose.Pose(
+            model_complexity=1,
+            min_detection_confidence=args.min_detection_confidence,
+            min_tracking_confidence=args.min_tracking_confidence,
+        )
+    else:
+        from mediapipe.tasks import python as mp_tasks
+        from mediapipe.tasks.python import vision as mp_vision
+
+        base_options = mp_tasks.BaseOptions
+        hand_options = mp_vision.HandLandmarkerOptions
+        pose_options = mp_vision.PoseLandmarkerOptions
+        running_mode = mp_vision.RunningMode
+        hands_context = mp_vision.HandLandmarker.create_from_options(
+            hand_options(
+                base_options=base_options(model_asset_path=""),
+                running_mode=running_mode.VIDEO,
+                num_hands=1,
+                min_hand_detection_confidence=args.min_detection_confidence,
+                min_hand_presence_confidence=args.min_tracking_confidence,
+                min_tracking_confidence=args.min_tracking_confidence,
+            )
+        )
+        pose_context = mp_vision.PoseLandmarker.create_from_options(
+            pose_options(
+                base_options=base_options(model_asset_path=""),
+                running_mode=running_mode.VIDEO,
+                min_pose_detection_confidence=args.min_detection_confidence,
+                min_pose_presence_confidence=args.min_tracking_confidence,
+                min_tracking_confidence=args.min_tracking_confidence,
+            )
+        )
 
     if args.enable_yolo:
         try:
@@ -265,17 +326,13 @@ def main():
         bridge_source = "mediapipePoseHandsBridge"
 
     packet_source = describe_bridge_source(bridge_source, args.input_video if using_video_file else "")
+    frame_count = 0
+    hand_frame_count = 0
+    confidence_sum = 0.0
+    start_time = time.time()
+    last_gesture = "none"
 
-    with mp_hands.Hands(
-        max_num_hands=1,
-        model_complexity=1,
-        min_detection_confidence=args.min_detection_confidence,
-        min_tracking_confidence=args.min_tracking_confidence,
-    ) as hands, mp_pose.Pose(
-        model_complexity=1,
-        min_detection_confidence=args.min_detection_confidence,
-        min_tracking_confidence=args.min_tracking_confidence,
-    ) as pose:
+    with hands_context as hands, pose_context as pose:
         while True:
             success, frame = capture.read()
             if not success:
@@ -306,6 +363,7 @@ def main():
             packet = build_packet(False, "none", source=packet_source)
             label = "none"
             pose_landmarks = []
+            frame_count += 1
 
             if pose_results and pose_results.pose_landmarks:
                 pose_landmarks = remap_landmarks_to_frame(
@@ -334,6 +392,9 @@ def main():
                     tracking_confidence=tracking_confidence,
                 )
                 label = stable
+                hand_frame_count += 1
+                confidence_sum += packet["confidence"]
+                last_gesture = stable
 
                 if args.show_preview:
                     for hand_landmarks in hand_results.multi_hand_landmarks:
@@ -372,6 +433,8 @@ def main():
     if args.show_preview:
         cv2.destroyAllWindows()
     socket_client.close()
+    summary = build_summary(frame_count, hand_frame_count, confidence_sum, start_time, last_gesture, packet_source)
+    print(f"[bridge-summary] {json.dumps(summary, ensure_ascii=False)}")
     return 0
 
 

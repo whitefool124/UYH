@@ -39,6 +39,7 @@ namespace SpellGuard.UI
             string customGestureTemplateName,
             string customGestureKindLabel,
             string customGestureTargetLabel,
+            string customGestureTargetSpellLabel,
             string customGestureStatusText,
             int customGestureSampleCount,
             int customGestureRequiredSamples,
@@ -48,7 +49,9 @@ namespace SpellGuard.UI
             int customGestureTemplateCount,
             bool customGestureValidationActive,
             string customGestureValidationTargetLabel,
-            string customGestureValidationStatusText)
+            string customGestureValidationListText,
+            string customGestureValidationStatusText,
+            string customGestureSamplePreviewText)
         {
             Screen = screen;
             HintText = hintText;
@@ -83,6 +86,7 @@ namespace SpellGuard.UI
             CustomGestureTemplateName = customGestureTemplateName;
             CustomGestureKindLabel = customGestureKindLabel;
             CustomGestureTargetLabel = customGestureTargetLabel;
+            CustomGestureTargetSpellLabel = customGestureTargetSpellLabel;
             CustomGestureStatusText = customGestureStatusText;
             CustomGestureSampleCount = customGestureSampleCount;
             CustomGestureRequiredSamples = customGestureRequiredSamples;
@@ -92,7 +96,9 @@ namespace SpellGuard.UI
             CustomGestureTemplateCount = customGestureTemplateCount;
             CustomGestureValidationActive = customGestureValidationActive;
             CustomGestureValidationTargetLabel = customGestureValidationTargetLabel;
+            CustomGestureValidationListText = customGestureValidationListText;
             CustomGestureValidationStatusText = customGestureValidationStatusText;
+            CustomGestureSamplePreviewText = customGestureSamplePreviewText;
         }
 
         public SpellGuardScreen Screen { get; }
@@ -128,6 +134,7 @@ namespace SpellGuard.UI
         public string CustomGestureTemplateName { get; }
         public string CustomGestureKindLabel { get; }
         public string CustomGestureTargetLabel { get; }
+        public string CustomGestureTargetSpellLabel { get; }
         public string CustomGestureStatusText { get; }
         public int CustomGestureSampleCount { get; }
         public int CustomGestureRequiredSamples { get; }
@@ -137,6 +144,8 @@ namespace SpellGuard.UI
         public int CustomGestureTemplateCount { get; }
         public bool CustomGestureValidationActive { get; }
         public string CustomGestureValidationTargetLabel { get; }
+        public string CustomGestureValidationListText { get; }
         public string CustomGestureValidationStatusText { get; }
+        public string CustomGestureSamplePreviewText { get; }
     }
 }

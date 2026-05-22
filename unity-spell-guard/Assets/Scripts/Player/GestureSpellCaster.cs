@@ -14,6 +14,9 @@ namespace SpellGuard.Player
         [SerializeField] private float confirmSeconds = 0.4f;
         [SerializeField] private float castDistance = 50f;
         [SerializeField] private float castStatusHoldSeconds = 0.75f;
+        [SerializeField] private float projectileSpeed = 18f;
+        [SerializeField] private float projectileLifetime = 2.5f;
+        [SerializeField] private int selectedFireVariantIndex;
         [SerializeField] private LayerMask hitMask = Physics.DefaultRaycastLayers;
         [SerializeField] private bool debugLogs = true;
 
@@ -29,6 +32,8 @@ namespace SpellGuard.Player
         public SpellType PendingSpell => pendingSpell;
         public float PendingProgress { get; private set; }
         public SpellType LastCastSpell => lastCastSpell;
+        public string SelectedFireName => SpellConfigLibrary.GetFireVariant(selectedFireVariantIndex).DisplayName;
+        public Color SelectedFireColor => SpellConfigLibrary.GetFireVariant(selectedFireVariantIndex).Color;
         public string StatusText { get; private set; } = "等待手势";
         public string SpellPromptText => BuildSpellPromptText();
         public string LastSpellFeedbackText { get; private set; } = "尚未施法";
@@ -36,7 +41,7 @@ namespace SpellGuard.Player
 
         public SpellConfig GetSpellConfig(SpellType spellType)
         {
-            return SpellConfigLibrary.Get(spellType);
+            return spellType == SpellType.Fire ? SpellConfigLibrary.GetFireVariant(selectedFireVariantIndex) : SpellConfigLibrary.Get(spellType);
         }
 
         public void SetConfirmSeconds(float value)
@@ -60,6 +65,11 @@ namespace SpellGuard.Player
         private void Update()
         {
             if (!castingEnabled)
+            {
+                return;
+            }
+
+            if (TryCastFromKeyboard())
             {
                 return;
             }
@@ -135,9 +145,9 @@ namespace SpellGuard.Player
             switch (spell)
             {
                 case SpellType.Fire:
-                    hitCount = TryHitEnemy(enemy => enemy.ApplyDamage(spellConfig.Damage));
-                    StatusText = "火焰术已释放";
-                    LastSpellFeedbackText = hitCount > 0 ? "火焰命中：敌人受到伤害" : "火焰未命中：请对准敌人";
+                    LaunchFireProjectile(spellConfig);
+                    StatusText = $"{spellConfig.DisplayName}已发射";
+                    LastSpellFeedbackText = $"{spellConfig.DisplayName}火焰弹飞出";
                     break;
                 case SpellType.Ice:
                     hitCount = TryHitEnemy(enemy => enemy.ApplyFreeze(spellConfig.FreezeDuration));
@@ -161,6 +171,34 @@ namespace SpellGuard.Player
             {
                 Debug.Log($"[Gesture][GameplayReaction] spellCast={spell} hitCount={hitCount} source={LastCastSourceLabel}", this);
             }
+        }
+
+        private bool TryCastFromKeyboard()
+        {
+            if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetMouseButtonDown(0))
+            {
+                Cast(SpellType.Fire);
+                lastCastSpell = SpellType.Fire;
+                return true;
+            }
+
+            if (Input.GetKeyDown(KeyCode.Q))
+            {
+                selectedFireVariantIndex = (selectedFireVariantIndex + SpellConfigLibrary.GetFireVariantCount() - 1) % SpellConfigLibrary.GetFireVariantCount();
+                StatusText = $"已切换火焰：{SelectedFireName}";
+                statusHoldUntil = Time.time + castStatusHoldSeconds;
+                return true;
+            }
+
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                selectedFireVariantIndex = (selectedFireVariantIndex + 1) % SpellConfigLibrary.GetFireVariantCount();
+                StatusText = $"已切换火焰：{SelectedFireName}";
+                statusHoldUntil = Time.time + castStatusHoldSeconds;
+                return true;
+            }
+
+            return false;
         }
 
         private bool TryCastFromAction(GestureAction action)
@@ -188,6 +226,33 @@ namespace SpellGuard.Player
             StatusText = $"{spell.ToChinese()}已通过动态手势释放";
             statusHoldUntil = Time.time + castStatusHoldSeconds;
             return true;
+        }
+
+        private void LaunchFireProjectile(SpellConfig spellConfig)
+        {
+            if (castCamera == null)
+            {
+                return;
+            }
+
+            var projectileObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            projectileObject.name = $"{spellConfig.DisplayName}_Projectile";
+            projectileObject.transform.position = castCamera.transform.position + castCamera.transform.forward * 0.7f;
+            projectileObject.transform.localScale = Vector3.one * 0.28f;
+
+            var renderer = projectileObject.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.material.color = spellConfig.Color;
+            }
+
+            var light = projectileObject.AddComponent<Light>();
+            light.color = spellConfig.Color;
+            light.range = 2.2f;
+            light.intensity = 2.5f;
+
+            var projectile = projectileObject.AddComponent<FireSpellProjectile>();
+            projectile.Initialize(castCamera.transform.forward, projectileSpeed, projectileLifetime, spellConfig.Damage, castDistance, hitMask);
         }
 
         private int TryHitEnemy(System.Action<SimpleEnemyController> effect)
@@ -242,7 +307,7 @@ namespace SpellGuard.Player
                 return $"最近释放：{lastCastSpell.ToChinese()} · {LastSpellFeedbackText}";
             }
 
-            return "火焰 / 冰霜 / 护盾：等待有效手势";
+            return $"火焰占位：{SelectedFireName} · 左键/1 发射火焰弹 · Q/R 切换七色火焰";
         }
     }
 }

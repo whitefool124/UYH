@@ -13,17 +13,18 @@ namespace SpellGuard.InputSystem
         }
 
         [SerializeField] private InputMode mode = InputMode.Mock;
-        [SerializeField] private KeyCode toggleModeKey = KeyCode.None;
         [SerializeField] private MockGestureInputProvider mockProvider;
         [SerializeField] private NativeMediapipeGestureProvider nativeMediapipeProvider;
         [SerializeField] private ExternalGestureBridgeProvider externalBridgeProvider;
         [Header("Custom Gesture")]
         [SerializeField] private bool customGesturesEnabled = true;
         [SerializeField] private float customGestureMinConfidence = 0.55f;
+        [SerializeField] private float customGestureValidationMinConfidence = 0.35f;
         [SerializeField] private float customGestureWindowSeconds = 1.6f;
         [SerializeField] private float customGestureCooldownSeconds = 0.85f;
 
         private readonly CustomGestureRecognizer customGestureRecognizer = new CustomGestureRecognizer();
+        private readonly CustomGestureRecognizer customGestureValidationRecognizer = new CustomGestureRecognizer();
         private CustomGestureLibrary customGestureLibrary;
         private bool customGestureLibraryLoaded;
 
@@ -141,6 +142,7 @@ namespace SpellGuard.InputSystem
         }
         public string LastCustomGestureName => customGestureRecognizer.LastMatchedName;
         public float LastCustomGestureScore => customGestureRecognizer.LastScore;
+        public float LastCustomGestureValidationScore => customGestureValidationRecognizer.LastScore;
         public int CustomGestureTemplateCount
         {
             get
@@ -159,8 +161,44 @@ namespace SpellGuard.InputSystem
             }
 
             var template = customGestureLibrary.Templates[index];
-            var name = string.IsNullOrWhiteSpace(template.DisplayName) ? template.GestureId : template.DisplayName;
-            return $"{index + 1}/{customGestureLibrary.Templates.Count} {name} · {FormatKind(template.Kind)} · {FormatHandedness(template.RequiredHandedness)}";
+            return FormatTemplateLabel(index, template);
+        }
+
+        public string GetCustomGestureTemplateListText(int selectedIndex)
+        {
+            EnsureCustomGestureLibraryLoaded();
+            if (customGestureLibrary.Templates.Count <= 0)
+            {
+                return "模板库为空";
+            }
+
+            var lines = new System.Text.StringBuilder();
+            for (var index = 0; index < customGestureLibrary.Templates.Count; index++)
+            {
+                if (index > 0)
+                {
+                    lines.Append('\n');
+                }
+
+                lines.Append(index == selectedIndex ? "▶ " : "  ");
+                lines.Append(FormatTemplateLabel(index, customGestureLibrary.Templates[index]));
+            }
+
+            return lines.ToString();
+        }
+
+        public int GetCustomGestureTemplateIndex(string gestureId)
+        {
+            EnsureCustomGestureLibraryLoaded();
+            for (var index = 0; index < customGestureLibrary.Templates.Count; index++)
+            {
+                if (string.Equals(customGestureLibrary.Templates[index].GestureId, gestureId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return index;
+                }
+            }
+
+            return -1;
         }
 
         public bool TryEvaluateCustomGestureTemplate(int index, GestureFrame frame, float now, out string targetLabel, out GestureHandedness requiredHandedness, out bool matched)
@@ -177,7 +215,20 @@ namespace SpellGuard.InputSystem
             var template = customGestureLibrary.Templates[index];
             targetLabel = string.IsNullOrWhiteSpace(template.DisplayName) ? template.GestureId : template.DisplayName;
             requiredHandedness = template.RequiredHandedness;
-            matched = customGestureRecognizer.TryResolveSingle(frame, template, now);
+            matched = customGestureValidationRecognizer.TryResolveSingle(frame, template, now);
+            return true;
+        }
+
+        public bool TryGetCustomGestureTemplate(int index, out CustomGestureTemplate template)
+        {
+            EnsureCustomGestureLibraryLoaded();
+            if (index < 0 || index >= customGestureLibrary.Templates.Count)
+            {
+                template = null;
+                return false;
+            }
+
+            template = customGestureLibrary.Templates[index];
             return true;
         }
 
@@ -187,6 +238,7 @@ namespace SpellGuard.InputSystem
             customGestureLibrary.LoadAll();
             customGestureLibraryLoaded = true;
             customGestureRecognizer.Reset();
+            customGestureValidationRecognizer.Reset();
         }
 
         public void SaveCustomGesture(CustomGestureTemplate template)
@@ -196,7 +248,29 @@ namespace SpellGuard.InputSystem
             {
                 customGestureLibraryLoaded = true;
                 customGestureRecognizer.Reset();
+                customGestureValidationRecognizer.Reset();
             }
+        }
+
+        public bool DeleteCustomGestureTemplate(int index)
+        {
+            EnsureCustomGestureLibraryLoaded();
+            if (index < 0 || index >= customGestureLibrary.Templates.Count)
+            {
+                return false;
+            }
+
+            var gestureId = customGestureLibrary.Templates[index].GestureId;
+            if (!customGestureLibrary.Delete(gestureId))
+            {
+                return false;
+            }
+
+            customGestureLibrary.LoadAll();
+            customGestureLibraryLoaded = true;
+            customGestureRecognizer.Reset();
+            customGestureValidationRecognizer.Reset();
+            return true;
         }
 
         public override void ClearTransientInputs()
@@ -216,32 +290,15 @@ namespace SpellGuard.InputSystem
             }
 
             customGestureRecognizer.Reset();
+            customGestureValidationRecognizer.Reset();
         }
 
         private void Awake()
         {
             EnsureCustomGestureLibraryCreated();
             customGestureRecognizer.Configure(customGestureMinConfidence, customGestureWindowSeconds, customGestureCooldownSeconds);
+            customGestureValidationRecognizer.Configure(customGestureValidationMinConfidence, customGestureWindowSeconds, customGestureCooldownSeconds);
             ReloadCustomGestures();
-        }
-
-        private void Update()
-        {
-            if (toggleModeKey != KeyCode.None && Input.GetKeyDown(toggleModeKey))
-            {
-                switch (mode)
-                {
-                    case InputMode.Mock:
-                        SetMode(InputMode.NativeMediapipe);
-                        break;
-                    case InputMode.NativeMediapipe:
-                        SetMode(InputMode.ExternalBridge);
-                        break;
-                    default:
-                        SetMode(InputMode.Mock);
-                        break;
-                }
-            }
         }
 
         public void SetMode(InputMode nextMode)
@@ -253,6 +310,7 @@ namespace SpellGuard.InputSystem
 
             mode = nextMode;
             customGestureRecognizer.Reset();
+            customGestureValidationRecognizer.Reset();
             ModeChanged?.Invoke(mode);
         }
 
@@ -260,6 +318,7 @@ namespace SpellGuard.InputSystem
         {
             customGesturesEnabled = enabled;
             customGestureRecognizer.Reset();
+            customGestureValidationRecognizer.Reset();
         }
 
         private void EnsureCustomGestureLibraryLoaded()
@@ -280,6 +339,12 @@ namespace SpellGuard.InputSystem
         private static string FormatKind(CustomGestureKind kind)
         {
             return kind == CustomGestureKind.StaticPose ? "静态" : "动态";
+        }
+
+        private static string FormatTemplateLabel(int index, CustomGestureTemplate template)
+        {
+            var name = string.IsNullOrWhiteSpace(template.DisplayName) ? template.GestureId : template.DisplayName;
+            return $"{index + 1}号 {name} · {FormatKind(template.Kind)} · {FormatHandedness(template.RequiredHandedness)}";
         }
 
         private static string FormatHandedness(GestureHandedness handedness)

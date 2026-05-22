@@ -71,3 +71,14 @@ unity-spell-guard/*.pdb
 unity-spell-guard/*.mdb
 unity-spell-guard/*.opendb
 unity-spell-guard/*.VC.db
+
+# Local run artifacts
+locus-console-*.log
+*.docx
+
+# Local datasets / extracted training data
+unity-spell-guard/训练集/
+
+# .NET tool build outputs
+tools/**/bin/
+tools/**/obj/

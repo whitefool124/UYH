@@ -22,6 +22,7 @@ namespace SpellGuard.Player
         [SerializeField] private float horizontalMoveCooldown = 0.45f;
         [SerializeField] private float verticalMoveCooldown = 0.45f;
         [SerializeField] private float staticMoveHoldSeconds = 0.25f;
+        [SerializeField] private bool keyboardFallbackEnabled = true;
         [SerializeField] private float gravity = -18f;
         private CharacterController characterController;
         private float verticalVelocity;
@@ -123,6 +124,11 @@ namespace SpellGuard.Player
                 return;
             }
 
+            if (keyboardFallbackEnabled && TryHandleKeyboardMovement())
+            {
+                return;
+            }
+
             var action = GestureIntentMapper.ToMovementAction(frame);
             if (TryHandleStaticMoveAction(action))
             {
@@ -170,6 +176,35 @@ namespace SpellGuard.Player
                         return;
                 }
             }
+        }
+
+        private bool TryHandleKeyboardMovement()
+        {
+            if ((Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow)) && CanTriggerHorizontalMove())
+            {
+                BeginStep(-transform.right);
+                return true;
+            }
+
+            if ((Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow)) && CanTriggerHorizontalMove())
+            {
+                BeginStep(transform.right);
+                return true;
+            }
+
+            if ((Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) && CanTriggerVerticalMove())
+            {
+                BeginStep(transform.forward);
+                return true;
+            }
+
+            if ((Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) && CanTriggerVerticalMove())
+            {
+                BeginStep(-transform.forward);
+                return true;
+            }
+
+            return false;
         }
 
         private bool TryHandleStaticMoveAction(GestureAction action)

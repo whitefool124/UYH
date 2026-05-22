@@ -13,7 +13,7 @@ namespace SpellGuard.Combat
         [SerializeField] private bool spawnEnemies = true;
         [SerializeField] private WaveConfig wave = WaveConfig.Default;
         [SerializeField] private SpellType[] allowedSpells = { SpellType.Fire, SpellType.Ice, SpellType.Shield };
-        [SerializeField] private string tutorialHint = "完成指向确认和三种法术练习。";
+        [SerializeField] private string tutorialHint = "教程：先看左上角提示，按 WASD 移动，左键或 1 发射火球，连续击败 3 个固定敌人。";
 
         public string LevelId => string.IsNullOrWhiteSpace(levelId) ? name : levelId;
         public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? LevelId : displayName;

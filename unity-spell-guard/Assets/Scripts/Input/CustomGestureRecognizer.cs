@@ -8,10 +8,8 @@ namespace SpellGuard.InputSystem
         public const float DefaultDynamicThreshold = 0.18f;
         public const float DefaultStaticThreshold = 0.16f;
         private const float AmbiguousMatchMargin = 0.035f;
-        private const int ResampledFrameCount = 12;
 
         private readonly List<CustomGestureFrameSample> window = new List<CustomGestureFrameSample>();
-        private readonly List<float[]> runtimeFeatures = new List<float[]>();
         private float minimumConfidence = 0.55f;
         private float maxWindowSeconds = 1.6f;
         private float cooldownSeconds = 0.85f;
@@ -34,7 +32,6 @@ namespace SpellGuard.InputSystem
         public void Reset()
         {
             window.Clear();
-            runtimeFeatures.Clear();
             currentAction = GestureAction.None;
             lastMatchedName = "无";
             lastScore = float.PositiveInfinity;
@@ -51,9 +48,9 @@ namespace SpellGuard.InputSystem
                 return false;
             }
 
-            var hasDynamicFeatures = TryBuildResampledFeatures(window, minimumConfidence, runtimeFeatures);
+            var hasDynamicFrames = HasEnoughDynamicFrames();
             var hasStaticFeatures = TryGetLatestStaticFeatures(window, minimumConfidence, out var runtimeStaticFeatures);
-            if (!hasDynamicFeatures && !hasStaticFeatures)
+            if (!hasDynamicFrames && !hasStaticFeatures)
             {
                 return false;
             }
@@ -62,20 +59,11 @@ namespace SpellGuard.InputSystem
             CustomGestureTemplate bestTemplate = null;
             var bestScore = float.PositiveInfinity;
             var secondBestScore = float.PositiveInfinity;
+
             for (var templateIndex = 0; templateIndex < templates.Count; templateIndex++)
             {
                 var template = templates[templateIndex];
                 if (!IsUsableTemplate(template))
-                {
-                    continue;
-                }
-
-                if (template.Kind == CustomGestureKind.DynamicMotion && !hasDynamicFeatures)
-                {
-                    continue;
-                }
-
-                if (template.Kind == CustomGestureKind.StaticPose && !hasStaticFeatures)
                 {
                     continue;
                 }
@@ -87,22 +75,19 @@ namespace SpellGuard.InputSystem
                     continue;
                 }
 
-                for (var sampleIndex = 0; sampleIndex < template.Samples.Count; sampleIndex++)
+                var score = template.Kind == CustomGestureKind.StaticPose
+                    ? hasStaticFeatures ? ScoreStaticTemplate(template, runtimeStaticFeatures, runtimeHandedness) : float.PositiveInfinity
+                    : hasDynamicFrames ? ScoreDynamicTemplate(template, runtimeHandedness) : float.PositiveInfinity;
+
+                if (score < bestScore)
                 {
-                    var sample = template.Samples[sampleIndex];
-                    var score = template.Kind == CustomGestureKind.StaticPose
-                        ? ScoreStaticSample(sample, runtimeStaticFeatures, runtimeHandedness)
-                        : ScoreDynamicSample(sample, runtimeFeatures, runtimeHandedness);
-                    if (score < bestScore)
-                    {
-                        secondBestScore = bestScore;
-                        bestScore = score;
-                        bestTemplate = template;
-                    }
-                    else if (score < secondBestScore)
-                    {
-                        secondBestScore = score;
-                    }
+                    secondBestScore = bestScore;
+                    bestScore = score;
+                    bestTemplate = template;
+                }
+                else if (score < secondBestScore)
+                {
+                    secondBestScore = score;
                 }
             }
 
@@ -121,7 +106,7 @@ namespace SpellGuard.InputSystem
             var primaryHand = frame.PrimaryHand;
             action = new GestureAction
             {
-                Intent = GestureIntent.CustomGesture,
+                Intent = CustomGestureLibrary.IsAllowedTargetIntent(bestTemplate.TargetIntent) ? bestTemplate.TargetIntent : GestureIntent.CustomGesture,
                 Confidence = Mathf.Clamp01(1f - bestScore / Mathf.Max(0.001f, bestTemplate.MatchThreshold)),
                 TriggeredTime = now,
                 SourceKind = bestTemplate.Kind == CustomGestureKind.StaticPose ? GestureCommandKind.StaticPose : GestureCommandKind.Motion,
@@ -150,14 +135,13 @@ namespace SpellGuard.InputSystem
                 return false;
             }
 
-            var hasDynamicFeatures = TryBuildResampledFeatures(window, minimumConfidence, runtimeFeatures);
             var hasStaticFeatures = TryGetLatestStaticFeatures(window, minimumConfidence, out var runtimeStaticFeatures);
-            if (template.Kind == CustomGestureKind.DynamicMotion && !hasDynamicFeatures)
+            if (template.Kind == CustomGestureKind.StaticPose && !hasStaticFeatures)
             {
                 return false;
             }
 
-            if (template.Kind == CustomGestureKind.StaticPose && !hasStaticFeatures)
+            if (template.Kind == CustomGestureKind.DynamicMotion && !HasEnoughDynamicFrames())
             {
                 return false;
             }
@@ -170,21 +154,11 @@ namespace SpellGuard.InputSystem
                 return false;
             }
 
-            var bestScore = float.PositiveInfinity;
-            for (var sampleIndex = 0; sampleIndex < template.Samples.Count; sampleIndex++)
-            {
-                var sample = template.Samples[sampleIndex];
-                var score = template.Kind == CustomGestureKind.StaticPose
-                    ? ScoreStaticSample(sample, runtimeStaticFeatures, runtimeHandedness)
-                    : ScoreDynamicSample(sample, runtimeFeatures, runtimeHandedness);
-                if (score < bestScore)
-                {
-                    bestScore = score;
-                }
-            }
+            lastScore = template.Kind == CustomGestureKind.StaticPose
+                ? ScoreStaticTemplate(template, runtimeStaticFeatures, runtimeHandedness)
+                : ScoreDynamicTemplate(template, runtimeHandedness);
 
-            lastScore = bestScore;
-            if (bestScore > template.MatchThreshold)
+            if (lastScore > template.MatchThreshold)
             {
                 return false;
             }
@@ -205,6 +179,8 @@ namespace SpellGuard.InputSystem
                 {
                     Time = now,
                     Confidence = Mathf.Clamp01(hand.Confidence),
+                    StaticGesture = hand.StaticGesture,
+                    PalmCenter = hand.PalmCenter,
                     Landmarks = copied
                 });
             }
@@ -213,33 +189,81 @@ namespace SpellGuard.InputSystem
             window.RemoveAll(sample => sample.Time < cutoff);
         }
 
-        private float ScoreDynamicSample(CustomGestureSample sample, List<float[]> currentFeatures, GestureHandedness runtimeHandedness)
+        private bool HasEnoughDynamicFrames()
         {
-            if (sample == null || sample.Frames == null || sample.Frames.Count < 3)
+            return window.Count >= 4;
+        }
+
+        private float ScoreDynamicTemplate(CustomGestureTemplate template, GestureHandedness runtimeHandedness)
+        {
+            if (template == null)
             {
                 return float.PositiveInfinity;
             }
 
-            if (sample.Handedness != GestureHandedness.Unknown
-                && runtimeHandedness != GestureHandedness.Unknown
-                && sample.Handedness != runtimeHandedness)
+            var best = float.PositiveInfinity;
+            if (template.TrajectoryTemplates != null)
+            {
+                for (var index = 0; index < template.TrajectoryTemplates.Count; index++)
+                {
+                    var trajectoryTemplate = template.TrajectoryTemplates[index];
+                    if (trajectoryTemplate == null || trajectoryTemplate.Points == null || trajectoryTemplate.Points.Length < 2)
+                    {
+                        continue;
+                    }
+
+                    var score = CustomGestureTrajectoryMatcher.ScoreBestWindow(window, trajectoryTemplate.Points, minimumConfidence, trajectoryTemplate.DurationSeconds);
+                    if (score < best)
+                    {
+                        best = score;
+                    }
+                }
+            }
+
+            if (template.DynamicRule != null && template.Samples != null && template.Samples.Count > 0)
+            {
+                var activeRule = template.DynamicRule;
+                for (var index = 0; index < template.Samples.Count; index++)
+                {
+                    var sample = template.Samples[index];
+                    if (sample == null || sample.Handedness != GestureHandedness.Unknown
+                        && runtimeHandedness != GestureHandedness.Unknown
+                        && sample.Handedness != runtimeHandedness)
+                    {
+                        continue;
+                    }
+
+                    if (!CustomGestureDynamicRuleEvaluator.TryMatch(activeRule, window, minimumConfidence, out var confidence))
+                    {
+                        continue;
+                    }
+
+                    best = Mathf.Min(best, 1f - confidence);
+                }
+            }
+
+            return best;
+        }
+
+        private float ScoreStaticTemplate(CustomGestureTemplate template, float[] currentFeatures, GestureHandedness runtimeHandedness)
+        {
+            if (template == null || template.Samples == null || template.Samples.Count == 0 || currentFeatures == null)
             {
                 return float.PositiveInfinity;
             }
 
-            var templateFeatures = new List<float[]>();
-            if (!TryBuildResampledFeatures(sample.Frames, minimumConfidence, templateFeatures))
+            var best = float.PositiveInfinity;
+            for (var sampleIndex = 0; sampleIndex < template.Samples.Count; sampleIndex++)
             {
-                return float.PositiveInfinity;
+                var sample = template.Samples[sampleIndex];
+                var score = ScoreStaticSample(sample, currentFeatures, runtimeHandedness);
+                if (score < best)
+                {
+                    best = score;
+                }
             }
 
-            var total = 0f;
-            for (var index = 0; index < ResampledFrameCount; index++)
-            {
-                total += CustomGestureFeatureExtractor.Distance(currentFeatures[index], templateFeatures[index]);
-            }
-
-            return total / ResampledFrameCount;
+            return best;
         }
 
         private float ScoreStaticSample(CustomGestureSample sample, float[] currentFeatures, GestureHandedness runtimeHandedness)
@@ -278,30 +302,6 @@ namespace SpellGuard.InputSystem
                    CustomGestureLibrary.IsAllowedTargetIntent(template.TargetIntent) &&
                    template.Samples != null &&
                    template.Samples.Count > 0;
-        }
-
-        private static bool TryBuildResampledFeatures(IReadOnlyList<CustomGestureFrameSample> frames, float minimumConfidence, List<float[]> output)
-        {
-            output.Clear();
-            if (frames == null || frames.Count < 3)
-            {
-                return false;
-            }
-
-            for (var targetIndex = 0; targetIndex < ResampledFrameCount; targetIndex++)
-            {
-                var sourceIndex = Mathf.RoundToInt(targetIndex * (frames.Count - 1) / (float)(ResampledFrameCount - 1));
-                sourceIndex = Mathf.Clamp(sourceIndex, 0, frames.Count - 1);
-                if (!CustomGestureFeatureExtractor.TryExtract(frames[sourceIndex], minimumConfidence, out var features))
-                {
-                    output.Clear();
-                    return false;
-                }
-
-                output.Add(features);
-            }
-
-            return output.Count == ResampledFrameCount;
         }
 
         private static bool TryGetLatestStaticFeatures(IReadOnlyList<CustomGestureFrameSample> frames, float minimumConfidence, out float[] features)

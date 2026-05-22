@@ -33,6 +33,7 @@ namespace SpellGuard.Core
         [SerializeField] private float customGestureRecordSeconds = 1.2f;
         [SerializeField] private float customGestureSampleIntervalSeconds = 0.06f;
         [SerializeField] private float customGestureMinimumConfidence = 0.55f;
+        [SerializeField] private float customGestureValidationMinimumConfidence = 0.35f;
         [SerializeField] private int customGestureRequiredSamples = 5;
 
         private readonly CustomGestureRecorder customGestureRecorder = new CustomGestureRecorder();
@@ -59,6 +60,7 @@ namespace SpellGuard.Core
         private int customGestureSlotIndex = 1;
         private GestureHandedness customGestureTargetHandedness = GestureHandedness.Right;
         private CustomGestureKind customGestureKind = CustomGestureKind.DynamicMotion;
+        private SpellType customGestureTargetSpell = SpellType.Fire;
         private bool customGestureHasReviewSample;
         private int customGestureValidationTemplateIndex;
         private bool customGestureValidationActive;
@@ -100,11 +102,13 @@ namespace SpellGuard.Core
         public string DifficultyLabel => settings != null ? settings.DifficultyLabel : "未绑定";
         public string MusicVolumeLabel => settings != null ? settings.MusicVolumeLabel : "未绑定";
         public string SfxVolumeLabel => settings != null ? settings.SfxVolumeLabel : "未绑定";
+        public string FullscreenLabel => settings != null ? settings.FullscreenLabel : "未绑定";
         public string InputModeLabel => inputRouter != null ? FormatInputMode(inputRouter.Mode) : settings != null ? settings.InputModeLabel : "未绑定";
         public string CustomGestureDisplayName => $"Custom {customGestureSlotIndex}";
         public string CustomGestureTemplateName => customGestureTemplateName;
         public string CustomGestureKindLabel => FormatCustomGestureKind(customGestureKind);
         public string CustomGestureTargetLabel => FormatCustomGestureHandedness(customGestureTargetHandedness);
+        public string CustomGestureTargetSpellLabel => FormatCustomGestureSpell(customGestureTargetSpell);
         public string CustomGestureStatusText => customGestureStatusText;
         public int CustomGestureSampleCount => pendingCustomGestureSamples.Count;
         public int CustomGestureRequiredSamples => Mathf.Max(1, customGestureRequiredSamples);
@@ -114,7 +118,12 @@ namespace SpellGuard.Core
         public int CustomGestureTemplateCount => inputRouter != null ? inputRouter.CustomGestureTemplateCount : 0;
         public bool CustomGestureValidationActive => customGestureValidationActive;
         public string CustomGestureValidationTargetLabel => GetCustomGestureValidationTargetLabel();
+        public string CustomGestureValidationListText => inputRouter != null ? inputRouter.GetCustomGestureTemplateListText(customGestureValidationTemplateIndex) : string.Empty;
+        public string CustomGestureValidationReferenceText => BuildCustomGestureValidationReferenceText();
+        public string CustomGestureSamplePreviewText => BuildCustomGestureSamplePreviewText();
         public string CustomGestureValidationStatusText => customGestureValidationStatusText;
+        public float CustomGestureValidationScore => inputRouter != null ? inputRouter.LastCustomGestureValidationScore : float.PositiveInfinity;
+        public float CustomGestureValidationMinimumConfidence => customGestureValidationMinimumConfidence;
         public event Action<SpellType, int, SpellGuardScreen> SpellResolvedForDiagnostics;
 
         public LevelConfig CurrentLevelConfig { get; private set; }
@@ -131,7 +140,7 @@ namespace SpellGuard.Core
                 SpellGuardScreen.Training => developerToolsMode
                     ? new SpellGuardRuntimeStatus("开发者实验室", "游戏手势指令已禁用：只采集识别数据、录入自定义手势并导出实验结果")
                     : new SpellGuardRuntimeStatus("训练场", "练习位移、施法与返回菜单"),
-                SpellGuardScreen.Playing => new SpellGuardRuntimeStatus("战斗中", $"推进、施法、换位并完成 {TargetScoreToWin} 分防守目标"),
+                SpellGuardScreen.Playing => new SpellGuardRuntimeStatus("教学关", $"网格步进移动，使用七色火焰清除 {TargetScoreToWin} 个敌人后激活出口"),
                 SpellGuardScreen.Paused => new SpellGuardRuntimeStatus("战斗暂停", "暂停中：可继续、重开本局，或返回主菜单"),
                 SpellGuardScreen.Results => new SpellGuardRuntimeStatus(GetResultTitle(), $"得分：{CombatScore} | 命中率：{GetHitRate()}%"),
                 _ => new SpellGuardRuntimeStatus("未绑定", "无可用流程状态")
@@ -174,6 +183,7 @@ namespace SpellGuard.Core
                 customGestureTemplateName,
                 CustomGestureKindLabel,
                 CustomGestureTargetLabel,
+                CustomGestureTargetSpellLabel,
                 customGestureStatusText,
                 CustomGestureSampleCount,
                 CustomGestureRequiredSamples,
@@ -183,7 +193,9 @@ namespace SpellGuard.Core
                 CustomGestureTemplateCount,
                 CustomGestureValidationActive,
                 CustomGestureValidationTargetLabel,
-                CustomGestureValidationStatusText);
+                CustomGestureValidationListText,
+                CustomGestureValidationStatusText,
+                CustomGestureSamplePreviewText);
         }
 
         private void OnEnable()
@@ -315,6 +327,18 @@ namespace SpellGuard.Core
             LogFlowEvent("cycle sfx volume setting");
         }
 
+        public void ToggleFullscreenSetting()
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            settings.ToggleFullscreen();
+            HintText = $"设置已切换：显示模式 {FullscreenLabel}";
+            LogFlowEvent("toggle fullscreen setting");
+        }
+
         public void SetCustomGestureTemplateName(string value)
         {
             customGestureTemplateName = value ?? string.Empty;
@@ -343,6 +367,18 @@ namespace SpellGuard.Core
         public void CycleCustomGestureTarget()
         {
             CycleCustomGestureHandedness();
+        }
+
+        public void CycleCustomGestureTargetSpell()
+        {
+            customGestureTargetSpell = customGestureTargetSpell switch
+            {
+                SpellType.Fire => SpellType.Ice,
+                SpellType.Ice => SpellType.Shield,
+                _ => SpellType.Fire
+            };
+            customGestureStatusText = $"目标法术已切换：{CustomGestureTargetSpellLabel}。保存后会直接映射到玩法施法。";
+            HintText = customGestureStatusText;
         }
 
         public void CycleCustomGestureHandedness()
@@ -432,12 +468,30 @@ namespace SpellGuard.Core
                 DisplayName = displayName,
                 Kind = customGestureKind,
                 RequiredHandedness = pendingCustomGestureSamples[0].Handedness,
-                TargetIntent = GestureIntent.CustomGesture,
+                TargetIntent = MapCustomGestureTargetIntent(customGestureTargetSpell),
                 MatchThreshold = customGestureKind == CustomGestureKind.StaticPose ? CustomGestureRecognizer.DefaultStaticThreshold : CustomGestureRecognizer.DefaultDynamicThreshold,
-                Samples = new List<CustomGestureSample>(pendingCustomGestureSamples)
+                Samples = new List<CustomGestureSample>(pendingCustomGestureSamples),
+                TrajectoryTemplates = customGestureKind == CustomGestureKind.DynamicMotion
+                    ? CustomGestureTrajectoryTemplateBuilder.Build(pendingCustomGestureSamples)
+                    : new List<CustomGestureTrajectoryTemplate>()
             };
 
+            if (customGestureKind == CustomGestureKind.DynamicMotion && (template.TrajectoryTemplates == null || template.TrajectoryTemplates.Count == 0))
+            {
+                customGestureStatusText = "DTW trajectory build failed: record a clearer motion sample with visible palm movement.";
+                HintText = customGestureStatusText;
+                inputRouter?.SetCustomGesturesEnabled(true);
+                return;
+            }
+
             inputRouter?.SaveCustomGesture(template);
+            inputRouter?.ReloadCustomGestures();
+            var savedIndex = inputRouter != null ? inputRouter.GetCustomGestureTemplateIndex(template.GestureId) : -1;
+            if (savedIndex >= 0)
+            {
+                customGestureValidationTemplateIndex = savedIndex;
+            }
+
             customGestureHasReviewSample = false;
             customGestureRecorder.MarkSaved();
             inputRouter?.SetCustomGesturesEnabled(true);
@@ -518,6 +572,46 @@ namespace SpellGuard.Core
             customGestureValidationStatusText = "已离开验证页。";
         }
 
+        public bool TryGetCustomGestureValidationTemplate(out CustomGestureTemplate template)
+        {
+            template = null;
+            if (inputRouter == null)
+            {
+                return false;
+            }
+
+            return inputRouter.TryGetCustomGestureTemplate(customGestureValidationTemplateIndex, out template);
+        }
+
+        public void DeleteSelectedCustomGestureTemplate()
+        {
+            if (inputRouter == null)
+            {
+                customGestureValidationStatusText = "Delete failed: input router is unavailable.";
+                HintText = customGestureValidationStatusText;
+                return;
+            }
+
+            var label = CustomGestureValidationTargetLabel;
+            if (!inputRouter.DeleteCustomGestureTemplate(customGestureValidationTemplateIndex))
+            {
+                customGestureValidationStatusText = "Delete failed: no selected custom gesture template.";
+                HintText = customGestureValidationStatusText;
+                return;
+            }
+
+            ClampCustomGestureValidationTarget();
+            customGestureValidationSuccessAt = -999f;
+            customGestureValidationActive = CustomGestureTemplateCount > 0;
+            customGestureValidationStatusText = CustomGestureTemplateCount > 0
+                ? $"Deleted {label}. Current target: {CustomGestureValidationTargetLabel}."
+                : $"Deleted {label}. Custom gesture library is empty.";
+            customGestureStatusText = customGestureValidationStatusText;
+            HintText = customGestureValidationStatusText;
+            inputProvider?.ClearTransientInputs();
+            SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
+        }
+
         public void RecordTrainingPointerCheck()
         {
             trainingPointerChecks += 1;
@@ -561,7 +655,7 @@ namespace SpellGuard.Core
             screen = SpellGuardScreen.Playing;
             inputProvider?.ClearTransientInputs();
             SpellGuardAudioController.Instance?.PlayCombatMusic();
-            HintText = $"战斗：左右/上下摆手位移，握拳/V/张掌/打响指施法，先拿到 {TargetScoreToWin} 分即胜利。";
+            HintText = $"教学关：WASD 网格步进，鼠标调整视角，左键/1 释放火焰，目标 {TargetScoreToWin} 个敌人。";
         }
 
         public void StartTraining()
@@ -580,8 +674,8 @@ namespace SpellGuard.Core
             customGestureStatusText = "项目手势库：先选类型和采集手，再录制 5 个同一新手势样本；保存前不做匹配评分。";
             SpellGuardAudioController.Instance?.PlayMenuMusic();
             HintText = developerToolsMode
-                ? "开发者实验室：游戏手势指令已禁用；仅保留摄像头识别、自定义手势录入与论文数据采集。"
-                : "训练：完成基础目标；自定义手势录入仅维护项目手势库，不绑定法术。";
+                ? "开发者实验室：网格教学关仅保留键鼠验证、摄像头识别、自定义手势录入与论文数据采集。"
+                : "教学关：WASD 每次移动一格，鼠标调整视角，左键/1 释放当前七色火焰；击败敌人后按 E 激活出口。";
             if (CurrentLevelConfig != null && !string.IsNullOrWhiteSpace(CurrentLevelConfig.TutorialHint))
             {
                 HintText = developerToolsMode ? HintText : CurrentLevelConfig.TutorialHint;
@@ -659,7 +753,7 @@ namespace SpellGuard.Core
             screen = SpellGuardScreen.Playing;
             inputProvider?.ClearTransientInputs();
             SpellGuardAudioController.Instance?.ResumeMusic();
-            HintText = $"战斗继续：左右/上下摆手位移，握拳/V/张掌/打响指施法，目标 {TargetScoreToWin} 分。";
+            HintText = $"教学关：WASD 网格步进，鼠标调整视角，左键/1 释放火焰，目标 {TargetScoreToWin} 个敌人。";
             LogFlowEvent("resume run");
         }
 
@@ -867,6 +961,80 @@ namespace SpellGuard.Core
             return inputRouter != null ? inputRouter.GetCustomGestureTemplateLabel(customGestureValidationTemplateIndex) : "无";
         }
 
+        private string BuildCustomGestureValidationReferenceText()
+        {
+            if (inputRouter == null || !inputRouter.TryGetCustomGestureTemplate(customGestureValidationTemplateIndex, out var template) || template == null)
+            {
+                return string.Empty;
+            }
+
+            var builder = new System.Text.StringBuilder();
+            builder.Append("目标说明: ");
+            builder.Append(string.IsNullOrWhiteSpace(template.DisplayName) ? template.GestureId : template.DisplayName);
+            builder.Append('\n');
+            builder.Append("类型: ");
+            builder.Append(template.Kind == CustomGestureKind.StaticPose ? "静态" : "动态");
+            builder.Append(" | 目标手: ");
+            builder.Append(FormatCustomGestureHandedness(template.RequiredHandedness));
+            builder.Append(" | 阈值: ");
+            builder.Append(template.MatchThreshold.ToString("F2"));
+            builder.Append('\n');
+            builder.Append("样本数: ");
+            builder.Append(template.Samples != null ? template.Samples.Count : 0);
+            builder.Append(" | 轨迹模板: ");
+            builder.Append(template.TrajectoryTemplates != null ? template.TrajectoryTemplates.Count : 0);
+            builder.Append('\n');
+            builder.Append("当前验证分数: ");
+            builder.Append(float.IsPositiveInfinity(CustomGestureValidationScore) ? "--" : CustomGestureValidationScore.ToString("F3"));
+            builder.Append('\n');
+            builder.Append("阈值: ");
+            builder.Append(CustomGestureValidationMinimumConfidence.ToString("F2"));
+            return builder.ToString();
+        }
+
+        private string BuildCustomGestureSamplePreviewText()
+        {
+            var lines = new System.Text.StringBuilder();
+            lines.Append("Samples: ");
+            lines.Append(CustomGestureSampleCount);
+            lines.Append('/');
+            lines.Append(CustomGestureRequiredSamples);
+            lines.Append(" | Type: ");
+            lines.Append(CustomGestureKindLabel);
+            lines.Append(" | Hand: ");
+            lines.Append(CustomGestureTargetLabel);
+
+            if (customGestureRecorder.IsBusy)
+            {
+                lines.Append('\n');
+                lines.Append(customGestureRecorder.StatusText);
+            }
+            else if (customGestureHasReviewSample && customGestureRecorder.LastSample != null)
+            {
+                lines.Append('\n');
+                lines.Append("Review sample frames: ");
+                lines.Append(customGestureRecorder.LastSample.Frames != null ? customGestureRecorder.LastSample.Frames.Count : 0);
+                lines.Append(" | Handedness: ");
+                lines.Append(FormatCustomGestureHandedness(customGestureRecorder.LastSample.Handedness));
+            }
+            else if (pendingCustomGestureSamples.Count > 0)
+            {
+                var latest = pendingCustomGestureSamples[pendingCustomGestureSamples.Count - 1];
+                lines.Append('\n');
+                lines.Append("Last accepted frames: ");
+                lines.Append(latest.Frames != null ? latest.Frames.Count : 0);
+                lines.Append(" | Handedness: ");
+                lines.Append(FormatCustomGestureHandedness(latest.Handedness));
+            }
+            else
+            {
+                lines.Append('\n');
+                lines.Append(customGestureStatusText);
+            }
+
+            return lines.ToString();
+        }
+
         private void RefreshSpellCasterSubscription()
         {
             if (spellCaster == null || subscribed)
@@ -938,6 +1106,28 @@ namespace SpellGuard.Core
         private static string FormatCustomGestureKind(CustomGestureKind kind)
         {
             return kind == CustomGestureKind.StaticPose ? "静态" : "动态";
+        }
+
+        private static string FormatCustomGestureSpell(SpellType spell)
+        {
+            return spell switch
+            {
+                SpellType.Fire => "火焰",
+                SpellType.Ice => "冰霜",
+                SpellType.Shield => "护盾",
+                _ => "未知"
+            };
+        }
+
+        private static GestureIntent MapCustomGestureTargetIntent(SpellType spell)
+        {
+            return spell switch
+            {
+                SpellType.Fire => GestureIntent.CastFire,
+                SpellType.Ice => GestureIntent.CastIce,
+                SpellType.Shield => GestureIntent.CastShield,
+                _ => GestureIntent.CustomGesture
+            };
         }
 
         private string BuildCustomGestureId(string displayName)

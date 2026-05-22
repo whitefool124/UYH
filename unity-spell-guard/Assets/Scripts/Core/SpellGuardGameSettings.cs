@@ -1,4 +1,3 @@
-using System;
 using SpellGuard.InputSystem;
 using UnityEngine;
 
@@ -29,17 +28,7 @@ namespace SpellGuard.Core
         [SerializeField] private int sfxVolumeIndex = 3;
         [SerializeField] private float menuDwellSeconds = 0.82f;
         [SerializeField] private float menuBackHoldSeconds = 0.65f;
-
-        public int ConfirmIndex => confirmIndex;
-        public int DifficultyIndex => difficultyIndex;
-        public int InputModeIndex => inputModeIndex;
-        public int MusicVolumeIndex => musicVolumeIndex;
-        public int SfxVolumeIndex => sfxVolumeIndex;
-
-        private void Awake()
-        {
-            LoadPersistedSettings();
-        }
+        [SerializeField] private bool fullscreen = true;
 
         public float ConfirmSeconds => confirmSecondsOptions[Mathf.Clamp(confirmIndex, 0, confirmSecondsOptions.Length - 1)];
         public SpellGuardDifficulty Difficulty => difficultyOptions[Mathf.Clamp(difficultyIndex, 0, difficultyOptions.Length - 1)];
@@ -51,6 +40,7 @@ namespace SpellGuard.Core
         public string ConfirmLabel => $"{Mathf.RoundToInt(ConfirmSeconds * 1000f)} ms";
         public string MusicVolumeLabel => ToVolumeLabel(MusicVolume);
         public string SfxVolumeLabel => ToVolumeLabel(SfxVolume);
+        public string FullscreenLabel => fullscreen ? "全屏" : "窗口";
         public string DifficultyLabel => Difficulty switch
         {
             SpellGuardDifficulty.Relaxed => "轻松",
@@ -64,6 +54,11 @@ namespace SpellGuard.Core
             GestureInputRouter.InputMode.ExternalBridge => "ExternalBridge",
             _ => "Unknown",
         };
+
+        private void Awake()
+        {
+            LoadPersistedSettings();
+        }
 
         public void CycleConfirm()
         {
@@ -109,6 +104,13 @@ namespace SpellGuard.Core
             SpellGuardLocalProgress.SaveSfxVolumeIndex(sfxVolumeIndex);
         }
 
+        public void ToggleFullscreen()
+        {
+            fullscreen = !fullscreen;
+            UnityEngine.Screen.fullScreen = fullscreen;
+            PlayerPrefs.SetInt("spellguard.fullscreen", fullscreen ? 1 : 0);
+        }
+
         private void LoadPersistedSettings()
         {
             confirmIndex = Mathf.Clamp(SpellGuardLocalProgress.LoadConfirmIndex(confirmIndex), 0, confirmSecondsOptions.Length - 1);
@@ -116,6 +118,8 @@ namespace SpellGuard.Core
             inputModeIndex = Mathf.Clamp(SpellGuardLocalProgress.LoadInputModeIndex(inputModeIndex), 0, inputModeOptions.Length - 1);
             musicVolumeIndex = Mathf.Clamp(SpellGuardLocalProgress.LoadMusicVolumeIndex(musicVolumeIndex), 0, volumeOptions.Length - 1);
             sfxVolumeIndex = Mathf.Clamp(SpellGuardLocalProgress.LoadSfxVolumeIndex(sfxVolumeIndex), 0, volumeOptions.Length - 1);
+            fullscreen = PlayerPrefs.GetInt("spellguard.fullscreen", fullscreen ? 1 : 0) != 0;
+            UnityEngine.Screen.fullScreen = fullscreen;
         }
 
         private static string ToVolumeLabel(float volume)

@@ -1,4 +1,6 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using SpellGuard.Audio;
 using SpellGuard.Combat;
 using SpellGuard.Core;
@@ -61,6 +63,7 @@ namespace SpellGuard.UI
         private float cachedOverlayScale = -1f;
         private bool developerCustomGesturePage;
         private bool developerCustomGestureValidationPage;
+        private readonly ReferenceClipSequencePlayer referenceClipSequencePlayer = new ReferenceClipSequencePlayer();
 
         private void Update()
         {
@@ -250,6 +253,7 @@ namespace SpellGuard.UI
                     if (key == "input-mode") flowController.CycleInputModeSetting();
                     else if (key == "confirm") flowController.CycleConfirmSetting();
                     else if (key == "difficulty") flowController.CycleDifficultySetting();
+                    else if (key == "fullscreen") flowController.ToggleFullscreenSetting();
                     else if (key == "music-volume") flowController.CycleMusicVolumeSetting();
                     else if (key == "sfx-volume") flowController.CycleSfxVolumeSetting();
                     else if (key == "back") flowController.ReturnToMenu();
@@ -361,12 +365,13 @@ namespace SpellGuard.UI
                     }
                     break;
                 case SpellGuardScreen.Settings:
-                    AddRegion("input-mode", $"输入模式：{flowController.InputModeLabel}", MakeButtonRect(layout, 0, 0, 6));
-                    AddRegion("confirm", $"结印确认时长：{flowController.ConfirmLabel}", MakeButtonRect(layout, 1, 0, 6));
-                    AddRegion("difficulty", $"敌人节奏：{flowController.DifficultyLabel}", MakeButtonRect(layout, 2, 0, 6));
-                    AddRegion("music-volume", $"音乐音量：{flowController.MusicVolumeLabel}", MakeButtonRect(layout, 3, 0, 6));
-                    AddRegion("sfx-volume", $"音效音量：{flowController.SfxVolumeLabel}", MakeButtonRect(layout, 4, 0, 6));
-                    AddRegion("back", "返回主菜单", MakeButtonRect(layout, 5, 0, 6));
+                    AddRegion("input-mode", $"输入模式：{flowController.InputModeLabel}", MakeButtonRect(layout, 0, 0, 4));
+                    AddRegion("confirm", $"结印确认时长：{flowController.ConfirmLabel}", MakeButtonRect(layout, 1, 0, 4));
+                    AddRegion("difficulty", $"敌人节奏：{flowController.DifficultyLabel}", MakeButtonRect(layout, 2, 0, 4));
+                    AddRegion("fullscreen", $"显示模式：{flowController.FullscreenLabel}", MakeButtonRect(layout, 0, 1, 4));
+                    AddRegion("music-volume", $"音乐音量：{flowController.MusicVolumeLabel}", MakeButtonRect(layout, 1, 1, 4));
+                    AddRegion("sfx-volume", $"音效音量：{flowController.SfxVolumeLabel}", MakeButtonRect(layout, 2, 1, 4));
+                    AddRegion("back", "返回主菜单", MakeButtonRect(layout, 3, 1, 4));
                     break;
                 case SpellGuardScreen.Tutorial:
                     AddRegion("play", "开始守卫", MakeButtonRect(layout, 0, 0, 2));
@@ -432,13 +437,14 @@ namespace SpellGuard.UI
             EnsureOverlayStyles(layout.Scale);
             DrawPanel(layout.Panel, new Color(0.07f, 0.09f, 0.14f, 0.95f), new Color(0.34f, 0.56f, 1f, 0.9f));
             GUI.Label(layout.Title, "设置", overlayTitleStyle);
-            GUI.Label(layout.Body, "输入模式、施法确认、敌人节奏和音量。", overlayBodyStyle);
-            DrawRegion("input-mode", $"输入模式：{flowController.InputModeLabel}", MakeButtonRect(layout, 0, 0, 6));
-            DrawRegion("confirm", $"结印确认时长：{flowController.ConfirmLabel}", MakeButtonRect(layout, 1, 0, 6));
-            DrawRegion("difficulty", $"敌人节奏：{flowController.DifficultyLabel}", MakeButtonRect(layout, 2, 0, 6));
-            DrawRegion("music-volume", $"音乐音量：{flowController.MusicVolumeLabel}", MakeButtonRect(layout, 3, 0, 6));
-            DrawRegion("sfx-volume", $"音效音量：{flowController.SfxVolumeLabel}", MakeButtonRect(layout, 4, 0, 6));
-            DrawRegion("back", "返回主菜单", MakeButtonRect(layout, 5, 0, 6));
+            GUI.Label(layout.Body, "键鼠教学关的输入、显示模式和音量。", overlayBodyStyle);
+            DrawRegion("input-mode", $"输入模式：{flowController.InputModeLabel}", MakeButtonRect(layout, 0, 0, 4));
+            DrawRegion("confirm", $"结印确认时长：{flowController.ConfirmLabel}", MakeButtonRect(layout, 1, 0, 4));
+            DrawRegion("difficulty", $"敌人节奏：{flowController.DifficultyLabel}", MakeButtonRect(layout, 2, 0, 4));
+            DrawRegion("fullscreen", $"显示模式：{flowController.FullscreenLabel}", MakeButtonRect(layout, 0, 1, 4));
+            DrawRegion("music-volume", $"音乐音量：{flowController.MusicVolumeLabel}", MakeButtonRect(layout, 1, 1, 4));
+            DrawRegion("sfx-volume", $"音效音量：{flowController.SfxVolumeLabel}", MakeButtonRect(layout, 2, 1, 4));
+            DrawRegion("back", "返回主菜单", MakeButtonRect(layout, 3, 1, 4));
         }
 
         private void DrawTutorial()
@@ -447,7 +453,7 @@ namespace SpellGuard.UI
             EnsureOverlayStyles(layout.Scale);
             DrawPanel(layout.Panel, new Color(0.06f, 0.08f, 0.13f, 0.95f), new Color(0.95f, 0.72f, 0.28f, 0.92f));
             GUI.Label(layout.Title, "玩法说明", overlayTitleStyle);
-            GUI.Label(layout.Body, "目标：守住仪式核心，达到目标分数。\n\n战斗：握拳=火焰，V 手势=冰霜，张掌=护盾。\n移动：左右/上下挥动换位。\n菜单：挥动切换，握拳确认，张掌返回。", overlayBodyStyle);
+            GUI.Label(layout.Body, "目标：在网格教学关击败 3 个敌人，再到蓝色出口格完成通关。\n\n移动：WASD 每次移动一格。\n施法：左键或 1 释放当前火焰，Q/R 切换火焰。\n流程：Esc 暂停，设置可调全屏和音量。", overlayBodyStyle);
             GUI.Label(layout.Hint, flowController.HintText, overlayHintStyle);
             DrawRegion("play", "开始守卫", MakeButtonRect(layout, 0, 0, 3));
             if (flowController.DeveloperToolsEnabled)
@@ -480,8 +486,19 @@ namespace SpellGuard.UI
             EnsureOverlayStyles(layout.Scale);
             DrawPanel(layout.Panel, new Color(0.035f, 0.045f, 0.07f, 0.97f), new Color(0.25f, 0.88f, 1f, 0.96f));
             GUI.Label(layout.Title, developerCustomGestureValidationPage ? "自定义手势验证" : developerCustomGesturePage ? "自定义手势录入" : "开发者实验室", overlayTitleStyle);
-            GUI.Label(layout.Body, developerCustomGestureValidationPage ? BuildCustomGestureValidationPageText(viewData) : developerCustomGesturePage ? BuildCustomGesturePageText(viewData) : BuildDeveloperToolsText(viewData), overlayBodyStyle);
-            GUI.Label(layout.Hint, developerCustomGestureValidationPage ? viewData.CustomGestureValidationStatusText : flowController.HintText, overlayHintStyle);
+            if (developerCustomGestureValidationPage)
+            {
+                GUI.Label(layout.Body, BuildCustomGestureValidationPageText(viewData), overlayBodyStyle);
+            }
+            else
+            {
+                GUI.Label(layout.Body, developerCustomGesturePage ? BuildCustomGesturePageText(viewData) : BuildDeveloperToolsText(viewData), overlayBodyStyle);
+                GUI.Label(layout.Hint, flowController.HintText, overlayHintStyle);
+            }
+            if (developerCustomGestureValidationPage)
+            {
+                DrawCustomGestureValidationPreview(layout);
+            }
             if (developerCustomGesturePage)
             {
                 DrawDeveloperGestureNameField(layout);
@@ -498,6 +515,81 @@ namespace SpellGuard.UI
             {
                 flowController.SetCustomGestureTemplateName(nextName);
             }
+        }
+
+        private void DrawCustomGestureValidationPreview(OverlayLayout layout)
+        {
+            var scale = layout.Scale;
+            var gap = Mathf.Clamp(12f * scale, 10f, 16f);
+            var top = layout.Body.yMax + 10f * scale;
+            var bottom = layout.ButtonsRow.y - 14f * scale;
+            var height = Mathf.Max(150f, bottom - top);
+            var halfWidth = (layout.Content.width - gap) * 0.5f;
+            var left = new Rect(layout.Content.x, top, halfWidth, height);
+            var right = new Rect(layout.Content.x + halfWidth + gap, top, halfWidth, height);
+
+            DrawPanel(left, new Color(0.05f, 0.06f, 0.1f, 0.78f), new Color(0.55f, 0.74f, 1f, 0.9f));
+            DrawPanel(right, new Color(0.05f, 0.06f, 0.1f, 0.78f), new Color(0.48f, 0.9f, 0.7f, 0.9f));
+
+            GUI.Label(new Rect(left.x + 10f, left.y + 8f, left.width - 20f, 20f), "参考说明", overlayHintStyle);
+            GUI.Label(new Rect(right.x + 10f, right.y + 8f, right.width - 20f, 20f), "实时骨架", overlayHintStyle);
+
+            var referenceRect = Shrink(left, 12f, 34f, 12f, 16f);
+            var liveRect = Shrink(right, 12f, 34f, 12f, 16f);
+            DrawCustomGestureValidationReference(referenceRect);
+
+            var frame = inputProvider != null ? inputProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.Unknown);
+            var hand = frame.HasPrimaryHand ? frame.PrimaryHand : TrackedHandState.Missing;
+            var lineColor = frame.HasPrimaryHand ? new Color(0.46f, 0.84f, 1f, 0.95f) : new Color(1f, 0.6f, 0.36f, 0.45f);
+            var pointColor = frame.HasPrimaryHand ? new Color(1f, 0.9f, 0.52f, 0.95f) : new Color(1f, 0.45f, 0.3f, 0.45f);
+            GestureSkeletonDrawer.DrawHand(liveRect, hand.Landmarks, lineColor, pointColor);
+
+            var label = frame.HasPrimaryHand
+                ? $"手势：{hand.StaticGesture.ToChinese()}  手：{hand.Handedness}  置信度：{hand.Confidence:F2}\n分数：{(float.IsPositiveInfinity(flowController.CustomGestureValidationScore) ? "--" : flowController.CustomGestureValidationScore.ToString("F3"))}"
+                : "未检测到手";
+            GUI.Label(new Rect(right.x + 10f, right.yMax - 52f, right.width - 20f, 40f), label, overlayHintStyle);
+        }
+
+        private void DrawCustomGestureValidationReference(Rect rect)
+        {
+            if (flowController == null || !flowController.TryGetCustomGestureValidationTemplate(out var template) || template == null)
+            {
+                GUI.Label(rect, "还没有选中要验证的自定义手势模板", overlayBodyStyle);
+                return;
+            }
+
+            var header = new Rect(rect.x, rect.y, rect.width, 56f);
+            var preview = new Rect(rect.x, header.yMax + 6f, rect.width, rect.height - 62f);
+            GUI.Label(header, BuildValidationReferenceHeader(template), overlayBodyStyle);
+
+            referenceClipSequencePlayer.SetTemplate(template);
+            referenceClipSequencePlayer.Update(Time.unscaledTime);
+
+            var frameRect = Shrink(preview, 8f, 8f, 8f, 26f);
+            DrawPanel(frameRect, new Color(0.03f, 0.04f, 0.06f, 0.92f), new Color(0.42f, 0.74f, 1f, 0.88f));
+            var texture = referenceClipSequencePlayer.CurrentTexture;
+            if (texture != null)
+            {
+                GUI.DrawTexture(frameRect, texture, ScaleMode.ScaleToFit, false);
+            }
+            else
+            {
+                GUI.Label(frameRect, referenceClipSequencePlayer.StatusText ?? "未找到参考视频帧", overlayHintStyle);
+            }
+
+            GUI.Label(
+                new Rect(preview.x + 8f, preview.yMax - 24f, preview.width - 16f, 18f),
+                referenceClipSequencePlayer.StatusText ?? "等待参考视频",
+                overlayHintStyle);
+        }
+
+        private static string BuildValidationReferenceHeader(CustomGestureTemplate template)
+        {
+            var name = string.IsNullOrWhiteSpace(template.DisplayName) ? template.GestureId : template.DisplayName;
+            var note = template.Kind == CustomGestureKind.DynamicMotion
+                ? "动态手势：按轨迹走，别停太久"
+                : "静态手势：保持姿势稳定";
+            return $"{name}\n{note}\n手别：{template.RequiredHandedness}  阈值：{template.MatchThreshold:F2}";
         }
 
         private void AddDeveloperRegions(OverlayLayout layout)
@@ -534,12 +626,13 @@ namespace SpellGuard.UI
             AddRegion("custom-kind", $"类型：{flowController.CustomGestureKindLabel}", MakeDevTrainingRect(layout, 0, 0));
             AddRegion("custom-slot", $"采集组：{flowController.CustomGestureDisplayName}", MakeDevTrainingRect(layout, 1, 0));
             AddRegion("custom-target", $"采集手：{flowController.CustomGestureTargetLabel}", MakeDevTrainingRect(layout, 2, 0));
-            AddRegion("custom-record", flowController.CustomGestureRecording ? "录制中" : "录制样本", MakeDevTrainingRect(layout, 0, 1));
-            AddRegion("custom-accept", "采用样本", MakeDevTrainingRect(layout, 1, 1));
-            AddRegion("custom-discard", "重录样本", MakeDevTrainingRect(layout, 2, 1));
-            AddRegion("custom-save", "保存模板", MakeDevTrainingRect(layout, 0, 2));
-            AddRegion("custom-reload", "加载模板/验证识别", MakeDevTrainingRect(layout, 1, 2));
-            AddRegion("dev-home", "返回开发者首页", MakeDevTrainingRect(layout, 2, 2));
+            AddRegion("custom-target-spell", $"映射法术：{flowController.CustomGestureTargetSpellLabel}", MakeDevTrainingRect(layout, 0, 1));
+            AddRegion("custom-record", flowController.CustomGestureRecording ? "录制中" : "录制样本", MakeDevTrainingRect(layout, 1, 1));
+            AddRegion("custom-accept", "采用样本", MakeDevTrainingRect(layout, 2, 1));
+            AddRegion("custom-discard", "重录样本", MakeDevTrainingRect(layout, 0, 2));
+            AddRegion("custom-save", "保存模板", MakeDevTrainingRect(layout, 1, 2));
+            AddRegion("custom-reload", "加载模板/验证识别", MakeDevTrainingRect(layout, 2, 2));
+            AddRegion("dev-home", "返回开发者首页", MakeDevTrainingRect(layout, 1, 3));
         }
 
         private void AddCustomGestureValidationRegions(OverlayLayout layout)
@@ -547,6 +640,7 @@ namespace SpellGuard.UI
             AddRegion("custom-validation-target", $"目标：{flowController.CustomGestureValidationTargetLabel}", MakeDevTrainingRect(layout, 0, 0));
             AddRegion("custom-validation-toggle", flowController.CustomGestureValidationActive ? "暂停持续验证" : "开始持续验证", MakeDevTrainingRect(layout, 1, 0));
             AddRegion("custom-validation-reload", "重新加载库", MakeDevTrainingRect(layout, 2, 0));
+            AddRegion("custom-validation-delete", "删除当前模板", MakeDevTrainingRect(layout, 1, 1));
             AddRegion("dev-custom-page", "返回录入页", MakeDevTrainingRect(layout, 0, 2));
             AddRegion("dev-home", "返回开发者首页", MakeDevTrainingRect(layout, 2, 2));
         }
@@ -585,12 +679,13 @@ namespace SpellGuard.UI
             DrawRegion("custom-kind", $"类型：{flowController.CustomGestureKindLabel}", MakeDevTrainingRect(layout, 0, 0));
             DrawRegion("custom-slot", $"采集组：{flowController.CustomGestureDisplayName}", MakeDevTrainingRect(layout, 1, 0));
             DrawRegion("custom-target", $"采集手：{flowController.CustomGestureTargetLabel}", MakeDevTrainingRect(layout, 2, 0));
-            DrawRegion("custom-record", flowController.CustomGestureRecording ? "录制中" : "录制样本", MakeDevTrainingRect(layout, 0, 1));
-            DrawRegion("custom-accept", "采用样本", MakeDevTrainingRect(layout, 1, 1));
-            DrawRegion("custom-discard", "重录样本", MakeDevTrainingRect(layout, 2, 1));
-            DrawRegion("custom-save", "保存模板", MakeDevTrainingRect(layout, 0, 2));
-            DrawRegion("custom-reload", "加载模板/验证识别", MakeDevTrainingRect(layout, 1, 2));
-            DrawRegion("dev-home", "返回开发者首页", MakeDevTrainingRect(layout, 2, 2));
+            DrawRegion("custom-target-spell", $"映射法术：{flowController.CustomGestureTargetSpellLabel}", MakeDevTrainingRect(layout, 0, 1));
+            DrawRegion("custom-record", flowController.CustomGestureRecording ? "录制中" : "录制样本", MakeDevTrainingRect(layout, 1, 1));
+            DrawRegion("custom-accept", "采用样本", MakeDevTrainingRect(layout, 2, 1));
+            DrawRegion("custom-discard", "重录样本", MakeDevTrainingRect(layout, 0, 2));
+            DrawRegion("custom-save", "保存模板", MakeDevTrainingRect(layout, 1, 2));
+            DrawRegion("custom-reload", "加载模板/验证识别", MakeDevTrainingRect(layout, 2, 2));
+            DrawRegion("dev-home", "返回开发者首页", MakeDevTrainingRect(layout, 1, 3));
         }
 
         private void DrawCustomGestureValidationRegions(OverlayLayout layout)
@@ -598,6 +693,7 @@ namespace SpellGuard.UI
             DrawRegion("custom-validation-target", $"目标：{flowController.CustomGestureValidationTargetLabel}", MakeDevTrainingRect(layout, 0, 0));
             DrawRegion("custom-validation-toggle", flowController.CustomGestureValidationActive ? "暂停持续验证" : "开始持续验证", MakeDevTrainingRect(layout, 1, 0));
             DrawRegion("custom-validation-reload", "重新加载库", MakeDevTrainingRect(layout, 2, 0));
+            DrawRegion("custom-validation-delete", "删除当前模板", MakeDevTrainingRect(layout, 1, 1));
             DrawRegion("dev-custom-page", "返回录入页", MakeDevTrainingRect(layout, 0, 2));
             DrawRegion("dev-home", "返回开发者首页", MakeDevTrainingRect(layout, 2, 2));
         }
@@ -635,6 +731,7 @@ namespace SpellGuard.UI
             else if (key == "custom-kind") flowController.CycleCustomGestureKind();
             else if (key == "custom-slot") flowController.CycleCustomGestureSlot();
             else if (key == "custom-target") flowController.CycleCustomGestureHandedness();
+            else if (key == "custom-target-spell") flowController.CycleCustomGestureTargetSpell();
             else if (key == "custom-record") flowController.StartCustomGestureRecording();
             else if (key == "custom-accept") flowController.AcceptCustomGestureSample();
             else if (key == "custom-discard") flowController.DiscardCustomGestureSample();
@@ -643,6 +740,7 @@ namespace SpellGuard.UI
             else if (key == "custom-validation-target") flowController.CycleCustomGestureValidationTarget();
             else if (key == "custom-validation-toggle") flowController.ToggleCustomGestureValidation();
             else if (key == "custom-validation-reload") flowController.StartCustomGestureValidation();
+            else if (key == "custom-validation-delete") flowController.DeleteSelectedCustomGestureTemplate();
             else if (key == "performance-toggle") TogglePerformanceRecording();
             else if (key == "performance-export") ExportPerformanceCsv();
             else if (key == "demo-export") ExportDemoRunCsv();
@@ -683,12 +781,13 @@ namespace SpellGuard.UI
 
         private string BuildCustomGesturePageText(SpellGuardFlowViewData viewData)
         {
-            return $"当前阶段：{BuildCustomGestureStageText(viewData)}\n下一步：{BuildCustomGestureNextStepText(viewData)}\n\n配置\n类型：{viewData.CustomGestureKindLabel}\n采集组：{viewData.CustomGestureDisplayName}\n采集手：{viewData.CustomGestureTargetLabel}\n名称：{FormatTemplateName(viewData.CustomGestureTemplateName)}\n\n采样进度：{viewData.CustomGestureSampleCount}/{viewData.CustomGestureRequiredSamples}\n状态：{viewData.CustomGestureStatusText}\n\n规则：这里录的是库里没有的新动作；录制阶段只检查手是否被追踪、采集手是否一致、关键点是否完整，不做模板匹配评分。保存后才加载模板验证最近命中名。\n最近命中：{viewData.CustomGestureLastMatchedName}";
+            return $"当前阶段：{BuildCustomGestureStageText(viewData)}\n下一步：{BuildCustomGestureNextStepText(viewData)}\n\n配置\n类型：{viewData.CustomGestureKindLabel}\n采集组：{viewData.CustomGestureDisplayName}\n采集手：{viewData.CustomGestureTargetLabel}\n映射法术：{viewData.CustomGestureTargetSpellLabel}\n名称：{FormatTemplateName(viewData.CustomGestureTemplateName)}\n\n采样进度：{viewData.CustomGestureSampleCount}/{viewData.CustomGestureRequiredSamples}\n状态：{viewData.CustomGestureStatusText}\n\n规则：这里录的是库里没有的新动作；录制阶段只检查手是否被追踪、采集手是否一致、关键点是否完整，不做模板匹配评分。保存后会直接绑定到所选法术，再加载模板验证最近命中名。\n最近命中：{viewData.CustomGestureLastMatchedName}";
         }
 
         private string BuildCustomGestureValidationPageText(SpellGuardFlowViewData viewData)
         {
-            return $"验证目标：{viewData.CustomGestureValidationTargetLabel}\n模板数量：{viewData.CustomGestureTemplateCount}\n监测状态：{(viewData.CustomGestureValidationActive ? "持续监测中" : "已暂停")}\n\n验证结果：{viewData.CustomGestureValidationStatusText}\n\n操作说明：\n1. 点“目标”在库里的模板之间切换。\n2. 点“开始持续验证”后直接做目标手势。\n3. 只有当前选中的目标命中时才显示“验证成功”；不是在录新手势，也不是对未知手势打分。\n\n最近全局命中：{viewData.CustomGestureLastMatchedName}";
+            var score = flowController != null ? flowController.CustomGestureValidationScore : float.PositiveInfinity;
+            return $"目标：{viewData.CustomGestureValidationTargetLabel}  模板：{viewData.CustomGestureTemplateCount}\n状态：{(viewData.CustomGestureValidationActive ? "持续监测中" : "已暂停")}\n最近命中：{viewData.CustomGestureLastMatchedName}\n评分：{(float.IsPositiveInfinity(score) ? "--" : score.ToString("F3"))}\n\n点“目标”切模板，点“开始持续验证”后直接做目标手势。";
         }
 
         private static string BuildCustomGestureStageText(SpellGuardFlowViewData viewData)
@@ -902,9 +1001,9 @@ namespace SpellGuard.UI
             {
                 panelWidth = flowController.DeveloperToolsEnabled
                     ? Mathf.Clamp(width * 0.64f, 620f, 860f)
-                    : Mathf.Clamp(width * 0.44f, 460f, 660f);
+                    : Mathf.Clamp(width * 0.48f, 500f, 700f);
                 panelHeight = flowController.DeveloperToolsEnabled
-                    ? Mathf.Clamp(height * 0.72f, 520f, 680f)
+                    ? Mathf.Clamp(height * 0.76f, 560f, 740f)
                     : Mathf.Clamp(height * 0.34f, 300f, 390f);
                 panel = new Rect((width - panelWidth) * 0.5f, (height - panelHeight) * 0.5f, panelWidth, panelHeight);
             }
@@ -912,7 +1011,7 @@ namespace SpellGuard.UI
             var content = Shrink(panel, padding, padding + 18f * scale, padding, padding);
             var title = new Rect(content.x, content.y, content.width, 30f * scale);
             var bodyHeight = flowController.Screen == SpellGuardScreen.Training && flowController.DeveloperToolsEnabled
-                ? Mathf.Max(180f, content.height - 270f * scale)
+                ? Mathf.Max(120f, content.height * 0.18f)
                 : Mathf.Max(40f, content.height * 0.48f);
             var body = new Rect(content.x, content.y + 34f * scale, content.width, bodyHeight);
             var hint = new Rect(content.x, panel.yMax - padding - 22f * scale - 4f, content.width, 22f * scale);
@@ -982,7 +1081,7 @@ namespace SpellGuard.UI
 
         private Rect MakeButtonRect(OverlayLayout layout, int column, int row, int columns)
         {
-            var rows = flowController.Screen == SpellGuardScreen.Training ? 2 : 1;
+            var rows = flowController.Screen == SpellGuardScreen.Training || flowController.Screen == SpellGuardScreen.Settings ? 2 : 1;
             var spacing = Mathf.Clamp(10f * layout.Scale, 8f, 14f);
             var height = Mathf.Clamp(46f * layout.Scale, 40f, 54f);
             var availableWidth = layout.Content.width;
@@ -1088,9 +1187,131 @@ namespace SpellGuard.UI
             Debug.Log($"[Gesture][MenuOverlay] {message}", this);
         }
 
+        private sealed class ReferenceClipSequencePlayer
+        {
+            private static readonly System.Reflection.MethodInfo LoadImageMethod =
+                Type.GetType("UnityEngine.ImageConversion, UnityEngine.ImageConversionModule")
+                    ?.GetMethod("LoadImage", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+
+            private readonly List<Texture2D> frames = new List<Texture2D>();
+            private string loadedTemplateId;
+            private string loadedSampleId;
+            private float lastFrameAt = -999f;
+            private int frameIndex;
+            private const float FrameInterval = 1f / 18f;
+
+            public Texture2D CurrentTexture => frames.Count > 0 ? frames[Mathf.Clamp(frameIndex, 0, frames.Count - 1)] : null;
+            public string StatusText { get; private set; } = "等待参考视频";
+
+            public void SetTemplate(CustomGestureTemplate template)
+            {
+                if (template == null)
+                {
+                    Clear();
+                    StatusText = "未选择模板";
+                    return;
+                }
+
+                var templateId = template.GestureId ?? string.Empty;
+                var sampleId = template.Samples != null && template.Samples.Count > 0 ? template.Samples[0]?.SampleId : string.Empty;
+                if (string.Equals(templateId, loadedTemplateId, StringComparison.OrdinalIgnoreCase) && string.Equals(sampleId, loadedSampleId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                Load(templateId, sampleId);
+            }
+
+            public void Update(float now)
+            {
+                if (frames.Count <= 1)
+                {
+                    return;
+                }
+
+                if (now - lastFrameAt < FrameInterval)
+                {
+                    return;
+                }
+
+                lastFrameAt = now;
+                frameIndex = (frameIndex + 1) % frames.Count;
+            }
+
+            private void Load(string templateId, string sampleId)
+            {
+                Clear();
+                loadedTemplateId = templateId;
+                loadedSampleId = sampleId;
+
+                var basePath = Path.Combine(Application.streamingAssetsPath, "CustomGestureReferenceVideos", templateId ?? string.Empty);
+                if (!Directory.Exists(basePath))
+                {
+                    StatusText = string.IsNullOrWhiteSpace(sampleId)
+                        ? $"未找到 {templateId} 的参考帧目录"
+                        : $"未找到 {templateId} / {sampleId} 的参考帧目录";
+                    return;
+                }
+
+                var files = Directory.GetFiles(basePath, "*.jpg", SearchOption.TopDirectoryOnly);
+                Array.Sort(files, StringComparer.OrdinalIgnoreCase);
+                if (files.Length == 0)
+                {
+                    files = Directory.GetFiles(basePath, "*.png", SearchOption.TopDirectoryOnly);
+                    Array.Sort(files, StringComparer.OrdinalIgnoreCase);
+                }
+
+                for (var index = 0; index < files.Length; index++)
+                {
+                    var bytes = File.ReadAllBytes(files[index]);
+                    var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                    if (!TryLoadImage(texture, bytes))
+                    {
+                        UnityEngine.Object.Destroy(texture);
+                        continue;
+                    }
+
+                    frames.Add(texture);
+                }
+
+                frameIndex = 0;
+                lastFrameAt = Time.unscaledTime;
+                StatusText = frames.Count > 0
+                    ? $"正在循环播放样本 {sampleId}，共 {frames.Count} 帧"
+                    : $"未能读取 {templateId} 的参考帧";
+            }
+
+            private void Clear()
+            {
+                for (var index = 0; index < frames.Count; index++)
+                {
+                    if (frames[index] != null)
+                    {
+                        UnityEngine.Object.Destroy(frames[index]);
+                    }
+                }
+
+                frames.Clear();
+                frameIndex = 0;
+                lastFrameAt = -999f;
+            }
+
+            private static bool TryLoadImage(Texture2D texture, byte[] bytes)
+            {
+                if (LoadImageMethod == null)
+                {
+                    return false;
+                }
+
+                var result = LoadImageMethod.Invoke(null, new object[] { texture, bytes, false });
+                return result is bool loaded && loaded;
+            }
+        }
+
         private static Rect Shrink(Rect rect, float left, float top, float right, float bottom)
         {
             return new Rect(rect.x + left, rect.y + top, Mathf.Max(1f, rect.width - left - right), Mathf.Max(1f, rect.height - top - bottom));
         }
     }
+
 }

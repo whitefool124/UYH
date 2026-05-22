@@ -85,7 +85,7 @@ namespace SpellGuard.InputSystem
 
         public static bool IsAllowedTargetIntent(GestureIntent intent)
         {
-            return intent == GestureIntent.CustomGesture || intent == GestureIntent.CastFire || intent == GestureIntent.CastIce || intent == GestureIntent.CastShield;
+            return intent != GestureIntent.None;
         }
 
         public string GetTemplatePath(string gestureId)
@@ -100,7 +100,13 @@ namespace SpellGuard.InputSystem
             {
                 var json = File.ReadAllText(path);
                 var wrapper = JsonUtility.FromJson<TemplateFile>(json);
-                if (wrapper == null || !TrySanitizeTemplate(wrapper.Template, out template))
+                if (wrapper != null && wrapper.Template != null && TrySanitizeTemplate(wrapper.Template, out template))
+                {
+                    return true;
+                }
+
+                var directTemplate = JsonUtility.FromJson<CustomGestureTemplate>(json);
+                if (directTemplate == null || !TrySanitizeTemplate(directTemplate, out template))
                 {
                     return false;
                 }
@@ -135,9 +141,27 @@ namespace SpellGuard.InputSystem
             }
 
             var defaultThreshold = template.Kind == CustomGestureKind.StaticPose ? CustomGestureRecognizer.DefaultStaticThreshold : CustomGestureRecognizer.DefaultDynamicThreshold;
-            template.TargetIntent = GestureIntent.CustomGesture;
+            if (!IsAllowedTargetIntent(template.TargetIntent))
+            {
+                template.TargetIntent = GestureIntent.CustomGesture;
+            }
             template.MatchThreshold = Mathf.Clamp(template.MatchThreshold <= 0f ? defaultThreshold : template.MatchThreshold, 0.01f, 2f);
             template.Samples ??= new List<CustomGestureSample>();
+            template.TrajectoryTemplates ??= new List<CustomGestureTrajectoryTemplate>();
+            if (template.Kind == CustomGestureKind.DynamicMotion)
+            {
+                if (template.TrajectoryTemplates.Count == 0)
+                {
+                    template.TrajectoryTemplates = CustomGestureTrajectoryTemplateBuilder.Build(template.Samples);
+                }
+
+                template.DynamicRule ??= CustomGestureDynamicRuleEvaluator.InferRule(template.Samples);
+            }
+            else
+            {
+                template.DynamicRule = null;
+                template.TrajectoryTemplates.Clear();
+            }
             template.RequiredHandedness = ResolveTemplateHandedness(template);
             sanitized = template;
             return true;

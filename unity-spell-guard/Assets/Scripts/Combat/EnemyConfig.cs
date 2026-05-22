@@ -9,9 +9,9 @@ namespace SpellGuard.Combat
 
         public static EnemyConfig Default => new EnemyConfig
         {
-            Speed = 2.2f,
+            Speed = 0f,
             HitPoints = 2,
-            AttackDistance = 1.4f
+            AttackDistance = 0f
         };
     }
 }

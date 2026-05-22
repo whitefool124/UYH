@@ -12,9 +12,9 @@ namespace SpellGuard.Combat
 
         public static WaveConfig Default => new WaveConfig
         {
-            SpawnInterval = 2.5f,
-            MaxAliveEnemies = 6,
-            SpawnRadius = 18f,
+            SpawnInterval = 0f,
+            MaxAliveEnemies = 3,
+            SpawnRadius = 0f,
             Enemy = EnemyConfig.Default
         };
     }

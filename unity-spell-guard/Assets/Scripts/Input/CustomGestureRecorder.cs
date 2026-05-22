@@ -173,6 +173,8 @@ namespace SpellGuard.InputSystem
             {
                 Time = Mathf.Max(0f, now - recordingStartedAt),
                 Confidence = Mathf.Clamp01(hand.Confidence),
+                StaticGesture = hand.StaticGesture,
+                PalmCenter = hand.PalmCenter,
                 Landmarks = copied
             });
         }
@@ -213,6 +215,12 @@ namespace SpellGuard.InputSystem
             if (hand.Handedness == GestureHandedness.Unknown)
             {
                 reason = "正在等待左右手识别";
+                return false;
+            }
+
+            if (hand.Handedness != targetHandedness)
+            {
+                reason = $"Use {FormatHandedness(targetHandedness)}";
                 return false;
             }
 

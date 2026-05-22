@@ -10,6 +10,46 @@ namespace SpellGuard.InputSystem
         DynamicMotion
     }
 
+    public enum CustomGestureDynamicPattern
+    {
+        Directional,
+        Repeat,
+        Loop
+    }
+
+    public enum CustomGestureMotionDirection
+    {
+        Any,
+        LeftToRight,
+        RightToLeft,
+        BottomToTop,
+        TopToBottom
+    }
+
+    [Serializable]
+    public sealed class CustomGestureDynamicRule
+    {
+        public CustomGestureDynamicPattern Pattern = CustomGestureDynamicPattern.Directional;
+        public CustomGestureMotionDirection Direction = CustomGestureMotionDirection.Any;
+        public bool RequireOpenPalm = true;
+        public float MinimumOpenPalmRatio = 0.8f;
+        public float MinimumDistance = 0.12f;
+        public float MaximumDrift = 0.22f;
+        public float MinimumDuration = 0.12f;
+        public float MaximumDuration = 2f;
+        public int RepeatCount = 2;
+        public float MinimumPathRatio = 1.6f;
+        public float MaximumClosureDistance = 0.12f;
+    }
+
+    [Serializable]
+    public sealed class CustomGestureTrajectoryTemplate
+    {
+        public string SampleId;
+        public float DurationSeconds;
+        public Vector2[] Points = System.Array.Empty<Vector2>();
+    }
+
     [Serializable]
     public sealed class CustomGestureTemplate
     {
@@ -19,7 +59,9 @@ namespace SpellGuard.InputSystem
         public GestureHandedness RequiredHandedness = GestureHandedness.Unknown;
         public GestureIntent TargetIntent = GestureIntent.CustomGesture;
         public float MatchThreshold = CustomGestureRecognizer.DefaultDynamicThreshold;
+        public CustomGestureDynamicRule DynamicRule;
         public List<CustomGestureSample> Samples = new List<CustomGestureSample>();
+        public List<CustomGestureTrajectoryTemplate> TrajectoryTemplates = new List<CustomGestureTrajectoryTemplate>();
 
         public bool HasSamples => Samples != null && Samples.Count > 0;
     }
@@ -40,6 +82,8 @@ namespace SpellGuard.InputSystem
     {
         public float Time;
         public float Confidence;
+        public GestureType StaticGesture = GestureType.None;
+        public Vector2 PalmCenter;
         public Vector2[] Landmarks = Array.Empty<Vector2>();
     }
 }

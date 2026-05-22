@@ -1,7 +1,8 @@
 {
   "name": "SpellGuard.Runtime",
   "references": [
-    "Mediapipe.Runtime"
+    "Mediapipe.Runtime",
+    "UnityEngine.ImageConversionModule"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

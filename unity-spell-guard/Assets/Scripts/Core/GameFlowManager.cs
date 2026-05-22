@@ -9,6 +9,7 @@ namespace SpellGuard.Core
         [SerializeField] private PlayerHealth playerHealth;
         [SerializeField] private EnemySpawner enemySpawner;
         [SerializeField] private int targetScoreToWin = 12;
+        [SerializeField] private bool autoCompleteOnTargetScore = true;
 
         public bool GameOver { get; private set; }
         public SpellGuardRunResult RunResult { get; private set; }
@@ -37,7 +38,15 @@ namespace SpellGuard.Core
                 return;
             }
 
-            if (combatScore >= TargetScoreToWin)
+            if (autoCompleteOnTargetScore && combatScore >= TargetScoreToWin)
+            {
+                EndRun(SpellGuardRunResult.Victory);
+            }
+        }
+
+        public void CompleteVictory()
+        {
+            if (!GameOver)
             {
                 EndRun(SpellGuardRunResult.Victory);
             }

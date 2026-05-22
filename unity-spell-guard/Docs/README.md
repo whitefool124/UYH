@@ -43,3 +43,9 @@ The Unity project now has a stable defense-demo loop:
 6. Restart or return to menu
 
 The default input mode is `Mock` for safe local and defense playback. Native MediaPipe remains available through the runtime input switch, with fallback safeguards so camera or native initialization issues do not block the demo path.
+
+## New beginner docs
+
+- `手势技术深挖_数学与代码层.md` - deeper math and code-level breakdown of MediaPipe, YOLO, DTW, and the gesture pipeline.
+- `手势技术原理详解.md` - MediaPipe, YOLO, DTW, and the full gesture pipeline explained for beginners.
+- `手势识别与项目框架入门说明.md` - project structure and gesture-to-gameplay overview for beginners.

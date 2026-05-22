@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using NUnit.Framework;
@@ -47,6 +48,28 @@ namespace SpellGuard.Tests.PlayMode
             Assert.That(reloaded.Templates.Count, Is.EqualTo(1));
             Assert.That(reloaded.Templates[0].TargetIntent, Is.EqualTo(GestureIntent.CustomGesture));
             Assert.That(reloaded.Templates[0].RequiredHandedness, Is.EqualTo(GestureHandedness.Right));
+        }
+
+        [Test]
+        public void LibraryLoadsWrappedOrDirectTemplateJson()
+        {
+            var folder = Path.Combine(Application.temporaryCachePath, "CustomGestureLibraryFormatTests");
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, true);
+            }
+
+            Directory.CreateDirectory(folder);
+            var template = BuildTemplate(GestureIntent.CastShield, "wrapped_template");
+            File.WriteAllText(Path.Combine(folder, "wrapped.json"), JsonUtility.ToJson(new WrappedTemplate { Template = template }, true));
+            File.WriteAllText(Path.Combine(folder, "direct.json"), JsonUtility.ToJson(template, true));
+
+            var library = new CustomGestureLibrary(folder);
+            library.LoadAll();
+
+            Assert.That(library.Templates.Count, Is.EqualTo(2));
+            Assert.That(library.Templates[0].TargetIntent, Is.EqualTo(GestureIntent.CastShield));
+            Assert.That(library.Templates[1].TargetIntent, Is.EqualTo(GestureIntent.CastShield));
         }
 
         [Test]
@@ -117,7 +140,55 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         [Test]
-        public void RecognizerOutputsCustomGestureForLegacySpellTemplate()
+        public void DynamicTemplateBuildsTrajectoryTemplatesForDtwMatching()
+        {
+            var template = BuildTemplate(GestureIntent.CustomGesture);
+
+            Assert.That(template.TrajectoryTemplates, Is.Not.Null);
+            Assert.That(template.TrajectoryTemplates.Count, Is.GreaterThan(0));
+            Assert.That(template.TrajectoryTemplates[0].Points.Length, Is.GreaterThanOrEqualTo(16));
+        }
+
+        [Test]
+        public void DtwRecognizerRejectsReversedDynamicTrajectory()
+        {
+            var recognizer = new CustomGestureRecognizer();
+            recognizer.Configure(0.5f, 1.6f, 0.1f);
+            var templates = new List<CustomGestureTemplate> { BuildTemplate(GestureIntent.CustomGesture) };
+            var matched = false;
+
+            for (var index = 0; index < 18; index++)
+            {
+                var phase = 0.34f - index * 0.02f;
+                matched = recognizer.TryResolve(BuildFrame(22f + index * 0.06f, phase), templates, 22f + index * 0.06f, out _) || matched;
+            }
+
+            Assert.That(matched, Is.False);
+        }
+
+        [Test]
+        public void DtwRecognizerMatchesGestureInsideNoisyValidationWindow()
+        {
+            var recognizer = new CustomGestureRecognizer();
+            recognizer.Configure(0.5f, 2.4f, 0.1f);
+            var templates = new List<CustomGestureTemplate> { BuildTemplate(GestureIntent.CustomGesture) };
+            var matched = false;
+
+            for (var index = 0; index < 6; index++)
+            {
+                matched = recognizer.TryResolve(BuildFrame(24f + index * 0.06f, 0f), templates, 24f + index * 0.06f, out _) || matched;
+            }
+
+            for (var index = 0; index < 18; index++)
+            {
+                matched = recognizer.TryResolve(BuildFrame(24.4f + index * 0.06f, index * 0.02f), templates, 24.4f + index * 0.06f, out _) || matched;
+            }
+
+            Assert.That(matched, Is.True);
+        }
+
+        [Test]
+        public void RecognizerOutputsTargetIntentForMatchingTemplate()
         {
             var recognizer = new CustomGestureRecognizer();
             recognizer.Configure(0.5f, 1.6f, 0.1f);
@@ -132,7 +203,7 @@ namespace SpellGuard.Tests.PlayMode
                 }
             }
 
-            Assert.That(action.Intent, Is.EqualTo(GestureIntent.CustomGesture));
+            Assert.That(action.Intent, Is.EqualTo(GestureIntent.CastFire));
         }
 
         [Test]
@@ -173,7 +244,7 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         [Test]
-        public void LibraryNormalizesUnsupportedIntentToCustomGesture()
+        public void LibraryPreservesMovementIntentForValidationTemplates()
         {
             var folder = Path.Combine(Application.temporaryCachePath, "CustomGestureRejectTests");
             if (Directory.Exists(folder))
@@ -185,7 +256,7 @@ namespace SpellGuard.Tests.PlayMode
             var template = BuildTemplate(GestureIntent.MoveLeft);
 
             Assert.That(library.Save(template), Is.True);
-            Assert.That(library.Templates[0].TargetIntent, Is.EqualTo(GestureIntent.CustomGesture));
+            Assert.That(library.Templates[0].TargetIntent, Is.EqualTo(GestureIntent.MoveLeft));
         }
 
         [Test]
@@ -211,6 +282,27 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         [Test]
+        public void LibraryPreservesGameplayIntentForCustomGestureTemplates()
+        {
+            var folder = Path.Combine(Application.temporaryCachePath, "CustomGestureIntentLibraryTests");
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, true);
+            }
+
+            var library = new CustomGestureLibrary(folder);
+            var template = BuildTemplate(GestureIntent.CastIce);
+
+            Assert.That(library.Save(template), Is.True);
+
+            var reloaded = new CustomGestureLibrary(folder);
+            reloaded.LoadAll();
+
+            Assert.That(reloaded.Templates.Count, Is.EqualTo(1));
+            Assert.That(reloaded.Templates[0].TargetIntent, Is.EqualTo(GestureIntent.CastIce));
+        }
+
+        [Test]
         public void RecognizerOutputsStaticPoseActionForMatchingTemplate()
         {
             var recognizer = new CustomGestureRecognizer();
@@ -222,6 +314,77 @@ namespace SpellGuard.Tests.PlayMode
             Assert.That(action.SourceKind, Is.EqualTo(GestureCommandKind.StaticPose));
         }
 
+        [Test]
+        public void DynamicRuleEvaluatorInfersReasonableRulePerSample()
+        {
+            var samples = new List<CustomGestureSample>
+            {
+                BuildDynamicSample(0.2f),
+                BuildDynamicSample(0.6f)
+            };
+
+            var rule = CustomGestureDynamicRuleEvaluator.InferRule(samples);
+
+            Assert.That(rule.Pattern, Is.EqualTo(CustomGestureDynamicPattern.Directional).Or.EqualTo(CustomGestureDynamicPattern.Repeat));
+            Assert.That(rule.MinimumDistance, Is.LessThan(0.2f));
+            Assert.That(rule.RepeatCount, Is.LessThanOrEqualTo(4));
+        }
+
+        [Test]
+        public void DynamicRuleEvaluatorAcceptsLooseDirectionalOpenPalmMotion()
+        {
+            var rule = new CustomGestureDynamicRule
+            {
+                Pattern = CustomGestureDynamicPattern.Directional,
+                Direction = CustomGestureMotionDirection.LeftToRight,
+                RequireOpenPalm = true,
+                MinimumOpenPalmRatio = 0.65f,
+                MinimumDistance = 0.08f,
+                MaximumDrift = 0.14f,
+                MinimumDuration = 0.05f,
+                MaximumDuration = 2f
+            };
+            var frames = new List<CustomGestureFrameSample>();
+            for (var index = 0; index < 8; index++)
+            {
+                frames.Add(new CustomGestureFrameSample
+                {
+                    Time = index * 0.08f,
+                    Confidence = 1f,
+                    StaticGesture = GestureType.OpenPalm,
+                    PalmCenter = new Vector2(0.45f + index * 0.02f, 0.5f + Mathf.Sin(index) * 0.005f),
+                    Landmarks = BuildLandmarks(Vector2.zero, 1f, index * 0.01f)
+                });
+            }
+
+            Assert.That(CustomGestureDynamicRuleEvaluator.TryMatch(rule, frames, 0.5f, out var confidence), Is.True);
+            Assert.That(confidence, Is.GreaterThan(0.5f));
+        }
+
+        private static CustomGestureSample BuildDynamicSample(float startOffset)
+        {
+            var frames = new List<CustomGestureFrameSample>();
+            for (var index = 0; index < 10; index++)
+            {
+                frames.Add(new CustomGestureFrameSample
+                {
+                    Time = index * 0.08f,
+                    Confidence = 1f,
+                    StaticGesture = GestureType.OpenPalm,
+                    PalmCenter = new Vector2(0.35f + index * 0.02f + startOffset, 0.5f + Mathf.Sin(index * 0.6f) * 0.005f),
+                    Landmarks = BuildLandmarks(Vector2.zero, 1f, index * 0.02f + startOffset)
+                });
+            }
+
+            return new CustomGestureSample
+            {
+                SampleId = $"sample_{startOffset:0.00}",
+                Handedness = GestureHandedness.Right,
+                DurationSeconds = 0.72f,
+                Frames = frames
+            };
+        }
+
         private static CustomGestureTemplate BuildTemplate(GestureIntent intent, string gestureId = "custom_test", float phaseOffset = 0f)
         {
             var frames = new List<CustomGestureFrameSample>();
@@ -231,9 +394,20 @@ namespace SpellGuard.Tests.PlayMode
                 {
                     Time = index * 0.06f,
                     Confidence = 1f,
+                    StaticGesture = GestureType.OpenPalm,
+                    PalmCenter = new Vector2(0.5f + index * 0.01f + phaseOffset * 0.1f, 0.5f),
                     Landmarks = BuildLandmarks(Vector2.zero, 1f, index * 0.02f + phaseOffset)
                 });
             }
+
+            var sample = new CustomGestureSample
+            {
+                SampleId = "sample_test",
+                Handedness = GestureHandedness.Right,
+                DurationSeconds = 1.08f,
+                Frames = frames
+            };
+            var samples = new List<CustomGestureSample> { sample };
 
             return new CustomGestureTemplate
             {
@@ -242,16 +416,19 @@ namespace SpellGuard.Tests.PlayMode
                 Kind = CustomGestureKind.DynamicMotion,
                 TargetIntent = intent,
                 MatchThreshold = CustomGestureRecognizer.DefaultDynamicThreshold,
-                Samples = new List<CustomGestureSample>
+                DynamicRule = new CustomGestureDynamicRule
                 {
-                    new CustomGestureSample
-                    {
-                        SampleId = "sample_test",
-                        Handedness = GestureHandedness.Right,
-                        DurationSeconds = 1.08f,
-                        Frames = frames
-                    }
-                }
+                    Pattern = CustomGestureDynamicPattern.Directional,
+                    Direction = CustomGestureMotionDirection.LeftToRight,
+                    RequireOpenPalm = true,
+                    MinimumOpenPalmRatio = 0.65f,
+                    MinimumDistance = 0.08f,
+                    MaximumDrift = 0.14f,
+                    MinimumDuration = 0.05f,
+                    MaximumDuration = 2f
+                },
+                TrajectoryTemplates = CustomGestureTrajectoryTemplateBuilder.Build(samples),
+                Samples = samples
             };
         }
 
@@ -313,6 +490,12 @@ namespace SpellGuard.Tests.PlayMode
             }
 
             return landmarks;
+        }
+
+        [Serializable]
+        private sealed class WrappedTemplate
+        {
+            public CustomGestureTemplate Template;
         }
     }
 }
