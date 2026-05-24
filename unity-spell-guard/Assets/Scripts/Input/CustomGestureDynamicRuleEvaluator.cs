@@ -13,6 +13,7 @@ namespace SpellGuard.InputSystem
             public float Time;
             public Vector2 Palm;
             public GestureType StaticGesture;
+            public Vector2[] Landmarks;
         }
 
         public static CustomGestureDynamicRule CreateDefaultRule()
@@ -27,9 +28,16 @@ namespace SpellGuard.InputSystem
                 MaximumDrift = 0.22f,
                 MinimumDuration = 0.12f,
                 MaximumDuration = 2f,
+                MinimumAxisRatio = 0f,
                 RepeatCount = 2,
                 MinimumPathRatio = 1.6f,
-                MaximumClosureDistance = 0.12f
+                MaximumClosureDistance = 0.12f,
+                FingerAIndex = 4,
+                FingerBIndex = 8,
+                MinimumFingerDistanceDelta = 0.22f,
+                MaximumPalmMotion = 0.18f,
+                MinimumFeatureDelta = 0.16f,
+                MinimumFeaturePath = 0.22f
             };
         }
 
@@ -65,7 +73,8 @@ namespace SpellGuard.InputSystem
                     {
                         Time = frame.Time,
                         Palm = palm,
-                        StaticGesture = frame.StaticGesture
+                        StaticGesture = frame.StaticGesture,
+                        Landmarks = frame.Landmarks
                     });
                     totalFrames += 1;
                     if (frame.StaticGesture == GestureType.OpenPalm)
@@ -96,6 +105,9 @@ namespace SpellGuard.InputSystem
             var averageDirectionFlipCount = 0f;
             var averageRepeatScore = 0f;
             var averageClosedLoopScore = 0f;
+            var averageFeatureDelta = 0f;
+            var averageFeaturePath = 0f;
+            var repeatLikeAnalysisCount = 0;
             var horizontalAnalysisCount = 0;
             for (var analysisIndex = 0; analysisIndex < analyses.Count; analysisIndex++)
             {
@@ -111,6 +123,13 @@ namespace SpellGuard.InputSystem
                 averageDirectionFlipCount += analysis.DirectionFlipCount;
                 averageRepeatScore += analysis.RepeatScore;
                 averageClosedLoopScore += analysis.ClosedLoopScore;
+                averageFeatureDelta += analysis.FeatureDelta;
+                averageFeaturePath += analysis.FeaturePath;
+                if (analysis.RepeatScore >= 0.7f && analysis.DirectionFlipCount >= 2)
+                {
+                    repeatLikeAnalysisCount += 1;
+                }
+
                 if (analysis.IsHorizontal)
                 {
                     horizontalAnalysisCount += 1;
@@ -129,11 +148,15 @@ namespace SpellGuard.InputSystem
             averageDirectionFlipCount /= analysisCount;
             averageRepeatScore /= analysisCount;
             averageClosedLoopScore /= analysisCount;
+            averageFeatureDelta /= analysisCount;
+            averageFeaturePath /= analysisCount;
 
             rule.RequireOpenPalm = totalFrames > 0 && openPalmCount >= Mathf.CeilToInt(totalFrames * 0.5f);
             rule.MinimumOpenPalmRatio = rule.RequireOpenPalm ? 0.55f : 0f;
 
-            if (averageClosedLoopScore >= 0.7f)
+            var palmMotionDominates = averageNetDistance >= 0.10f || averagePathLength >= 0.16f;
+
+            if (palmMotionDominates && averageClosedLoopScore >= 0.7f)
             {
                 rule.Pattern = CustomGestureDynamicPattern.Loop;
                 rule.Direction = CustomGestureMotionDirection.Any;
@@ -143,7 +166,53 @@ namespace SpellGuard.InputSystem
                 return rule;
             }
 
-            if (averageRepeatScore >= 0.7f && averageDirectionFlipCount >= 2f)
+            var spreadAnalysisCount = 0;
+            var averageFingerDistanceDelta = 0f;
+            var averagePalmMotion = 0f;
+            for (var sampleIndex = 0; sampleIndex < samples.Count; sampleIndex++)
+            {
+                var sample = samples[sampleIndex];
+                if (sample?.Frames == null || sample.Frames.Count < 2)
+                {
+                    continue;
+                }
+
+                var firstFrame = sample.Frames[0];
+                var lastFrame = sample.Frames[sample.Frames.Count - 1];
+                if (!TryResolveFingerDistance(firstFrame, 4, 8, out var firstDistance) ||
+                    !TryResolveFingerDistance(lastFrame, 4, 8, out var lastDistance) ||
+                    !TryResolvePalm(firstFrame, out var firstPalm) ||
+                    !TryResolvePalm(lastFrame, out var lastPalm))
+                {
+                    continue;
+                }
+
+                averageFingerDistanceDelta += lastDistance - firstDistance;
+                averagePalmMotion += Vector2.Distance(firstPalm, lastPalm);
+                spreadAnalysisCount += 1;
+            }
+
+            if (spreadAnalysisCount > 0)
+            {
+                averageFingerDistanceDelta /= spreadAnalysisCount;
+                averagePalmMotion /= spreadAnalysisCount;
+                if (averageFingerDistanceDelta > 0.18f && averagePalmMotion <= 0.2f)
+                {
+                    rule.Pattern = CustomGestureDynamicPattern.FingerSpread;
+                    rule.Direction = CustomGestureMotionDirection.Any;
+                    rule.RequireOpenPalm = false;
+                    rule.MinimumOpenPalmRatio = 0f;
+                    rule.MinimumFingerDistanceDelta = Mathf.Max(0.12f, averageFingerDistanceDelta * 0.8f);
+                    rule.MaximumPalmMotion = Mathf.Max(0.12f, averagePalmMotion * 1.5f);
+                    return rule;
+                }
+            }
+
+            if (analysisCount >= 3
+                && palmMotionDominates
+                && repeatLikeAnalysisCount >= Mathf.CeilToInt(analysisCount * 0.7f)
+                && averageRepeatScore >= 0.7f
+                && averageDirectionFlipCount >= 2f)
             {
                 rule.Pattern = CustomGestureDynamicPattern.Repeat;
                 rule.Direction = horizontalAnalysisCount >= Mathf.CeilToInt(analysisCount * 0.5f)
@@ -152,6 +221,19 @@ namespace SpellGuard.InputSystem
                 rule.RepeatCount = Mathf.Clamp(Mathf.RoundToInt(averageDirectionFlipCount + 1f), 2, 4);
                 rule.MinimumDistance = Mathf.Max(0.06f, averagePathLength * 0.18f);
                 rule.MaximumDrift = Mathf.Max(0.12f, averagePerpendicularDrift * 1.25f);
+                return rule;
+            }
+
+            if (!palmMotionDominates && averageFeaturePath >= 0.18f && averageFeatureDelta >= 0.10f)
+            {
+                rule.Pattern = CustomGestureDynamicPattern.FeatureSequence;
+                rule.Direction = CustomGestureMotionDirection.Any;
+                rule.RequireOpenPalm = false;
+                rule.MinimumOpenPalmRatio = 0f;
+                rule.MinimumFeatureDelta = Mathf.Max(0.08f, averageFeatureDelta * 0.65f);
+                rule.MinimumFeaturePath = Mathf.Max(0.12f, averageFeaturePath * 0.6f);
+                rule.MinimumDuration = Mathf.Clamp(averageDuration * 0.25f, 0.05f, 0.4f);
+                rule.MaximumDuration = Mathf.Clamp(averageDuration * 2.2f, 0.3f, 3f);
                 return rule;
             }
 
@@ -193,7 +275,8 @@ namespace SpellGuard.InputSystem
                 {
                     Time = frame.Time,
                     Palm = palm,
-                    StaticGesture = frame.StaticGesture
+                    StaticGesture = frame.StaticGesture,
+                    Landmarks = frame.Landmarks
                 });
                 if (frame.StaticGesture == GestureType.OpenPalm)
                 {
@@ -206,7 +289,7 @@ namespace SpellGuard.InputSystem
                 return false;
             }
 
-            var analysis = Analyze(motionSamples);
+            var analysis = Analyze(motionSamples, rule.FingerAIndex, rule.FingerBIndex);
             if (rule.RequireOpenPalm && analysis.TotalFrames > 0)
             {
                 var openPalmRatio = openPalmCount / (float)analysis.TotalFrames;
@@ -232,6 +315,24 @@ namespace SpellGuard.InputSystem
                     confidence = analysis.ClosedLoopScore;
                     return true;
 
+                case CustomGestureDynamicPattern.FingerSpread:
+                    if (!analysis.IsFingerSpread(rule.FingerAIndex, rule.FingerBIndex, rule.MinimumFingerDistanceDelta, rule.MaximumPalmMotion))
+                    {
+                        return false;
+                    }
+
+                    confidence = analysis.FingerSpreadScore;
+                    return true;
+
+                case CustomGestureDynamicPattern.FeatureSequence:
+                    if (!analysis.HasEnoughFeatureMotion(rule.MinimumFeatureDelta, rule.MinimumFeaturePath))
+                    {
+                        return false;
+                    }
+
+                    confidence = analysis.FeatureMotionScore;
+                    return true;
+
                 case CustomGestureDynamicPattern.Repeat:
                     if (!analysis.IsRepeat(rule.RepeatCount, rule.MinimumDistance, rule.MaximumDrift))
                     {
@@ -242,7 +343,7 @@ namespace SpellGuard.InputSystem
                     return true;
 
                 default:
-                    if (!analysis.IsDirectional(rule.Direction, rule.MinimumDistance, rule.MaximumDrift))
+                    if (!analysis.IsDirectional(rule.Direction, rule.MinimumDistance, rule.MaximumDrift, rule.MinimumAxisRatio))
                     {
                         return false;
                     }
@@ -269,7 +370,31 @@ namespace SpellGuard.InputSystem
             return true;
         }
 
-        private static MotionAnalysis Analyze(IReadOnlyList<MotionSample> samples)
+        private static bool TryResolveFingerDistance(CustomGestureFrameSample frame, int fingerAIndex, int fingerBIndex, out float distance)
+        {
+            distance = 0f;
+            if (frame?.Landmarks == null || frame.Landmarks.Length <= Mathf.Max(fingerAIndex, fingerBIndex))
+            {
+                return false;
+            }
+
+            distance = Vector2.Distance(frame.Landmarks[fingerAIndex], frame.Landmarks[fingerBIndex]);
+            return true;
+        }
+
+        private static bool TryResolveFingerDistance(MotionSample sample, int fingerAIndex, int fingerBIndex, out float distance)
+        {
+            distance = 0f;
+            if (sample.Landmarks == null || sample.Landmarks.Length <= Mathf.Max(fingerAIndex, fingerBIndex))
+            {
+                return false;
+            }
+
+            distance = Vector2.Distance(sample.Landmarks[fingerAIndex], sample.Landmarks[fingerBIndex]);
+            return true;
+        }
+
+        private static MotionAnalysis Analyze(IReadOnlyList<MotionSample> samples, int fingerAIndex = 4, int fingerBIndex = 8)
         {
             var first = samples[0];
             var last = samples[samples.Count - 1];
@@ -304,6 +429,22 @@ namespace SpellGuard.InputSystem
             var perpendicularDrift = Mathf.Abs(horizontalDelta) > Mathf.Abs(verticalDelta) ? Mathf.Abs(verticalDelta) : Mathf.Abs(horizontalDelta);
             var isHorizontal = Mathf.Abs(horizontalDelta) >= Mathf.Abs(verticalDelta);
             var pathRatio = closureDistance <= PalmEpsilon ? pathLength : pathLength / Mathf.Max(PalmEpsilon, closureDistance);
+            var firstFingerDistance = 0f;
+            var lastFingerDistance = 0f;
+            if (TryResolveFingerDistance(first, fingerAIndex, fingerBIndex, out var firstSpread) && TryResolveFingerDistance(last, fingerAIndex, fingerBIndex, out var lastSpread))
+            {
+                firstFingerDistance = firstSpread;
+                lastFingerDistance = lastSpread;
+            }
+
+            var featureDelta = 0f;
+            var featurePath = 0f;
+            if (TryResolveFeatureMotion(samples, out var resolvedFeatureDelta, out var resolvedFeaturePath))
+            {
+                featureDelta = resolvedFeatureDelta;
+                featurePath = resolvedFeaturePath;
+            }
+
             return new MotionAnalysis
             {
                 TotalFrames = samples.Count,
@@ -322,7 +463,52 @@ namespace SpellGuard.InputSystem
                 DirectionScore = ComputeDirectionalScore(netDistance, perpendicularDrift, pathLength),
                 RepeatScore = ComputeRepeatScore(directionFlipCount, pathLength, netDistance),
                 ClosedLoopScore = ComputeLoopScore(closureDistance, pathLength)
+                ,
+                FirstFingerDistance = firstFingerDistance,
+                LastFingerDistance = lastFingerDistance,
+                FingerSpreadScore = ComputeFingerSpreadScore(firstFingerDistance, lastFingerDistance, pathLength),
+                FeatureDelta = featureDelta,
+                FeaturePath = featurePath,
+                FeatureMotionScore = ComputeFeatureMotionScore(featureDelta, featurePath)
             };
+        }
+
+        private static bool TryResolveFeatureMotion(IReadOnlyList<MotionSample> samples, out float featureDelta, out float featurePath)
+        {
+            featureDelta = 0f;
+            featurePath = 0f;
+            float[] firstFeatures = null;
+            float[] lastFeatures = null;
+            float[] previousFeatures = null;
+            for (var index = 0; index < samples.Count; index++)
+            {
+                var sample = samples[index];
+                if (!CustomGestureFeatureExtractor.TryExtract(sample.Landmarks, 1f, 0f, out var features))
+                {
+                    continue;
+                }
+
+                firstFeatures ??= features;
+                if (previousFeatures != null)
+                {
+                    var step = CustomGestureFeatureExtractor.Distance(previousFeatures, features);
+                    if (!float.IsPositiveInfinity(step))
+                    {
+                        featurePath += step;
+                    }
+                }
+
+                previousFeatures = features;
+                lastFeatures = features;
+            }
+
+            if (firstFeatures == null || lastFeatures == null || ReferenceEquals(firstFeatures, lastFeatures))
+            {
+                return false;
+            }
+
+            featureDelta = CustomGestureFeatureExtractor.Distance(firstFeatures, lastFeatures);
+            return !float.IsPositiveInfinity(featureDelta);
         }
 
         private static float ComputeDirectionalScore(float netDistance, float drift, float pathLength)
@@ -348,6 +534,20 @@ namespace SpellGuard.InputSystem
             return Mathf.Clamp01((closureScore * 0.6f) + (lengthScore * 0.4f));
         }
 
+        private static float ComputeFingerSpreadScore(float firstFingerDistance, float lastFingerDistance, float pathLength)
+        {
+            var spreadDelta = Mathf.Clamp01((lastFingerDistance - firstFingerDistance) / 0.25f);
+            var palmStabilityScore = 1f - Mathf.Clamp01(pathLength / 0.12f);
+            return Mathf.Clamp01((spreadDelta * 0.85f) + (palmStabilityScore * 0.15f));
+        }
+
+        private static float ComputeFeatureMotionScore(float featureDelta, float featurePath)
+        {
+            var deltaScore = Mathf.Clamp01(featureDelta / 0.25f);
+            var pathScore = Mathf.Clamp01(featurePath / 0.45f);
+            return Mathf.Clamp01((deltaScore * 0.55f) + (pathScore * 0.45f));
+        }
+
         private struct MotionAnalysis
         {
             public int TotalFrames;
@@ -366,12 +566,37 @@ namespace SpellGuard.InputSystem
             public float DirectionScore;
             public float RepeatScore;
             public float ClosedLoopScore;
+            public float FirstFingerDistance;
+            public float LastFingerDistance;
+            public float FingerSpreadScore;
+            public float FeatureDelta;
+            public float FeaturePath;
+            public float FeatureMotionScore;
 
-            public bool IsDirectional(CustomGestureMotionDirection direction, float minimumDistance, float maximumDrift)
+            public bool IsDirectional(CustomGestureMotionDirection direction, float minimumDistance, float maximumDrift, float minimumAxisRatio)
             {
                 if (NetDistance < minimumDistance || PerpendicularDrift > maximumDrift)
                 {
                     return false;
+                }
+
+                if (minimumAxisRatio > 0f)
+                {
+                    var horizontalDominance = Mathf.Abs(HorizontalDelta) / Mathf.Max(MotionEpsilon, Mathf.Abs(VerticalDelta));
+                    var verticalDominance = Mathf.Abs(VerticalDelta) / Mathf.Max(MotionEpsilon, Mathf.Abs(HorizontalDelta));
+                    var passesAxisRatio = direction switch
+                    {
+                        CustomGestureMotionDirection.LeftToRight => horizontalDominance >= minimumAxisRatio,
+                        CustomGestureMotionDirection.RightToLeft => horizontalDominance >= minimumAxisRatio,
+                        CustomGestureMotionDirection.BottomToTop => verticalDominance >= minimumAxisRatio,
+                        CustomGestureMotionDirection.TopToBottom => verticalDominance >= minimumAxisRatio,
+                        _ => horizontalDominance >= minimumAxisRatio || verticalDominance >= minimumAxisRatio
+                    };
+
+                    if (!passesAxisRatio)
+                    {
+                        return false;
+                    }
                 }
 
                 return direction switch
@@ -398,6 +623,27 @@ namespace SpellGuard.InputSystem
             public bool IsClosedLoop(float maximumClosureDistance, float minimumPathRatio)
             {
                 return ClosureDistance <= maximumClosureDistance && PathRatio >= minimumPathRatio;
+            }
+
+            public bool IsFingerSpread(int fingerAIndex, int fingerBIndex, float minimumFingerDistanceDelta, float maximumPalmMotion)
+            {
+                if (FingerSpreadScore <= 0f)
+                {
+                    return false;
+                }
+
+                var distanceDelta = LastFingerDistance - FirstFingerDistance;
+                if (distanceDelta < minimumFingerDistanceDelta)
+                {
+                    return false;
+                }
+
+                return PathLength <= Mathf.Max(0.0001f, maximumPalmMotion);
+            }
+
+            public bool HasEnoughFeatureMotion(float minimumFeatureDelta, float minimumFeaturePath)
+            {
+                return FeatureDelta >= minimumFeatureDelta && FeaturePath >= minimumFeaturePath;
             }
         }
     }

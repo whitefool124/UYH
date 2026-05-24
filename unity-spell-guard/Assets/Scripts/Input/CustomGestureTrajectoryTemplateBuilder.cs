@@ -31,5 +31,32 @@ namespace SpellGuard.InputSystem
 
             return templates;
         }
+
+        public static List<CustomGestureFeatureSequenceTemplate> BuildFeatureSequences(IReadOnlyList<CustomGestureSample> samples)
+        {
+            var templates = new List<CustomGestureFeatureSequenceTemplate>();
+            if (samples == null)
+            {
+                return templates;
+            }
+
+            for (var index = 0; index < samples.Count; index++)
+            {
+                var sample = samples[index];
+                if (!CustomGestureFeatureSequenceMatcher.TryBuildSequence(sample, 0.5f, out var sequence))
+                {
+                    continue;
+                }
+
+                templates.Add(new CustomGestureFeatureSequenceTemplate
+                {
+                    SampleId = sample.SampleId,
+                    DurationSeconds = sample.DurationSeconds,
+                    Frames = sequence
+                });
+            }
+
+            return templates;
+        }
     }
 }

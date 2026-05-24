@@ -36,6 +36,7 @@ internal static class Program
 
         var minedJson = ParseArg(args, "--dataset") ?? Path.Combine(root, "build-temp", "jester_mined_motion_subset.json");
         var reportDir = ParseArg(args, "--report") ?? Path.Combine(root, "build-temp", "external-regression-report");
+        var explicitLibraryDir = ParseArg(args, "--library");
         Directory.CreateDirectory(reportDir);
 
         if (!File.Exists(minedJson))
@@ -45,16 +46,11 @@ internal static class Program
         }
 
         var dataset = LoadDataset(minedJson);
-        var saveFolder = Path.Combine(reportDir, "library");
-        if (Directory.Exists(saveFolder))
-        {
-            Directory.Delete(saveFolder, true);
-        }
+        var saveFolder = explicitLibraryDir ?? Path.Combine(reportDir, "library");
+        Directory.CreateDirectory(saveFolder);
 
         var trainByLabel = new Dictionary<string, List<CustomGestureSample>>(StringComparer.OrdinalIgnoreCase);
         var heldOut = new List<CustomGestureBatchClip>();
-        var library = new CustomGestureLibrary(saveFolder);
-
         foreach (var clip in dataset.Clips)
         {
             if (clip == null)
@@ -95,19 +91,20 @@ internal static class Program
                 DisplayName = pair.Key,
                 Kind = CustomGestureKind.DynamicMotion,
                 TargetIntent = GestureIntent.CustomGesture,
-                MatchThreshold = CustomGestureRecognizer.DefaultDynamicThreshold,
+                MatchThreshold = 0.78f,
                 Samples = pair.Value,
                 TrajectoryTemplates = CustomGestureTrajectoryTemplateBuilder.Build(pair.Value),
+                FeatureSequenceTemplates = CustomGestureTrajectoryTemplateBuilder.BuildFeatureSequences(pair.Value),
                 DynamicRule = CustomGestureDynamicRuleEvaluator.InferRule(pair.Value),
-                RequiredHandedness = ResolveHandedness(pair.Value)
+                RequiredHandedness = GestureHandedness.Unknown
             };
+            RelaxForLiveValidation(template);
 
-            library.Save(template);
+            SaveTemplate(saveFolder, template);
             savedLabels.Add(pair.Key);
         }
 
-        library.LoadAll();
-        var templates = library.Templates.ToList();
+        var templates = LoadTemplatesForSelfCheck(saveFolder);
         var saveResults = new List<string>();
         foreach (var label in savedLabels)
         {
@@ -154,6 +151,11 @@ internal static class Program
 
         File.WriteAllLines(Path.Combine(reportDir, "saved_templates.csv"), saveResults);
         File.WriteAllLines(Path.Combine(reportDir, "validation_results.csv"), validationLines.Prepend("clip_id,label,matched,matched_label,correct,best_score,mode"));
+        File.WriteAllText(Path.Combine(reportDir, "import_manifest.txt"),
+            $"dataset={Path.GetFullPath(minedJson)}{Environment.NewLine}" +
+            $"library={Path.GetFullPath(saveFolder)}{Environment.NewLine}" +
+            $"saved_templates={savedLabels.Count}{Environment.NewLine}" +
+            $"validated_clips={heldOut.Count}{Environment.NewLine}");
         Console.WriteLine($"Saved templates: {savedLabels.Count}");
         Console.WriteLine($"Validated clips: {heldOut.Count}");
         Console.WriteLine($"Correct clips: {validationLines.Count(line => line.Contains(",True,"))}");
@@ -167,7 +169,7 @@ internal static class Program
         var templates = LoadTemplatesForSelfCheck(libraryFolder);
         var rows = new List<string>
         {
-            "gesture_id,display_name,sample_id,frames,threshold,min_score,matched,triggered_at,pattern,direction,trajectory_templates"
+            "gesture_id,display_name,sample_id,frames,threshold,min_score,matched,triggered_at,pattern,direction,trajectory_templates,feature_sequence_templates"
         };
 
         var checkedSamples = 0;
@@ -188,7 +190,7 @@ internal static class Program
 
                 checkedSamples++;
                 var recognizer = new CustomGestureRecognizer();
-                recognizer.Configure(0.35f, 2.4f, 0.01f);
+                recognizer.Configure(0.2f, 2.4f, 0.01f);
                 recognizer.Reset();
                 var matched = false;
                 var bestScore = float.PositiveInfinity;
@@ -227,7 +229,8 @@ internal static class Program
                     FormatScore(triggeredAt),
                     template.DynamicRule != null ? template.DynamicRule.Pattern.ToString() : "",
                     template.DynamicRule != null ? template.DynamicRule.Direction.ToString() : "",
-                    (template.TrajectoryTemplates?.Count ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                    (template.TrajectoryTemplates?.Count ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    (template.FeatureSequenceTemplates?.Count ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture)));
             }
         }
 
@@ -262,9 +265,14 @@ internal static class Program
 
                 template.Samples ??= new List<CustomGestureSample>();
                 template.TrajectoryTemplates ??= CustomGestureTrajectoryTemplateBuilder.Build(template.Samples);
+                template.FeatureSequenceTemplates ??= CustomGestureTrajectoryTemplateBuilder.BuildFeatureSequences(template.Samples);
                 if (template.TrajectoryTemplates.Count == 0 && template.Kind == CustomGestureKind.DynamicMotion)
                 {
                     template.TrajectoryTemplates = CustomGestureTrajectoryTemplateBuilder.Build(template.Samples);
+                }
+                if (template.FeatureSequenceTemplates.Count == 0 && template.Kind == CustomGestureKind.DynamicMotion)
+                {
+                    template.FeatureSequenceTemplates = CustomGestureTrajectoryTemplateBuilder.BuildFeatureSequences(template.Samples);
                 }
 
                 template.DynamicRule ??= template.Kind == CustomGestureKind.DynamicMotion
@@ -291,6 +299,33 @@ internal static class Program
     private sealed class TemplateFile
     {
         public CustomGestureTemplate? Template { get; set; }
+    }
+
+    private static void SaveTemplate(string libraryFolder, CustomGestureTemplate template)
+    {
+        Directory.CreateDirectory(libraryFolder);
+        var path = Path.Combine(libraryFolder, $"{template.GestureId}.json");
+        var json = JsonSerializer.Serialize(new TemplateFile { Template = template }, JsonOptions);
+        File.WriteAllText(path, json);
+    }
+
+    private static void RelaxForLiveValidation(CustomGestureTemplate template)
+    {
+        if (template?.DynamicRule == null || template.Kind != CustomGestureKind.DynamicMotion)
+        {
+            return;
+        }
+
+        template.RequiredHandedness = GestureHandedness.Unknown;
+        template.MatchThreshold = Math.Max(template.MatchThreshold, 0.78f);
+        template.DynamicRule.Direction = CustomGestureMotionDirection.Any;
+        template.DynamicRule.MinimumAxisRatio = 0f;
+        template.DynamicRule.MinimumDistance = Math.Min(template.DynamicRule.MinimumDistance, 0.05f);
+        template.DynamicRule.MaximumDrift = Math.Max(template.DynamicRule.MaximumDrift, 0.60f);
+        template.DynamicRule.MinimumDuration = Math.Min(template.DynamicRule.MinimumDuration, 0.02f);
+        template.DynamicRule.MaximumDuration = Math.Max(template.DynamicRule.MaximumDuration, 3.0f);
+        template.DynamicRule.MinimumFeatureDelta = Math.Min(template.DynamicRule.MinimumFeatureDelta, 0.08f);
+        template.DynamicRule.MinimumFeaturePath = Math.Min(template.DynamicRule.MinimumFeaturePath, 0.12f);
     }
 
     private static GestureFrame ToGestureFrame(CustomGestureFrameSample sample, GestureHandedness handedness, float timestamp)

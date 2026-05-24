@@ -36,6 +36,62 @@ namespace SpellGuard.InputSystem
             return TryNormalizeAndResample(points, out trajectory);
         }
 
+        public static bool TryMeasureRawMotion(CustomGestureSample sample, float minimumConfidence, out float netDistance, out float pathLength)
+        {
+            netDistance = 0f;
+            pathLength = 0f;
+            if (sample?.Frames == null || sample.Frames.Count < 2)
+            {
+                return false;
+            }
+
+            return TryMeasureRawMotion(sample.Frames, minimumConfidence, out netDistance, out pathLength);
+        }
+
+        public static bool TryMeasureRawMotion(IReadOnlyList<CustomGestureFrameSample> frames, float minimumConfidence, out float netDistance, out float pathLength)
+        {
+            netDistance = 0f;
+            pathLength = 0f;
+            if (frames == null || frames.Count < 2)
+            {
+                return false;
+            }
+
+            var hasFirst = false;
+            var first = Vector2.zero;
+            var last = Vector2.zero;
+            var previous = Vector2.zero;
+            for (var index = 0; index < frames.Count; index++)
+            {
+                var frame = frames[index];
+                if (frame.Confidence < minimumConfidence || !TryResolvePalm(frame, out var palm))
+                {
+                    continue;
+                }
+
+                if (!hasFirst)
+                {
+                    first = palm;
+                    hasFirst = true;
+                }
+                else
+                {
+                    pathLength += Vector2.Distance(previous, palm);
+                }
+
+                previous = palm;
+                last = palm;
+            }
+
+            if (!hasFirst)
+            {
+                return false;
+            }
+
+            netDistance = Vector2.Distance(first, last);
+            return true;
+        }
+
         public static bool TryBuildTrajectory(IReadOnlyList<CustomGestureFrameSample> frames, float minimumConfidence, out Vector2[] trajectory)
         {
             trajectory = null;
@@ -115,8 +171,9 @@ namespace SpellGuard.InputSystem
 
             var best = float.PositiveInfinity;
             var targetDuration = Mathf.Clamp(templateDurationSeconds, 0.25f, 2.5f);
-            var minimumDuration = targetDuration * 0.55f;
-            var maximumDuration = targetDuration * 1.65f;
+            var minimumDuration = Mathf.Max(0.24f, targetDuration * 0.55f);
+            var maximumDuration = Mathf.Max(3.0f, targetDuration * 4.0f);
+            var templateDelta = templateTrajectory[templateTrajectory.Length - 1] - templateTrajectory[0];
             for (var start = 0; start < runtimeFrames.Count - 1; start++)
             {
                 for (var end = start + 2; end <= runtimeFrames.Count; end++)
@@ -130,6 +187,11 @@ namespace SpellGuard.InputSystem
                     if (duration > maximumDuration)
                     {
                         break;
+                    }
+
+                    if (!PassesRuntimeMotionGate(runtimeFrames, start, end - start, minimumConfidence, templateDelta))
+                    {
+                        continue;
                     }
 
                     if (!TryBuildTrajectory(new WindowSlice(runtimeFrames, start, end - start), minimumConfidence, out var runtimeTrajectory))
@@ -146,9 +208,140 @@ namespace SpellGuard.InputSystem
                 return best;
             }
 
-            return TryBuildTrajectory(runtimeFrames, minimumConfidence, out var fullTrajectory)
+            return PassesRuntimeMotionGate(runtimeFrames, 0, runtimeFrames.Count, minimumConfidence, templateDelta)
+                   && TryBuildTrajectory(runtimeFrames, minimumConfidence, out var fullTrajectory)
                 ? Score(fullTrajectory, templateTrajectory)
                 : float.PositiveInfinity;
+        }
+
+        private static bool PassesRuntimeMotionGate(
+            IReadOnlyList<CustomGestureFrameSample> frames,
+            int start,
+            int count,
+            float minimumConfidence,
+            Vector2 templateDelta)
+        {
+            if (frames == null || count < 4)
+            {
+                return false;
+            }
+
+            var hasFirst = false;
+            var first = Vector2.zero;
+            var last = Vector2.zero;
+            var previous = Vector2.zero;
+            var pathLength = 0f;
+            var progress = 0f;
+            var reverseProgress = 0f;
+            var perpendicularPath = 0f;
+            var axis = ResolveDominantAxis(templateDelta);
+            for (var offset = 0; offset < count; offset++)
+            {
+                var frame = frames[start + offset];
+                if (frame.Confidence < minimumConfidence || !TryResolvePalm(frame, out var palm))
+                {
+                    continue;
+                }
+
+                if (!hasFirst)
+                {
+                    first = palm;
+                    hasFirst = true;
+                }
+                else
+                {
+                    var step = palm - previous;
+                    pathLength += step.magnitude;
+                    var axisStep = Vector2.Dot(step, axis);
+                    if (axisStep >= 0f)
+                    {
+                        progress += axisStep;
+                    }
+                    else
+                    {
+                        reverseProgress += -axisStep;
+                    }
+
+                    perpendicularPath += Mathf.Abs(Cross(axis, step));
+                }
+
+                previous = palm;
+                last = palm;
+            }
+
+            if (!hasFirst)
+            {
+                return false;
+            }
+
+            var delta = last - first;
+            var netDistance = delta.magnitude;
+            var templateDistance = templateDelta.magnitude;
+            var minimumNetDistance = Mathf.Clamp(templateDistance * 0.35f, 0.018f, 0.055f);
+            var minimumPathLength = Mathf.Max(0.025f, minimumNetDistance * 1.2f);
+            if (netDistance < minimumNetDistance || pathLength < minimumPathLength)
+            {
+                return false;
+            }
+
+            if (pathLength / Mathf.Max(0.0001f, netDistance) > 5.5f)
+            {
+                return false;
+            }
+
+            var netAxisProgress = Vector2.Dot(delta, axis);
+            var minimumAxisProgress = Mathf.Clamp(templateDistance * 0.25f, 0.012f, 0.038f);
+            if (netAxisProgress < minimumAxisProgress || progress < minimumAxisProgress * 1.2f)
+            {
+                return false;
+            }
+
+            if (reverseProgress > Mathf.Max(0.035f, progress * 0.65f))
+            {
+                return false;
+            }
+
+            if (perpendicularPath > Mathf.Max(0.080f, progress * 1.65f))
+            {
+                return false;
+            }
+
+            if (templateDelta.sqrMagnitude <= 0.0025f)
+            {
+                return true;
+            }
+
+            return HasCompatibleDominantAxis(delta, templateDelta);
+        }
+
+        private static Vector2 ResolveDominantAxis(Vector2 templateDelta)
+        {
+            if (templateDelta.sqrMagnitude <= 0.0025f)
+            {
+                return Vector2.down;
+            }
+
+            return Mathf.Abs(templateDelta.x) > Mathf.Abs(templateDelta.y) * 1.15f
+                ? new Vector2(Mathf.Sign(templateDelta.x), 0f)
+                : new Vector2(0f, Mathf.Sign(templateDelta.y));
+        }
+
+        private static float Cross(Vector2 first, Vector2 second)
+        {
+            return first.x * second.y - first.y * second.x;
+        }
+
+        private static bool HasCompatibleDominantAxis(Vector2 runtimeDelta, Vector2 templateDelta)
+        {
+            var templateHorizontal = Mathf.Abs(templateDelta.x) > Mathf.Abs(templateDelta.y) * 1.15f;
+            if (templateHorizontal)
+            {
+                return Mathf.Sign(runtimeDelta.x) == Mathf.Sign(templateDelta.x)
+                       && Mathf.Abs(runtimeDelta.x) >= Mathf.Abs(runtimeDelta.y) * 0.75f;
+            }
+
+            return Mathf.Sign(runtimeDelta.y) == Mathf.Sign(templateDelta.y)
+                   && Mathf.Abs(runtimeDelta.y) >= Mathf.Abs(runtimeDelta.x) * 0.75f;
         }
 
         private static bool TryNormalizeAndResample(IReadOnlyList<Vector2> points, out Vector2[] trajectory)
@@ -254,18 +447,24 @@ namespace SpellGuard.InputSystem
 
         private static bool TryResolvePalm(CustomGestureFrameSample frame, out Vector2 palm)
         {
-            palm = frame.PalmCenter;
+            if (frame.Landmarks == null || frame.Landmarks.Length <= 17)
+            {
+                palm = frame.PalmCenter;
+                return palm != Vector2.zero;
+            }
+
+            palm = (frame.Landmarks[0] + frame.Landmarks[5] + frame.Landmarks[17]) / 3f;
             if (palm != Vector2.zero)
             {
                 return true;
             }
 
-            if (frame.Landmarks == null || frame.Landmarks.Length <= 17)
+            palm = frame.PalmCenter;
+            if (palm == Vector2.zero)
             {
                 return false;
             }
 
-            palm = (frame.Landmarks[0] + frame.Landmarks[5] + frame.Landmarks[17]) / 3f;
             return true;
         }
 

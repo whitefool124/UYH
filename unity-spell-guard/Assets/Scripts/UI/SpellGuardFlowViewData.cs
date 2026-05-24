@@ -48,9 +48,15 @@ namespace SpellGuard.UI
             float customGestureLastScore,
             int customGestureTemplateCount,
             bool customGestureValidationActive,
+            bool customGestureAdaptationActive,
+            int customGestureAdaptationAcceptedSamples,
+            int customGestureAdaptationRejectedSamples,
             string customGestureValidationTargetLabel,
             string customGestureValidationListText,
             string customGestureValidationStatusText,
+            string customGestureValidationFailureReason,
+            int customGestureValidationWindowFrameCount,
+            float customGestureValidationWindowDurationSeconds,
             string customGestureSamplePreviewText)
         {
             Screen = screen;
@@ -95,9 +101,15 @@ namespace SpellGuard.UI
             CustomGestureLastScore = customGestureLastScore;
             CustomGestureTemplateCount = customGestureTemplateCount;
             CustomGestureValidationActive = customGestureValidationActive;
+            CustomGestureAdaptationActive = customGestureAdaptationActive;
+            CustomGestureAdaptationAcceptedSamples = customGestureAdaptationAcceptedSamples;
+            CustomGestureAdaptationRejectedSamples = customGestureAdaptationRejectedSamples;
             CustomGestureValidationTargetLabel = customGestureValidationTargetLabel;
             CustomGestureValidationListText = customGestureValidationListText;
             CustomGestureValidationStatusText = customGestureValidationStatusText;
+            CustomGestureValidationFailureReason = customGestureValidationFailureReason;
+            CustomGestureValidationWindowFrameCount = customGestureValidationWindowFrameCount;
+            CustomGestureValidationWindowDurationSeconds = customGestureValidationWindowDurationSeconds;
             CustomGestureSamplePreviewText = customGestureSamplePreviewText;
         }
 
@@ -143,9 +155,15 @@ namespace SpellGuard.UI
         public float CustomGestureLastScore { get; }
         public int CustomGestureTemplateCount { get; }
         public bool CustomGestureValidationActive { get; }
+        public bool CustomGestureAdaptationActive { get; }
+        public int CustomGestureAdaptationAcceptedSamples { get; }
+        public int CustomGestureAdaptationRejectedSamples { get; }
         public string CustomGestureValidationTargetLabel { get; }
         public string CustomGestureValidationListText { get; }
         public string CustomGestureValidationStatusText { get; }
+        public string CustomGestureValidationFailureReason { get; }
+        public int CustomGestureValidationWindowFrameCount { get; }
+        public float CustomGestureValidationWindowDurationSeconds { get; }
         public string CustomGestureSamplePreviewText { get; }
     }
 }

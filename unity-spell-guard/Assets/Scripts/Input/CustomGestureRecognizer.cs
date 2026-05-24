@@ -14,13 +14,20 @@ namespace SpellGuard.InputSystem
         private float maxWindowSeconds = 1.6f;
         private float cooldownSeconds = 0.85f;
         private float lastTriggeredAt = -999f;
+        private long lastAcceptedFrameId = long.MinValue;
+        private float lastAcceptedFrameTimestamp = float.NaN;
+        private GestureSourceKind lastAcceptedFrameSource = GestureSourceKind.Unknown;
         private GestureAction currentAction = GestureAction.None;
         private string lastMatchedName = "无";
         private float lastScore = float.PositiveInfinity;
+        private string lastFailureReason = "无";
 
         public GestureAction CurrentCustomAction => currentAction;
         public string LastMatchedName => lastMatchedName;
         public float LastScore => lastScore;
+        public string LastFailureReason => lastFailureReason;
+        public int WindowFrameCount => window.Count;
+        public float WindowDurationSeconds => window.Count >= 2 ? Mathf.Max(0f, window[window.Count - 1].Time - window[0].Time) : 0f;
 
         public void Configure(float minConfidence, float windowSeconds, float cooldown)
         {
@@ -35,7 +42,11 @@ namespace SpellGuard.InputSystem
             currentAction = GestureAction.None;
             lastMatchedName = "无";
             lastScore = float.PositiveInfinity;
+            lastFailureReason = "无";
             lastTriggeredAt = -999f;
+            lastAcceptedFrameId = long.MinValue;
+            lastAcceptedFrameTimestamp = float.NaN;
+            lastAcceptedFrameSource = GestureSourceKind.Unknown;
         }
 
         public bool TryResolve(GestureFrame frame, IReadOnlyList<CustomGestureTemplate> templates, float now, out GestureAction action)
@@ -117,6 +128,11 @@ namespace SpellGuard.InputSystem
             currentAction = action;
             lastTriggeredAt = now;
             lastMatchedName = string.IsNullOrWhiteSpace(bestTemplate.DisplayName) ? bestTemplate.GestureId : bestTemplate.DisplayName;
+            if (bestTemplate.Kind == CustomGestureKind.DynamicMotion)
+            {
+                window.Clear();
+            }
+
             return true;
         }
 
@@ -130,19 +146,28 @@ namespace SpellGuard.InputSystem
             currentAction = GestureAction.None;
             AddFrame(frame, now);
             lastScore = float.PositiveInfinity;
-            if (!IsUsableTemplate(template) || now - lastTriggeredAt < cooldownSeconds)
+            if (!IsUsableTemplate(template))
             {
+                lastFailureReason = "模板不可用";
+                return false;
+            }
+
+            if (now - lastTriggeredAt < cooldownSeconds)
+            {
+                lastFailureReason = "命中冷却中";
                 return false;
             }
 
             var hasStaticFeatures = TryGetLatestStaticFeatures(window, minimumConfidence, out var runtimeStaticFeatures);
             if (template.Kind == CustomGestureKind.StaticPose && !hasStaticFeatures)
             {
+                lastFailureReason = "没有可用静态特征";
                 return false;
             }
 
             if (template.Kind == CustomGestureKind.DynamicMotion && !HasEnoughDynamicFrames())
             {
+                lastFailureReason = $"动态帧不足 {window.Count}/4，窗口 {WindowDurationSeconds:F2}s";
                 return false;
             }
 
@@ -151,6 +176,7 @@ namespace SpellGuard.InputSystem
                 && runtimeHandedness != GestureHandedness.Unknown
                 && template.RequiredHandedness != runtimeHandedness)
             {
+                lastFailureReason = $"手别不一致：需要 {template.RequiredHandedness}，当前 {runtimeHandedness}";
                 return false;
             }
 
@@ -160,16 +186,27 @@ namespace SpellGuard.InputSystem
 
             if (lastScore > template.MatchThreshold)
             {
+                lastFailureReason = $"分数过高 {lastScore:F3} > {template.MatchThreshold:F3}，窗口 {window.Count} 帧/{WindowDurationSeconds:F2}s";
                 return false;
             }
 
             lastTriggeredAt = now;
             lastMatchedName = string.IsNullOrWhiteSpace(template.DisplayName) ? template.GestureId : template.DisplayName;
+            if (template.Kind == CustomGestureKind.DynamicMotion)
+            {
+                window.Clear();
+            }
+            lastFailureReason = $"已命中，窗口 {window.Count} 帧/{WindowDurationSeconds:F2}s";
             return true;
         }
 
         private void AddFrame(GestureFrame frame, float now)
         {
+            if (IsDuplicateFrame(frame))
+            {
+                return;
+            }
+
             if (frame.HasPrimaryHand && frame.PrimaryHand.Landmarks != null && frame.PrimaryHand.Landmarks.Length >= CustomGestureFeatureExtractor.RequiredLandmarkCount)
             {
                 var hand = frame.PrimaryHand;
@@ -183,10 +220,20 @@ namespace SpellGuard.InputSystem
                     PalmCenter = hand.PalmCenter,
                     Landmarks = copied
                 });
+                lastAcceptedFrameId = frame.FrameId;
+                lastAcceptedFrameTimestamp = frame.Timestamp;
+                lastAcceptedFrameSource = frame.Source;
             }
 
             var cutoff = now - maxWindowSeconds;
             window.RemoveAll(sample => sample.Time < cutoff);
+        }
+
+        private bool IsDuplicateFrame(GestureFrame frame)
+        {
+            return frame.FrameId == lastAcceptedFrameId
+                   && frame.Source == lastAcceptedFrameSource
+                   && Mathf.Abs(frame.Timestamp - lastAcceptedFrameTimestamp) <= 0.0001f;
         }
 
         private bool HasEnoughDynamicFrames()
@@ -202,6 +249,27 @@ namespace SpellGuard.InputSystem
             }
 
             var best = float.PositiveInfinity;
+            var hasTrajectoryTemplates = template.TrajectoryTemplates != null && template.TrajectoryTemplates.Count > 0;
+            var hasFeatureSequenceTemplates = template.FeatureSequenceTemplates != null && template.FeatureSequenceTemplates.Count > 0;
+            var hasTemplateSequence = hasTrajectoryTemplates || hasFeatureSequenceTemplates;
+            var hasDynamicRule = template.DynamicRule != null && template.Samples != null && template.Samples.Count > 0;
+            var isPalmTrajectoryTemplate = hasTrajectoryTemplates
+                                           && (template.DynamicRule == null
+                                               || template.DynamicRule.Pattern == CustomGestureDynamicPattern.Directional
+                                               || template.DynamicRule.Pattern == CustomGestureDynamicPattern.Loop
+                                               || template.DynamicRule.Pattern == CustomGestureDynamicPattern.Repeat);
+            var allowFeatureSequenceScore = hasFeatureSequenceTemplates && !isPalmTrajectoryTemplate;
+            var dynamicRuleMatched = !hasDynamicRule || hasTemplateSequence;
+            if (isPalmTrajectoryTemplate && HasTooMuchFingerPoseNoise() && !TemplateAllowsFingerPoseMotion(template))
+            {
+                return float.PositiveInfinity;
+            }
+
+            if (hasTemplateSequence && !HasEnoughRuntimeMotion(template))
+            {
+                return float.PositiveInfinity;
+            }
+
             if (template.TrajectoryTemplates != null)
             {
                 for (var index = 0; index < template.TrajectoryTemplates.Count; index++)
@@ -220,13 +288,32 @@ namespace SpellGuard.InputSystem
                 }
             }
 
-            if (template.DynamicRule != null && template.Samples != null && template.Samples.Count > 0)
+            if (allowFeatureSequenceScore)
+            {
+                for (var index = 0; index < template.FeatureSequenceTemplates.Count; index++)
+                {
+                    var sequenceTemplate = template.FeatureSequenceTemplates[index];
+                    if (sequenceTemplate == null || sequenceTemplate.Frames == null || sequenceTemplate.Frames.Length < 2)
+                    {
+                        continue;
+                    }
+
+                    var score = CustomGestureFeatureSequenceMatcher.ScoreBestWindow(window, sequenceTemplate.Frames, minimumConfidence, sequenceTemplate.DurationSeconds);
+                    if (score < best)
+                    {
+                        best = score;
+                    }
+                }
+            }
+
+            if (hasDynamicRule && !isPalmTrajectoryTemplate)
             {
                 var activeRule = template.DynamicRule;
                 for (var index = 0; index < template.Samples.Count; index++)
                 {
                     var sample = template.Samples[index];
-                    if (sample == null || sample.Handedness != GestureHandedness.Unknown
+                    if (sample == null || template.RequiredHandedness != GestureHandedness.Unknown
+                        && sample.Handedness != GestureHandedness.Unknown
                         && runtimeHandedness != GestureHandedness.Unknown
                         && sample.Handedness != runtimeHandedness)
                     {
@@ -238,11 +325,260 @@ namespace SpellGuard.InputSystem
                         continue;
                     }
 
+                    dynamicRuleMatched = true;
                     best = Mathf.Min(best, 1f - confidence);
                 }
             }
 
-            return best;
+            return dynamicRuleMatched ? best : float.PositiveInfinity;
+        }
+
+        private bool HasTooMuchFingerPoseNoise()
+        {
+            var noisy = 0;
+            var usable = 0;
+            for (var index = 0; index < window.Count; index++)
+            {
+                var frame = window[index];
+                if (frame.Confidence < minimumConfidence)
+                {
+                    continue;
+                }
+
+                usable++;
+                if (frame.StaticGesture == GestureType.Fist || frame.StaticGesture == GestureType.Point)
+                {
+                    noisy++;
+                }
+            }
+
+            return usable >= 4 && noisy >= Mathf.CeilToInt(usable * 0.60f);
+        }
+
+        private static bool TemplateAllowsFingerPoseMotion(CustomGestureTemplate template)
+        {
+            if (template?.Samples == null)
+            {
+                return false;
+            }
+
+            var fingerPoseFrames = 0;
+            var totalFrames = 0;
+            for (var sampleIndex = 0; sampleIndex < template.Samples.Count; sampleIndex++)
+            {
+                var frames = template.Samples[sampleIndex]?.Frames;
+                if (frames == null)
+                {
+                    continue;
+                }
+
+                for (var frameIndex = 0; frameIndex < frames.Count; frameIndex++)
+                {
+                    var gesture = frames[frameIndex].StaticGesture;
+                    if (gesture == GestureType.None || gesture == GestureType.Unknown)
+                    {
+                        continue;
+                    }
+
+                    totalFrames++;
+                    if (gesture == GestureType.Fist || gesture == GestureType.Point || gesture == GestureType.VSign)
+                    {
+                        fingerPoseFrames++;
+                    }
+                }
+            }
+
+            return totalFrames >= 4 && fingerPoseFrames >= Mathf.CeilToInt(totalFrames * 0.35f);
+        }
+
+        private static GestureType ResolveDominantStaticGesture(CustomGestureTemplate template)
+        {
+            if (template?.Samples == null)
+            {
+                return GestureType.None;
+            }
+
+            var counts = new Dictionary<GestureType, int>();
+            for (var sampleIndex = 0; sampleIndex < template.Samples.Count; sampleIndex++)
+            {
+                var frames = template.Samples[sampleIndex]?.Frames;
+                if (frames == null)
+                {
+                    continue;
+                }
+
+                for (var frameIndex = 0; frameIndex < frames.Count; frameIndex++)
+                {
+                    var gesture = frames[frameIndex].StaticGesture;
+                    if (gesture == GestureType.None)
+                    {
+                        continue;
+                    }
+
+                    counts.TryGetValue(gesture, out var count);
+                    counts[gesture] = count + 1;
+                }
+            }
+
+            var bestGesture = GestureType.None;
+            var bestCount = 0;
+            var total = 0;
+            foreach (var pair in counts)
+            {
+                total += pair.Value;
+                if (pair.Value > bestCount)
+                {
+                    bestCount = pair.Value;
+                    bestGesture = pair.Key;
+                }
+            }
+
+            return total > 0 && bestCount >= Mathf.CeilToInt(total * 0.6f)
+                ? bestGesture
+                : GestureType.None;
+        }
+
+        private bool HasEnoughRuntimeMotion(CustomGestureTemplate template)
+        {
+            if (window.Count < 4)
+            {
+                return false;
+            }
+
+            var rule = template?.DynamicRule;
+            var minimumPalmMotion = Mathf.Clamp((rule?.MinimumDistance ?? 0.05f) * 0.55f, 0.018f, 0.035f);
+            var minimumDirectionalPath = minimumPalmMotion * 1.35f;
+            var firstPalm = Vector2.zero;
+            var lastPalm = Vector2.zero;
+            var previousPalm = Vector2.zero;
+            var hasFirstPalm = false;
+            var palmPath = 0f;
+
+            for (var index = 0; index < window.Count; index++)
+            {
+                var frame = window[index];
+                if (frame.Confidence < minimumConfidence)
+                {
+                    continue;
+                }
+
+                if (TryResolvePalm(frame, out var palm))
+                {
+                    if (!hasFirstPalm)
+                    {
+                        firstPalm = palm;
+                        hasFirstPalm = true;
+                    }
+                    else
+                    {
+                        palmPath += Vector2.Distance(previousPalm, palm);
+                    }
+
+                    previousPalm = palm;
+                    lastPalm = palm;
+                }
+            }
+
+            var palmDelta = hasFirstPalm ? Vector2.Distance(firstPalm, lastPalm) : 0f;
+            if ((rule == null || rule.Direction != CustomGestureMotionDirection.Any)
+                && HasDirectionalTrajectoryTemplate(template)
+                && !HasCompatibleRuntimeDirection(template, lastPalm - firstPalm, palmDelta, minimumPalmMotion))
+            {
+                return false;
+            }
+
+            if (palmDelta >= minimumPalmMotion || palmPath >= minimumDirectionalPath && palmDelta >= minimumPalmMotion * 0.5f)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool HasDirectionalTrajectoryTemplate(CustomGestureTemplate template)
+        {
+            if (template?.TrajectoryTemplates == null)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < template.TrajectoryTemplates.Count; index++)
+            {
+                var points = template.TrajectoryTemplates[index]?.Points;
+                if (points != null && points.Length >= 2 && (points[points.Length - 1] - points[0]).sqrMagnitude > 0.0025f)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasCompatibleRuntimeDirection(CustomGestureTemplate template, Vector2 runtimeDelta, float runtimeDistance, float minimumDistance)
+        {
+            if (runtimeDistance < minimumDistance)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < template.TrajectoryTemplates.Count; index++)
+            {
+                var points = template.TrajectoryTemplates[index]?.Points;
+                if (points == null || points.Length < 2)
+                {
+                    continue;
+                }
+
+                var templateDelta = points[points.Length - 1] - points[0];
+                var templateDistance = templateDelta.magnitude;
+                if (templateDistance <= 0.05f)
+                {
+                    continue;
+                }
+
+                if (HasCompatibleDominantAxis(runtimeDelta, templateDelta))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasCompatibleDominantAxis(Vector2 runtimeDelta, Vector2 templateDelta)
+        {
+            var templateHorizontal = Mathf.Abs(templateDelta.x) > Mathf.Abs(templateDelta.y) * 1.15f;
+            if (templateHorizontal)
+            {
+                return Mathf.Sign(runtimeDelta.x) == Mathf.Sign(templateDelta.x)
+                       && Mathf.Abs(runtimeDelta.x) >= Mathf.Abs(runtimeDelta.y) * 0.75f;
+            }
+
+            return Mathf.Sign(runtimeDelta.y) == Mathf.Sign(templateDelta.y)
+                   && Mathf.Abs(runtimeDelta.y) >= Mathf.Abs(runtimeDelta.x) * 0.75f;
+        }
+
+        private static bool TryResolvePalm(CustomGestureFrameSample frame, out Vector2 palm)
+        {
+            if (frame.Landmarks == null || frame.Landmarks.Length <= 17)
+            {
+                palm = frame.PalmCenter;
+                return palm != Vector2.zero;
+            }
+
+            palm = (frame.Landmarks[0] + frame.Landmarks[5] + frame.Landmarks[17]) / 3f;
+            if (palm != Vector2.zero)
+            {
+                return true;
+            }
+
+            palm = frame.PalmCenter;
+            if (palm == Vector2.zero)
+            {
+                return false;
+            }
+
+            return true;
         }
 
         private float ScoreStaticTemplate(CustomGestureTemplate template, float[] currentFeatures, GestureHandedness runtimeHandedness)

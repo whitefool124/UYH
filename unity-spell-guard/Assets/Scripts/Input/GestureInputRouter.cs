@@ -19,8 +19,9 @@ namespace SpellGuard.InputSystem
         [Header("Custom Gesture")]
         [SerializeField] private bool customGesturesEnabled = true;
         [SerializeField] private float customGestureMinConfidence = 0.55f;
-        [SerializeField] private float customGestureValidationMinConfidence = 0.35f;
+        [SerializeField] private float customGestureValidationMinConfidence = 0.2f;
         [SerializeField] private float customGestureWindowSeconds = 1.6f;
+        [SerializeField] private float customGestureValidationWindowSeconds = 3.0f;
         [SerializeField] private float customGestureCooldownSeconds = 0.85f;
 
         private readonly CustomGestureRecognizer customGestureRecognizer = new CustomGestureRecognizer();
@@ -143,6 +144,9 @@ namespace SpellGuard.InputSystem
         public string LastCustomGestureName => customGestureRecognizer.LastMatchedName;
         public float LastCustomGestureScore => customGestureRecognizer.LastScore;
         public float LastCustomGestureValidationScore => customGestureValidationRecognizer.LastScore;
+        public string LastCustomGestureValidationFailureReason => customGestureValidationRecognizer.LastFailureReason;
+        public int CustomGestureValidationWindowFrameCount => customGestureValidationRecognizer.WindowFrameCount;
+        public float CustomGestureValidationWindowDurationSeconds => customGestureValidationRecognizer.WindowDurationSeconds;
         public int CustomGestureTemplateCount
         {
             get
@@ -252,6 +256,11 @@ namespace SpellGuard.InputSystem
             }
         }
 
+        public void ResetCustomGestureValidationRecognizer()
+        {
+            customGestureValidationRecognizer.Reset();
+        }
+
         public bool DeleteCustomGestureTemplate(int index)
         {
             EnsureCustomGestureLibraryLoaded();
@@ -297,7 +306,7 @@ namespace SpellGuard.InputSystem
         {
             EnsureCustomGestureLibraryCreated();
             customGestureRecognizer.Configure(customGestureMinConfidence, customGestureWindowSeconds, customGestureCooldownSeconds);
-            customGestureValidationRecognizer.Configure(customGestureValidationMinConfidence, customGestureWindowSeconds, customGestureCooldownSeconds);
+            customGestureValidationRecognizer.Configure(customGestureValidationMinConfidence, customGestureValidationWindowSeconds, customGestureCooldownSeconds);
             ReloadCustomGestures();
         }
 
@@ -316,6 +325,11 @@ namespace SpellGuard.InputSystem
 
         public void SetCustomGesturesEnabled(bool enabled)
         {
+            if (customGesturesEnabled == enabled)
+            {
+                return;
+            }
+
             customGesturesEnabled = enabled;
             customGestureRecognizer.Reset();
             customGestureValidationRecognizer.Reset();

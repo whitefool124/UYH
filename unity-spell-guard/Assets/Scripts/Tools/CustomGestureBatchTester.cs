@@ -58,8 +58,14 @@ namespace SpellGuard.Tools
             return report;
         }
 
-        private static List<CustomGestureTemplate> BuildTemplates(CustomGestureBatchDataset dataset, CustomGestureBatchOptions options)
+        public static List<CustomGestureTemplate> BuildTemplates(CustomGestureBatchDataset dataset, CustomGestureBatchOptions options = null)
         {
+            if (dataset == null)
+            {
+                throw new ArgumentNullException(nameof(dataset));
+            }
+
+            options ??= new CustomGestureBatchOptions();
             var samplesByLabel = new Dictionary<string, List<CustomGestureSample>>(StringComparer.OrdinalIgnoreCase);
             for (var clipIndex = 0; clipIndex < dataset.Clips.Count; clipIndex++)
             {
@@ -105,10 +111,12 @@ namespace SpellGuard.Tools
                     MatchThreshold = options.MatchThreshold,
                     Samples = new List<CustomGestureSample>(entry.Value),
                     TrajectoryTemplates = CustomGestureTrajectoryTemplateBuilder.Build(entry.Value),
+                    FeatureSequenceTemplates = CustomGestureTrajectoryTemplateBuilder.BuildFeatureSequences(entry.Value),
                     DynamicRule = CustomGestureDynamicRuleEvaluator.InferRule(entry.Value)
                 };
 
-                if (template.TrajectoryTemplates != null && template.TrajectoryTemplates.Count > 0)
+                if ((template.TrajectoryTemplates != null && template.TrajectoryTemplates.Count > 0)
+                    || (template.FeatureSequenceTemplates != null && template.FeatureSequenceTemplates.Count > 0))
                 {
                     templates.Add(template);
                 }

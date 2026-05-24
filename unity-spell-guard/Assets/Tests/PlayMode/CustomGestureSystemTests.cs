@@ -150,6 +150,29 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         [Test]
+        public void DynamicTemplatePersistsInferredRule()
+        {
+            var folder = Path.Combine(Application.temporaryCachePath, "CustomGestureDynamicRuleLibraryTests");
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, true);
+            }
+
+            var library = new CustomGestureLibrary(folder);
+            var template = BuildTemplate(GestureIntent.CustomGesture);
+
+            Assert.That(library.Save(template), Is.True);
+
+            var reloaded = new CustomGestureLibrary(folder);
+            reloaded.LoadAll();
+
+            Assert.That(reloaded.Templates.Count, Is.EqualTo(1));
+            Assert.That(reloaded.Templates[0].DynamicRule, Is.Not.Null);
+            Assert.That(reloaded.Templates[0].DynamicRule.Pattern, Is.EqualTo(template.DynamicRule.Pattern));
+            Assert.That(reloaded.Templates[0].DynamicRule.Direction, Is.EqualTo(template.DynamicRule.Direction));
+        }
+
+        [Test]
         public void DtwRecognizerRejectsReversedDynamicTrajectory()
         {
             var recognizer = new CustomGestureRecognizer();
@@ -182,6 +205,26 @@ namespace SpellGuard.Tests.PlayMode
             for (var index = 0; index < 18; index++)
             {
                 matched = recognizer.TryResolve(BuildFrame(24.4f + index * 0.06f, index * 0.02f), templates, 24.4f + index * 0.06f, out _) || matched;
+            }
+
+            Assert.That(matched, Is.True);
+        }
+
+        [Test]
+        public void RecognizerIgnoresRepeatedReadsOfSameInputFrame()
+        {
+            var recognizer = new CustomGestureRecognizer();
+            recognizer.Configure(0.5f, 2.4f, 0.1f);
+            var templates = new List<CustomGestureTemplate> { BuildTemplate(GestureIntent.CustomGesture) };
+            var matched = false;
+
+            for (var index = 0; index < 18; index++)
+            {
+                var frame = BuildFrame(60f + index * 0.06f, index * 0.02f);
+                for (var repeat = 0; repeat < 4; repeat++)
+                {
+                    matched = recognizer.TryResolve(frame, templates, 60f + index * 0.06f + repeat * 0.01f, out _) || matched;
+                }
             }
 
             Assert.That(matched, Is.True);
@@ -361,6 +404,54 @@ namespace SpellGuard.Tests.PlayMode
             Assert.That(confidence, Is.GreaterThan(0.5f));
         }
 
+        [Test]
+        public void ProjectVideoTemplatesValidateTheirOwnRecordedSamples()
+        {
+            var folder = Path.Combine(Application.dataPath, "ProjectGestureLibrary", "CustomGestures");
+            if (!Directory.Exists(folder))
+            {
+                Assert.Ignore("Project gesture library is not available in this test environment.");
+            }
+
+            var library = new CustomGestureLibrary(folder);
+            library.LoadAll();
+            var checkedTemplates = 0;
+            var failures = new List<string>();
+
+            for (var templateIndex = 0; templateIndex < library.Templates.Count; templateIndex++)
+            {
+                var template = library.Templates[templateIndex];
+                if (template == null || template.Kind != CustomGestureKind.DynamicMotion || string.IsNullOrWhiteSpace(template.GestureId) || !template.GestureId.StartsWith("ext_motion_", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                checkedTemplates += 1;
+                var recognizer = new CustomGestureRecognizer();
+                recognizer.Configure(0.35f, 2.4f, 0.05f);
+                var matched = false;
+                var now = 100f;
+                var sample = template.Samples != null && template.Samples.Count > 0 ? template.Samples[0] : null;
+                if (sample?.Frames != null)
+                {
+                    for (var frameIndex = 0; frameIndex < sample.Frames.Count; frameIndex++)
+                    {
+                        var frameSample = sample.Frames[frameIndex];
+                        var frame = BuildFrameFromSample(frameSample, frameIndex + 1, sample.Handedness);
+                        matched = recognizer.TryResolveSingle(frame, template, now + frameSample.Time) || matched;
+                    }
+                }
+
+                if (!matched)
+                {
+                    failures.Add($"{template.GestureId}: {recognizer.LastFailureReason}");
+                }
+            }
+
+            Assert.That(checkedTemplates, Is.GreaterThan(0));
+            Assert.That(failures, Is.Empty, string.Join("\n", failures));
+        }
+
         private static CustomGestureSample BuildDynamicSample(float startOffset)
         {
             var frames = new List<CustomGestureFrameSample>();
@@ -474,6 +565,19 @@ namespace SpellGuard.Tests.PlayMode
             };
 
             return LegacyGestureRuntimeAdapter.BuildSingleHandFrame(snapshot, landmarks, Mathf.RoundToInt(time * 100f), time, GestureSourceKind.Mock, MotionGestureEvent.None, handedness, 7);
+        }
+
+        private static GestureFrame BuildFrameFromSample(CustomGestureFrameSample sample, int frameId, GestureHandedness handedness)
+        {
+            var snapshot = new GestureSnapshot
+            {
+                HandPresent = true,
+                Gesture = sample.StaticGesture,
+                ViewportPosition = sample.PalmCenter,
+                Confidence = sample.Confidence
+            };
+
+            return LegacyGestureRuntimeAdapter.BuildSingleHandFrame(snapshot, sample.Landmarks, frameId, sample.Time, GestureSourceKind.ExternalBridge, MotionGestureEvent.None, handedness, 1);
         }
 
         private static Vector2[] BuildLandmarks(Vector2 offset, float scale, float phase)

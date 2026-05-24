@@ -5,6 +5,7 @@ using SpellGuard.Player;
 using SpellGuard.UI;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -15,6 +16,7 @@ namespace SpellGuard.Core
         [SerializeField] private SpellGuardGameSettings settings;
         [SerializeField] private GestureInputProviderBase inputProvider;
         [SerializeField] private GestureInputRouter inputRouter;
+        [SerializeField] private NativeMediapipeGestureProvider nativeMediapipeProvider;
         [SerializeField] private FpsGestureMotor motor;
         [SerializeField] private GestureSpellCaster spellCaster;
         [SerializeField] private PlayerHealth playerHealth;
@@ -33,7 +35,7 @@ namespace SpellGuard.Core
         [SerializeField] private float customGestureRecordSeconds = 1.2f;
         [SerializeField] private float customGestureSampleIntervalSeconds = 0.06f;
         [SerializeField] private float customGestureMinimumConfidence = 0.55f;
-        [SerializeField] private float customGestureValidationMinimumConfidence = 0.35f;
+        [SerializeField] private float customGestureValidationMinimumConfidence = 0.2f;
         [SerializeField] private int customGestureRequiredSamples = 5;
 
         private readonly CustomGestureRecorder customGestureRecorder = new CustomGestureRecorder();
@@ -64,7 +66,12 @@ namespace SpellGuard.Core
         private bool customGestureHasReviewSample;
         private int customGestureValidationTemplateIndex;
         private bool customGestureValidationActive;
+        private bool customGestureAdaptationActive;
+        private int customGestureAdaptationAcceptedSamples;
+        private int customGestureAdaptationRejectedSamples;
         private float customGestureValidationSuccessAt = -999f;
+        private float customGestureValidationInputModeRequestedAt = -999f;
+        private float customGestureValidationLastDebugLogAt = -999f;
         private string customGestureTemplateName = string.Empty;
         private string customGestureStatusText = "项目手势库：选择左/右手后开始录制。";
         private string customGestureValidationStatusText = "验证页：请先加载模板库并选择一个目标手势。";
@@ -116,13 +123,20 @@ namespace SpellGuard.Core
         public string CustomGestureLastMatchedName => inputRouter != null ? inputRouter.LastCustomGestureName : "无";
         public float CustomGestureLastScore => inputRouter != null ? inputRouter.LastCustomGestureScore : float.PositiveInfinity;
         public int CustomGestureTemplateCount => inputRouter != null ? inputRouter.CustomGestureTemplateCount : 0;
+        public int CustomGestureReferenceTemplateCount => CountReferenceBackedValidationTemplates();
         public bool CustomGestureValidationActive => customGestureValidationActive;
+        public bool CustomGestureAdaptationActive => customGestureAdaptationActive;
+        public int CustomGestureAdaptationAcceptedSamples => customGestureAdaptationAcceptedSamples;
+        public int CustomGestureAdaptationRejectedSamples => customGestureAdaptationRejectedSamples;
         public string CustomGestureValidationTargetLabel => GetCustomGestureValidationTargetLabel();
-        public string CustomGestureValidationListText => inputRouter != null ? inputRouter.GetCustomGestureTemplateListText(customGestureValidationTemplateIndex) : string.Empty;
+        public string CustomGestureValidationListText => BuildReferenceBackedValidationListText();
         public string CustomGestureValidationReferenceText => BuildCustomGestureValidationReferenceText();
         public string CustomGestureSamplePreviewText => BuildCustomGestureSamplePreviewText();
         public string CustomGestureValidationStatusText => customGestureValidationStatusText;
         public float CustomGestureValidationScore => inputRouter != null ? inputRouter.LastCustomGestureValidationScore : float.PositiveInfinity;
+        public string CustomGestureValidationFailureReason => inputRouter != null ? inputRouter.LastCustomGestureValidationFailureReason : "无";
+        public int CustomGestureValidationWindowFrameCount => inputRouter != null ? inputRouter.CustomGestureValidationWindowFrameCount : 0;
+        public float CustomGestureValidationWindowDurationSeconds => inputRouter != null ? inputRouter.CustomGestureValidationWindowDurationSeconds : 0f;
         public float CustomGestureValidationMinimumConfidence => customGestureValidationMinimumConfidence;
         public event Action<SpellType, int, SpellGuardScreen> SpellResolvedForDiagnostics;
 
@@ -192,9 +206,15 @@ namespace SpellGuard.Core
                 CustomGestureLastScore,
                 CustomGestureTemplateCount,
                 CustomGestureValidationActive,
+                CustomGestureAdaptationActive,
+                CustomGestureAdaptationAcceptedSamples,
+                CustomGestureAdaptationRejectedSamples,
                 CustomGestureValidationTargetLabel,
                 CustomGestureValidationListText,
                 CustomGestureValidationStatusText,
+                CustomGestureValidationFailureReason,
+                CustomGestureValidationWindowFrameCount,
+                CustomGestureValidationWindowDurationSeconds,
                 CustomGestureSamplePreviewText);
         }
 
@@ -470,15 +490,23 @@ namespace SpellGuard.Core
                 RequiredHandedness = pendingCustomGestureSamples[0].Handedness,
                 TargetIntent = MapCustomGestureTargetIntent(customGestureTargetSpell),
                 MatchThreshold = customGestureKind == CustomGestureKind.StaticPose ? CustomGestureRecognizer.DefaultStaticThreshold : CustomGestureRecognizer.DefaultDynamicThreshold,
+                DynamicRule = customGestureKind == CustomGestureKind.DynamicMotion
+                    ? CustomGestureDynamicRuleEvaluator.InferRule(pendingCustomGestureSamples)
+                    : null,
                 Samples = new List<CustomGestureSample>(pendingCustomGestureSamples),
                 TrajectoryTemplates = customGestureKind == CustomGestureKind.DynamicMotion
                     ? CustomGestureTrajectoryTemplateBuilder.Build(pendingCustomGestureSamples)
-                    : new List<CustomGestureTrajectoryTemplate>()
+                    : new List<CustomGestureTrajectoryTemplate>(),
+                FeatureSequenceTemplates = customGestureKind == CustomGestureKind.DynamicMotion
+                    ? CustomGestureTrajectoryTemplateBuilder.BuildFeatureSequences(pendingCustomGestureSamples)
+                    : new List<CustomGestureFeatureSequenceTemplate>()
             };
 
-            if (customGestureKind == CustomGestureKind.DynamicMotion && (template.TrajectoryTemplates == null || template.TrajectoryTemplates.Count == 0))
+            if (customGestureKind == CustomGestureKind.DynamicMotion
+                && (template.TrajectoryTemplates == null || template.TrajectoryTemplates.Count == 0)
+                && (template.FeatureSequenceTemplates == null || template.FeatureSequenceTemplates.Count == 0))
             {
-                customGestureStatusText = "DTW trajectory build failed: record a clearer motion sample with visible palm movement.";
+                customGestureStatusText = "DTW trajectory build failed: record clearer palm motion or finger-shape motion.";
                 HintText = customGestureStatusText;
                 inputRouter?.SetCustomGesturesEnabled(true);
                 return;
@@ -505,10 +533,10 @@ namespace SpellGuard.Core
             inputRouter?.ReloadCustomGestures();
             inputRouter?.SetCustomGesturesEnabled(true);
             ClampCustomGestureValidationTarget();
-            customGestureStatusText = $"已加载模板库。现在可以进入验证页，选择库里的目标手势持续监测；当前目标：{CustomGestureValidationTargetLabel}";
-            customGestureValidationStatusText = CustomGestureTemplateCount > 0
-                ? $"已加载 {CustomGestureTemplateCount} 个模板。当前验证目标：{CustomGestureValidationTargetLabel}。"
-                : "模板库为空：请先录制并保存一个自定义手势。";
+            customGestureStatusText = $"已加载模板库。验证页只使用带同名演示视频的模板；当前目标：{CustomGestureValidationTargetLabel}";
+            customGestureValidationStatusText = CustomGestureReferenceTemplateCount > 0
+                ? $"已加载 {CustomGestureReferenceTemplateCount} 个视频模板。当前验证目标：{CustomGestureValidationTargetLabel}。"
+                : "没有可验证的视频模板：模板 GestureId 必须和演示视频目录同名。";
             HintText = customGestureStatusText;
             inputProvider?.ClearTransientInputs();
         }
@@ -516,12 +544,12 @@ namespace SpellGuard.Core
         public void CycleCustomGestureValidationTarget()
         {
             ReloadCustomGestureTemplates();
-            var count = CustomGestureTemplateCount;
+            var count = CustomGestureReferenceTemplateCount;
             if (count <= 0)
             {
                 customGestureValidationTemplateIndex = 0;
                 customGestureValidationActive = false;
-                customGestureValidationStatusText = "模板库为空：请先录制并保存一个自定义手势。";
+                customGestureValidationStatusText = "没有可验证的视频模板：模板 GestureId 必须和演示视频目录同名。";
                 HintText = customGestureValidationStatusText;
                 return;
             }
@@ -529,7 +557,7 @@ namespace SpellGuard.Core
             customGestureValidationTemplateIndex = (customGestureValidationTemplateIndex + 1) % count;
             customGestureValidationActive = true;
             customGestureValidationSuccessAt = -999f;
-            customGestureValidationStatusText = $"验证目标已切换：{CustomGestureValidationTargetLabel}。请直接做这个手势，系统会持续监测。";
+            customGestureValidationStatusText = $"验证视频已切换：{CustomGestureValidationTargetLabel}。请照左侧视频做动作。";
             HintText = customGestureValidationStatusText;
             inputProvider?.ClearTransientInputs();
         }
@@ -537,31 +565,87 @@ namespace SpellGuard.Core
         public void ToggleCustomGestureValidation()
         {
             ReloadCustomGestureTemplates();
-            if (CustomGestureTemplateCount <= 0)
+            if (CustomGestureReferenceTemplateCount <= 0)
             {
                 customGestureValidationActive = false;
-                customGestureValidationStatusText = "模板库为空：请先录制并保存一个自定义手势。";
+                customGestureValidationStatusText = "没有可验证的视频模板：模板 GestureId 必须和演示视频目录同名。";
                 HintText = customGestureValidationStatusText;
                 return;
             }
 
             customGestureValidationActive = !customGestureValidationActive;
             customGestureValidationSuccessAt = -999f;
+            if (customGestureValidationActive)
+            {
+                EnsureNativeInputForCustomGestureValidation();
+            }
+
             customGestureValidationStatusText = customGestureValidationActive
-                ? $"开始验证：目标是 {CustomGestureValidationTargetLabel}。请持续做这个手势，命中后会明确提示成功。"
-                : $"已暂停验证：当前目标仍是 {CustomGestureValidationTargetLabel}。";
+                ? $"开始验证：按左侧视频做 {CustomGestureValidationTargetLabel}。"
+                : $"已暂停验证：当前视频仍是 {CustomGestureValidationTargetLabel}。";
             HintText = customGestureValidationStatusText;
             inputProvider?.ClearTransientInputs();
+        }
+
+        public void ReplayCustomGestureValidationReference()
+        {
+            ReloadCustomGestureTemplates();
+            if (!TryGetCustomGestureValidationTemplate(out var template) || template == null)
+            {
+                customGestureValidationStatusText = "回放验证失败：没有选中的视频模板。";
+                HintText = customGestureValidationStatusText;
+                return;
+            }
+
+            var sample = template.Samples != null && template.Samples.Count > 0 ? template.Samples[0] : null;
+            if (sample?.Frames == null || sample.Frames.Count <= 0)
+            {
+                customGestureValidationStatusText = $"回放验证失败：{template.DisplayName} 没有可回放的样本帧。";
+                HintText = customGestureValidationStatusText;
+                return;
+            }
+
+            var recognizer = new CustomGestureRecognizer();
+            recognizer.Configure(customGestureValidationMinimumConfidence, 2.4f, 0.05f);
+            recognizer.Reset();
+
+            var matched = false;
+            var nowBase = 100f;
+            for (var index = 0; index < sample.Frames.Count; index++)
+            {
+                var frameSample = sample.Frames[index];
+                var frame = BuildGestureFrameFromSample(frameSample, index + 1, sample.Handedness);
+                matched = recognizer.TryResolveSingle(frame, template, nowBase + frameSample.Time) || matched;
+                if (matched)
+                {
+                    break;
+                }
+            }
+
+            customGestureValidationSuccessAt = matched ? Time.unscaledTime : -999f;
+            customGestureValidationStatusText = matched
+                ? $"回放验证成功：{template.DisplayName} 已由导入视频样本命中，分数 {recognizer.LastScore:F3}。"
+                : $"回放验证失败：{template.DisplayName} 未命中，原因 {recognizer.LastFailureReason}，分数 {(float.IsPositiveInfinity(recognizer.LastScore) ? "--" : recognizer.LastScore.ToString("F3"))}。";
+            HintText = customGestureValidationStatusText;
+            if (matched)
+            {
+                SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
+            }
         }
 
         public void StartCustomGestureValidation()
         {
             ReloadCustomGestureTemplates();
-            customGestureValidationActive = CustomGestureTemplateCount > 0;
+            customGestureValidationActive = CustomGestureReferenceTemplateCount > 0;
             customGestureValidationSuccessAt = -999f;
+            if (customGestureValidationActive)
+            {
+                EnsureNativeInputForCustomGestureValidation();
+            }
+
             customGestureValidationStatusText = customGestureValidationActive
-                ? $"验证页已就绪：目标是 {CustomGestureValidationTargetLabel}。请做这个手势，系统会持续监测。"
-                : "模板库为空：请先录制并保存一个自定义手势。";
+                ? $"验证页已就绪：按左侧视频做 {CustomGestureValidationTargetLabel}。"
+                : "没有可验证的视频模板：模板 GestureId 必须和演示视频目录同名。";
             HintText = customGestureValidationStatusText;
             inputProvider?.ClearTransientInputs();
         }
@@ -580,7 +664,8 @@ namespace SpellGuard.Core
                 return false;
             }
 
-            return inputRouter.TryGetCustomGestureTemplate(customGestureValidationTemplateIndex, out template);
+            return TryResolveReferenceTemplateIndex(customGestureValidationTemplateIndex, out var templateIndex)
+                   && inputRouter.TryGetCustomGestureTemplate(templateIndex, out template);
         }
 
         public void DeleteSelectedCustomGestureTemplate()
@@ -593,7 +678,8 @@ namespace SpellGuard.Core
             }
 
             var label = CustomGestureValidationTargetLabel;
-            if (!inputRouter.DeleteCustomGestureTemplate(customGestureValidationTemplateIndex))
+            if (!TryResolveReferenceTemplateIndex(customGestureValidationTemplateIndex, out var templateIndex)
+                || !inputRouter.DeleteCustomGestureTemplate(templateIndex))
             {
                 customGestureValidationStatusText = "Delete failed: no selected custom gesture template.";
                 HintText = customGestureValidationStatusText;
@@ -602,14 +688,46 @@ namespace SpellGuard.Core
 
             ClampCustomGestureValidationTarget();
             customGestureValidationSuccessAt = -999f;
-            customGestureValidationActive = CustomGestureTemplateCount > 0;
-            customGestureValidationStatusText = CustomGestureTemplateCount > 0
+            customGestureValidationActive = CustomGestureReferenceTemplateCount > 0;
+            customGestureValidationStatusText = CustomGestureReferenceTemplateCount > 0
                 ? $"Deleted {label}. Current target: {CustomGestureValidationTargetLabel}."
                 : $"Deleted {label}. Custom gesture library is empty.";
             customGestureStatusText = customGestureValidationStatusText;
             HintText = customGestureValidationStatusText;
             inputProvider?.ClearTransientInputs();
             SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
+        }
+
+        public void ToggleCustomGestureValidationAdaptation()
+        {
+            if (customGestureAdaptationActive)
+            {
+                customGestureAdaptationActive = false;
+                customGestureRecorder.Cancel();
+                customGestureValidationStatusText = $"增强采集已停止：采纳 {customGestureAdaptationAcceptedSamples}，拒绝 {customGestureAdaptationRejectedSamples}。";
+                HintText = customGestureValidationStatusText;
+                return;
+            }
+
+            ReloadCustomGestureTemplates();
+            if (!TryGetCustomGestureValidationTemplate(out var template) || template == null)
+            {
+                customGestureValidationStatusText = "增强采集失败：没有选中的视频模板。";
+                HintText = customGestureValidationStatusText;
+                return;
+            }
+
+            customGestureAdaptationActive = true;
+            customGestureAdaptationAcceptedSamples = 0;
+            customGestureAdaptationRejectedSamples = 0;
+            customGestureValidationActive = true;
+            customGestureRecorder.Configure(0.4f, Mathf.Max(1.0f, customGestureRecordSeconds), customGestureSampleIntervalSeconds, Mathf.Min(0.2f, customGestureValidationMinimumConfidence), CustomGestureKind.DynamicMotion);
+            customGestureRecorder.AllowAnyHandedness = true;
+            customGestureRecorder.SetTargetHandedness(GestureHandedness.Right);
+            customGestureRecorder.Begin(Time.time);
+            customGestureValidationStatusText = $"增强采集已开启：你接下来做的“{template.DisplayName}”会被视为正确样本；系统只做质量检查。";
+            HintText = customGestureValidationStatusText;
+            EnsureNativeInputForCustomGestureValidation();
         }
 
         public void RecordTrainingPointerCheck()
@@ -877,10 +995,16 @@ namespace SpellGuard.Core
         private void ConfigureCustomGestureRecorder()
         {
             customGestureRecorder.Configure(customGestureCountdownSeconds, customGestureRecordSeconds, customGestureSampleIntervalSeconds, customGestureMinimumConfidence, customGestureKind);
+            customGestureRecorder.AllowAnyHandedness = false;
         }
 
         private void UpdateCustomGestureRecording()
         {
+            if (customGestureAdaptationActive)
+            {
+                return;
+            }
+
             if (screen != SpellGuardScreen.Training || !customGestureRecorder.IsBusy)
             {
                 return;
@@ -903,7 +1027,7 @@ namespace SpellGuard.Core
 
         private void UpdateCustomGestureValidation()
         {
-            if (screen != SpellGuardScreen.Training || !developerToolsMode || !customGestureValidationActive || customGestureRecorder.IsBusy)
+            if (screen != SpellGuardScreen.Training || !developerToolsMode || !customGestureValidationActive || (customGestureRecorder.IsBusy && !customGestureAdaptationActive))
             {
                 return;
             }
@@ -915,7 +1039,18 @@ namespace SpellGuard.Core
             }
 
             ClampCustomGestureValidationTarget();
-            if (!inputRouter.TryEvaluateCustomGestureTemplate(customGestureValidationTemplateIndex, inputRouter.CurrentGestureFrame, Time.time, out var targetLabel, out var requiredHandedness, out var matched))
+            EnsureNativeInputForCustomGestureValidation();
+            var validationFrame = ResolveCustomGestureValidationFrame();
+            if (customGestureAdaptationActive)
+            {
+                UpdateCustomGestureValidationAdaptation(validationFrame);
+                return;
+            }
+
+            if (!TryResolveReferenceTemplateIndex(customGestureValidationTemplateIndex, out var resolvedTemplateIndex)
+                || !inputRouter.TryGetCustomGestureTemplate(resolvedTemplateIndex, out var template)
+                || template == null
+                || !inputRouter.TryEvaluateCustomGestureTemplate(resolvedTemplateIndex, validationFrame, Time.time, out var targetLabel, out var requiredHandedness, out var matched))
             {
                 customGestureValidationActive = false;
                 customGestureValidationStatusText = "模板库为空：请先录制并保存一个自定义手势。";
@@ -941,12 +1076,138 @@ namespace SpellGuard.Core
                 return;
             }
 
-            customGestureValidationStatusText = $"正在验证“{targetLabel}”（{handLabel}）：请做出这个目标手势，命中后会显示验证成功。";
+            var landmarkCount = validationFrame.HasPrimaryHand && validationFrame.PrimaryHand.Landmarks != null ? validationFrame.PrimaryHand.Landmarks.Length : 0;
+            customGestureValidationStatusText = $"正在验证“{targetLabel}”（{handLabel}）：{FormatValidationInputState(validationFrame, landmarkCount)}。若使用导入视频模板，可点“回放参考验证”。";
+            LogCustomGestureValidationDiagnostic(validationFrame, targetLabel, matched, landmarkCount);
+        }
+
+        private void UpdateCustomGestureValidationAdaptation(GestureFrame validationFrame)
+        {
+            if (!customGestureRecorder.IsBusy)
+            {
+                if (customGestureRecorder.State == CustomGestureRecorderState.Review && customGestureRecorder.LastSample == null)
+                {
+                    customGestureAdaptationRejectedSamples += 1;
+                    customGestureValidationStatusText = $"增强样本已拒绝：{customGestureRecorder.LastFailureReason}；有效 {customGestureRecorder.CapturedFrameCount} 帧，无效 {customGestureRecorder.InvalidFrameCount} 帧；采纳 {customGestureAdaptationAcceptedSamples}，拒绝 {customGestureAdaptationRejectedSamples}。";
+                    RestartCustomGestureAdaptationRecorder();
+                    return;
+                }
+
+                customGestureRecorder.AllowAnyHandedness = true;
+                customGestureRecorder.Begin(Time.time);
+                return;
+            }
+
+            if (!customGestureRecorder.Update(validationFrame, Time.time))
+            {
+                customGestureValidationStatusText = $"增强采集中：{customGestureRecorder.StatusText}；有效 {customGestureRecorder.CapturedFrameCount} 帧，无效 {customGestureRecorder.InvalidFrameCount} 帧；采纳 {customGestureAdaptationAcceptedSamples}，拒绝 {customGestureAdaptationRejectedSamples}。";
+                return;
+            }
+
+            var sample = customGestureRecorder.LastSample;
+            if (sample == null || !TryGetCustomGestureValidationTemplate(out var template) || template == null)
+            {
+                customGestureAdaptationRejectedSamples += 1;
+                customGestureValidationStatusText = $"增强样本已拒绝：模板或样本为空；有效 {customGestureRecorder.CapturedFrameCount} 帧，无效 {customGestureRecorder.InvalidFrameCount} 帧；采纳 {customGestureAdaptationAcceptedSamples}，拒绝 {customGestureAdaptationRejectedSamples}。";
+                RestartCustomGestureAdaptationRecorder();
+                return;
+            }
+
+            if (!TryAcceptCustomGestureAdaptationSample(template, sample, out var reason))
+            {
+                customGestureAdaptationRejectedSamples += 1;
+                customGestureValidationStatusText = $"增强样本已拒绝：{reason}；有效 {sample.Frames.Count} 帧；采纳 {customGestureAdaptationAcceptedSamples}，拒绝 {customGestureAdaptationRejectedSamples}。";
+                RestartCustomGestureAdaptationRecorder();
+                return;
+            }
+
+            customGestureAdaptationAcceptedSamples += 1;
+            customGestureValidationStatusText = $"增强样本已采纳：当前模板样本 {template.Samples.Count} 个；本轮采纳 {customGestureAdaptationAcceptedSamples}，拒绝 {customGestureAdaptationRejectedSamples}。";
+            HintText = customGestureValidationStatusText;
+            SpellGuardAudioController.Instance?.PlayTrainingPingSfx();
+            RestartCustomGestureAdaptationRecorder();
+        }
+
+        private void RestartCustomGestureAdaptationRecorder()
+        {
+            customGestureRecorder.Cancel();
+            customGestureRecorder.AllowAnyHandedness = true;
+            customGestureRecorder.Begin(Time.time);
+        }
+
+        private bool TryAcceptCustomGestureAdaptationSample(CustomGestureTemplate template, CustomGestureSample sample, out string reason)
+        {
+            reason = string.Empty;
+            if (template == null || sample?.Frames == null || sample.Frames.Count < 4)
+            {
+                reason = "有效帧不足";
+                return false;
+            }
+
+            const float adaptationMinimumConfidence = 0.1f;
+            const float adaptationMinimumNetDistance = 0.018f;
+            const float adaptationMinimumPathLength = 0.025f;
+            const float adaptationMaximumWobbleRatio = 5.5f;
+
+            if (!CustomGestureTrajectoryMatcher.TryMeasureRawMotion(sample, adaptationMinimumConfidence, out var netDistance, out var pathLength))
+            {
+                reason = $"轨迹无法测量 frames={sample.Frames.Count}";
+                return false;
+            }
+
+            if (netDistance < adaptationMinimumNetDistance || pathLength < adaptationMinimumPathLength)
+            {
+                reason = $"掌根位移不足 net={netDistance:F3} path={pathLength:F3}";
+                return false;
+            }
+
+            if (pathLength / Mathf.Max(0.0001f, netDistance) > adaptationMaximumWobbleRatio)
+            {
+                reason = $"轨迹抖动过多 ratio={pathLength / Mathf.Max(0.0001f, netDistance):F2}";
+                return false;
+            }
+
+            sample.SampleId = $"adapt_{DateTime.UtcNow:yyyyMMddHHmmss}_{customGestureAdaptationAcceptedSamples + 1}";
+            sample.Handedness = GestureHandedness.Unknown;
+            template.RequiredHandedness = GestureHandedness.Unknown;
+            template.Samples ??= new List<CustomGestureSample>();
+            template.Samples.Add(sample);
+            TrimAdaptationSamples(template, 12);
+            template.TrajectoryTemplates = CustomGestureTrajectoryTemplateBuilder.Build(template.Samples);
+            template.FeatureSequenceTemplates?.Clear();
+            inputRouter?.SaveCustomGesture(template);
+            inputRouter?.ReloadCustomGestures();
+            inputRouter?.ResetCustomGestureValidationRecognizer();
+            return true;
+        }
+
+        private static void TrimAdaptationSamples(CustomGestureTemplate template, int maxAdaptedSamples)
+        {
+            if (template?.Samples == null || maxAdaptedSamples <= 0)
+            {
+                return;
+            }
+
+            var adaptedCount = 0;
+            for (var index = template.Samples.Count - 1; index >= 0; index--)
+            {
+                var sample = template.Samples[index];
+                if (sample == null || string.IsNullOrWhiteSpace(sample.SampleId) || !sample.SampleId.StartsWith("adapt_", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                adaptedCount++;
+                if (adaptedCount > maxAdaptedSamples)
+                {
+                    template.Samples.RemoveAt(index);
+                }
+            }
         }
 
         private void ClampCustomGestureValidationTarget()
         {
-            var count = CustomGestureTemplateCount;
+            var count = CustomGestureReferenceTemplateCount;
             if (count <= 0)
             {
                 customGestureValidationTemplateIndex = 0;
@@ -956,14 +1217,107 @@ namespace SpellGuard.Core
             customGestureValidationTemplateIndex = Mathf.Clamp(customGestureValidationTemplateIndex, 0, count - 1);
         }
 
+        private int CountReferenceBackedValidationTemplates()
+        {
+            if (inputRouter == null)
+            {
+                return 0;
+            }
+
+            var count = 0;
+            for (var index = 0; index < inputRouter.CustomGestureTemplateCount; index++)
+            {
+                if (inputRouter.TryGetCustomGestureTemplate(index, out var template) && HasReferenceClipFrames(template))
+                {
+                    count += 1;
+                }
+            }
+
+            return count;
+        }
+
+        private bool TryResolveReferenceTemplateIndex(int referenceIndex, out int templateIndex)
+        {
+            templateIndex = -1;
+            if (inputRouter == null || referenceIndex < 0)
+            {
+                return false;
+            }
+
+            var currentReferenceIndex = 0;
+            for (var index = 0; index < inputRouter.CustomGestureTemplateCount; index++)
+            {
+                if (!inputRouter.TryGetCustomGestureTemplate(index, out var template) || !HasReferenceClipFrames(template))
+                {
+                    continue;
+                }
+
+                if (currentReferenceIndex == referenceIndex)
+                {
+                    templateIndex = index;
+                    return true;
+                }
+
+                currentReferenceIndex += 1;
+            }
+
+            return false;
+        }
+
+        private string BuildReferenceBackedValidationListText()
+        {
+            if (inputRouter == null)
+            {
+                return string.Empty;
+            }
+
+            var builder = new System.Text.StringBuilder();
+            var referenceIndex = 0;
+            for (var index = 0; index < inputRouter.CustomGestureTemplateCount; index++)
+            {
+                if (!inputRouter.TryGetCustomGestureTemplate(index, out var template) || !HasReferenceClipFrames(template))
+                {
+                    continue;
+                }
+
+                if (builder.Length > 0)
+                {
+                    builder.Append('\n');
+                }
+
+                builder.Append(referenceIndex == customGestureValidationTemplateIndex ? "▶ " : "  ");
+                builder.Append(string.IsNullOrWhiteSpace(template.DisplayName) ? template.GestureId : template.DisplayName);
+                builder.Append("  |  ");
+                builder.Append(template.GestureId);
+                referenceIndex += 1;
+            }
+
+            return builder.Length > 0 ? builder.ToString() : "没有可验证的视频模板";
+        }
+
+        private static bool HasReferenceClipFrames(CustomGestureTemplate template)
+        {
+            if (template == null || string.IsNullOrWhiteSpace(template.GestureId))
+            {
+                return false;
+            }
+
+            var directory = Path.Combine(Application.streamingAssetsPath, "CustomGestureReferenceVideos", template.GestureId);
+            return Directory.Exists(directory)
+                   && (Directory.GetFiles(directory, "*.jpg", SearchOption.TopDirectoryOnly).Length > 0
+                       || Directory.GetFiles(directory, "*.png", SearchOption.TopDirectoryOnly).Length > 0);
+        }
+
         private string GetCustomGestureValidationTargetLabel()
         {
-            return inputRouter != null ? inputRouter.GetCustomGestureTemplateLabel(customGestureValidationTemplateIndex) : "无";
+            return inputRouter != null && TryResolveReferenceTemplateIndex(customGestureValidationTemplateIndex, out var templateIndex)
+                ? inputRouter.GetCustomGestureTemplateLabel(templateIndex)
+                : "无视频模板";
         }
 
         private string BuildCustomGestureValidationReferenceText()
         {
-            if (inputRouter == null || !inputRouter.TryGetCustomGestureTemplate(customGestureValidationTemplateIndex, out var template) || template == null)
+            if (inputRouter == null || !TryResolveReferenceTemplateIndex(customGestureValidationTemplateIndex, out var templateIndex) || !inputRouter.TryGetCustomGestureTemplate(templateIndex, out var template) || template == null)
             {
                 return string.Empty;
             }
@@ -1033,6 +1387,111 @@ namespace SpellGuard.Core
             }
 
             return lines.ToString();
+        }
+
+        private static GestureFrame BuildGestureFrameFromSample(CustomGestureFrameSample sample, int frameId, GestureHandedness handedness)
+        {
+            var snapshot = new GestureSnapshot
+            {
+                HandPresent = sample != null,
+                Gesture = sample != null ? sample.StaticGesture : GestureType.None,
+                ViewportPosition = sample != null ? sample.PalmCenter : new Vector2(0.5f, 0.5f),
+                Confidence = sample != null ? sample.Confidence : 0f
+            };
+
+            return LegacyGestureRuntimeAdapter.BuildSingleHandFrame(
+                snapshot,
+                sample != null ? sample.Landmarks : null,
+                frameId,
+                sample != null ? sample.Time : 0f,
+                GestureSourceKind.Routed,
+                MotionGestureEvent.None,
+                handedness,
+                0);
+        }
+
+        private GestureFrame ResolveCustomGestureValidationFrame()
+        {
+            var routedFrame = inputRouter != null ? inputRouter.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.Unknown);
+            if (HasCompleteHandLandmarks(routedFrame))
+            {
+                return routedFrame;
+            }
+
+            var nativeProvider = ResolveNativeMediapipeProvider();
+            var nativeFrame = nativeProvider != null ? nativeProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.NativeMediapipe);
+            return HasCompleteHandLandmarks(nativeFrame) ? nativeFrame : routedFrame;
+        }
+
+        private void EnsureNativeInputForCustomGestureValidation()
+        {
+            if (inputRouter == null || inputRouter.Mode == GestureInputRouter.InputMode.NativeMediapipe)
+            {
+                return;
+            }
+
+            if (Time.unscaledTime - customGestureValidationInputModeRequestedAt < 0.5f)
+            {
+                return;
+            }
+
+            customGestureValidationInputModeRequestedAt = Time.unscaledTime;
+            inputRouter.SetMode(GestureInputRouter.InputMode.NativeMediapipe);
+            settings?.SetInputMode(GestureInputRouter.InputMode.NativeMediapipe);
+        }
+
+        private NativeMediapipeGestureProvider ResolveNativeMediapipeProvider()
+        {
+            if (nativeMediapipeProvider != null)
+            {
+                return nativeMediapipeProvider;
+            }
+
+#if UNITY_2023_1_OR_NEWER
+            nativeMediapipeProvider = FindFirstObjectByType<NativeMediapipeGestureProvider>();
+#else
+            nativeMediapipeProvider = FindObjectOfType<NativeMediapipeGestureProvider>();
+#endif
+            return nativeMediapipeProvider;
+        }
+
+        private static bool HasCompleteHandLandmarks(GestureFrame frame)
+        {
+            return frame.HasPrimaryHand
+                   && frame.PrimaryHand.Landmarks != null
+                   && frame.PrimaryHand.Landmarks.Length >= CustomGestureFeatureExtractor.RequiredLandmarkCount;
+        }
+
+        private string FormatValidationInputState(GestureFrame frame, int landmarkCount)
+        {
+            if (!frame.HasPrimaryHand)
+            {
+                return $"当前输入 {InputModeLabel} 未检测到手；评分来源 {frame.Source}，帧号 {frame.FrameId}";
+            }
+
+            if (landmarkCount < CustomGestureFeatureExtractor.RequiredLandmarkCount)
+            {
+                return $"当前输入 {InputModeLabel} 只有 {landmarkCount}/21 个关键点，动态帧无法累计；评分来源 {frame.Source}，帧号 {frame.FrameId}";
+            }
+
+            var score = float.IsPositiveInfinity(CustomGestureValidationScore) ? "--" : CustomGestureValidationScore.ToString("F3");
+            var windowFrames = inputRouter != null ? inputRouter.CustomGestureValidationWindowFrameCount : 0;
+            var windowSeconds = inputRouter != null ? inputRouter.CustomGestureValidationWindowDurationSeconds : 0f;
+            return $"当前输入 {InputModeLabel} 已接收 {landmarkCount}/21 个关键点，评分来源 {frame.Source}，帧号 {frame.FrameId}，窗口 {windowFrames} 帧/{windowSeconds:F2}s，评分 {score}，原因 {CustomGestureValidationFailureReason}";
+        }
+
+        private void LogCustomGestureValidationDiagnostic(GestureFrame frame, string targetLabel, bool matched, int landmarkCount)
+        {
+            if (!debugLogs || Time.unscaledTime - customGestureValidationLastDebugLogAt < 1f)
+            {
+                return;
+            }
+
+            customGestureValidationLastDebugLogAt = Time.unscaledTime;
+            var score = float.IsPositiveInfinity(CustomGestureValidationScore) ? "--" : CustomGestureValidationScore.ToString("F3");
+            Debug.Log(
+                $"[Gesture][CustomValidation] active={customGestureValidationActive} target={targetLabel} matched={matched} input={InputModeLabel} source={frame.Source} frameId={frame.FrameId} hasHand={frame.HasPrimaryHand} landmarks={landmarkCount}/21 window={CustomGestureValidationWindowFrameCount} frames/{CustomGestureValidationWindowDurationSeconds:F2}s score={score} reason={CustomGestureValidationFailureReason}",
+                this);
         }
 
         private void RefreshSpellCasterSubscription()

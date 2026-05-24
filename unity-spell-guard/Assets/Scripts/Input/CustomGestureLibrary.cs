@@ -156,6 +156,7 @@ namespace SpellGuard.InputSystem
                 }
 
                 template.DynamicRule ??= CustomGestureDynamicRuleEvaluator.InferRule(template.Samples);
+                ApplyDynamicTemplateProfile(template);
             }
             else
             {
@@ -165,6 +166,29 @@ namespace SpellGuard.InputSystem
             template.RequiredHandedness = ResolveTemplateHandedness(template);
             sanitized = template;
             return true;
+        }
+
+        private static void ApplyDynamicTemplateProfile(CustomGestureTemplate template)
+        {
+            if (template?.DynamicRule == null)
+            {
+                return;
+            }
+
+            switch (template.DynamicRule.Pattern)
+            {
+                case CustomGestureDynamicPattern.FingerSpread:
+                case CustomGestureDynamicPattern.FeatureSequence:
+                    template.MatchThreshold = Mathf.Clamp(template.MatchThreshold, 0.01f, 0.38f);
+                    break;
+
+                default:
+                    template.FeatureSequenceTemplates?.Clear();
+                    template.MatchThreshold = Mathf.Clamp(template.MatchThreshold, 0.01f, 0.22f);
+                    template.DynamicRule.MinimumDistance = Mathf.Max(template.DynamicRule.MinimumDistance, 0.06f);
+                    template.DynamicRule.MaximumDrift = Mathf.Min(Mathf.Max(template.DynamicRule.MaximumDrift, 0.14f), 0.28f);
+                    break;
+            }
         }
 
         private static string GetDefaultProjectLibraryPath()
@@ -177,6 +201,11 @@ namespace SpellGuard.InputSystem
             if (template.RequiredHandedness != GestureHandedness.Unknown)
             {
                 return template.RequiredHandedness;
+            }
+
+            if (template.Kind == CustomGestureKind.DynamicMotion)
+            {
+                return GestureHandedness.Unknown;
             }
 
             if (template.Samples == null)

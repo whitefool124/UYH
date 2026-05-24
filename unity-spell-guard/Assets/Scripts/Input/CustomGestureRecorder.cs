@@ -38,6 +38,7 @@ namespace SpellGuard.InputSystem
         public string LastFailureReason => lastFailureReason;
         public bool IsBusy => State == CustomGestureRecorderState.Countdown || State == CustomGestureRecorderState.Recording;
         public GestureHandedness TargetHandedness => targetHandedness;
+        public bool AllowAnyHandedness { get; set; }
 
         public void Configure(float countdown, float duration, float sampleInterval, float minConfidence, CustomGestureKind kind)
         {
@@ -212,13 +213,13 @@ namespace SpellGuard.InputSystem
                 return false;
             }
 
-            if (hand.Handedness == GestureHandedness.Unknown)
+            if (!AllowAnyHandedness && hand.Handedness == GestureHandedness.Unknown)
             {
                 reason = "正在等待左右手识别";
                 return false;
             }
 
-            if (hand.Handedness != targetHandedness)
+            if (!AllowAnyHandedness && hand.Handedness != targetHandedness)
             {
                 reason = $"Use {FormatHandedness(targetHandedness)}";
                 return false;

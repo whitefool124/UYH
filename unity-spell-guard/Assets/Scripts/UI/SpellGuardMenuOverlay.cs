@@ -531,23 +531,24 @@ namespace SpellGuard.UI
             DrawPanel(left, new Color(0.05f, 0.06f, 0.1f, 0.78f), new Color(0.55f, 0.74f, 1f, 0.9f));
             DrawPanel(right, new Color(0.05f, 0.06f, 0.1f, 0.78f), new Color(0.48f, 0.9f, 0.7f, 0.9f));
 
-            GUI.Label(new Rect(left.x + 10f, left.y + 8f, left.width - 20f, 20f), "参考说明", overlayHintStyle);
+            GUI.Label(new Rect(left.x + 10f, left.y + 8f, left.width - 20f, 20f), "演示视频", overlayHintStyle);
             GUI.Label(new Rect(right.x + 10f, right.y + 8f, right.width - 20f, 20f), "实时骨架", overlayHintStyle);
 
             var referenceRect = Shrink(left, 12f, 34f, 12f, 16f);
             var liveRect = Shrink(right, 12f, 34f, 12f, 16f);
             DrawCustomGestureValidationReference(referenceRect);
 
-            var frame = inputProvider != null ? inputProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.Unknown);
+            var router = inputProvider as GestureInputRouter;
+            var frame = router != null ? router.CurrentGestureFrame : inputProvider != null ? inputProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.Unknown);
             var hand = frame.HasPrimaryHand ? frame.PrimaryHand : TrackedHandState.Missing;
             var lineColor = frame.HasPrimaryHand ? new Color(0.46f, 0.84f, 1f, 0.95f) : new Color(1f, 0.6f, 0.36f, 0.45f);
             var pointColor = frame.HasPrimaryHand ? new Color(1f, 0.9f, 0.52f, 0.95f) : new Color(1f, 0.45f, 0.3f, 0.45f);
             GestureSkeletonDrawer.DrawHand(liveRect, hand.Landmarks, lineColor, pointColor);
 
             var label = frame.HasPrimaryHand
-                ? $"手势：{hand.StaticGesture.ToChinese()}  手：{hand.Handedness}  置信度：{hand.Confidence:F2}\n分数：{(float.IsPositiveInfinity(flowController.CustomGestureValidationScore) ? "--" : flowController.CustomGestureValidationScore.ToString("F3"))}"
+                ? BuildCustomGestureLiveDiagnosticLabel(frame, hand)
                 : "未检测到手";
-            GUI.Label(new Rect(right.x + 10f, right.yMax - 52f, right.width - 20f, 40f), label, overlayHintStyle);
+            GUI.Label(new Rect(right.x + 10f, right.yMax - 88f, right.width - 20f, 76f), label, overlayHintStyle);
         }
 
         private void DrawCustomGestureValidationReference(Rect rect)
@@ -586,10 +587,20 @@ namespace SpellGuard.UI
         private static string BuildValidationReferenceHeader(CustomGestureTemplate template)
         {
             var name = string.IsNullOrWhiteSpace(template.DisplayName) ? template.GestureId : template.DisplayName;
-            var note = template.Kind == CustomGestureKind.DynamicMotion
-                ? "动态手势：按轨迹走，别停太久"
-                : "静态手势：保持姿势稳定";
-            return $"{name}\n{note}\n手别：{template.RequiredHandedness}  阈值：{template.MatchThreshold:F2}";
+            return $"{name}\n模板：{template.GestureId}\n手别：{template.RequiredHandedness}  阈值：{template.MatchThreshold:F2}";
+        }
+
+        private string BuildCustomGestureLiveDiagnosticLabel(GestureFrame frame, TrackedHandState hand)
+        {
+            var score = flowController != null && !float.IsPositiveInfinity(flowController.CustomGestureValidationScore)
+                ? flowController.CustomGestureValidationScore.ToString("F3")
+                : "--";
+            var reason = flowController != null ? flowController.CustomGestureValidationFailureReason : "无";
+            var windowFrames = flowController != null ? flowController.CustomGestureValidationWindowFrameCount : 0;
+            var windowSeconds = flowController != null ? flowController.CustomGestureValidationWindowDurationSeconds : 0f;
+            var landmarks = hand.Landmarks != null ? hand.Landmarks.Length : 0;
+            var active = flowController != null && flowController.CustomGestureValidationActive ? "持续监测中" : "已暂停";
+            return $"监测：{active}  源：{frame.Source}  帧：{frame.FrameId}\n关键点：{landmarks}/21  窗口：{windowFrames}帧/{windowSeconds:F2}s\n手势：{hand.StaticGesture.ToChinese()}  手：{hand.Handedness}  置信度：{hand.Confidence:F2}\n评分：{score}  原因：{reason}";
         }
 
         private void AddDeveloperRegions(OverlayLayout layout)
@@ -638,9 +649,11 @@ namespace SpellGuard.UI
         private void AddCustomGestureValidationRegions(OverlayLayout layout)
         {
             AddRegion("custom-validation-target", $"目标：{flowController.CustomGestureValidationTargetLabel}", MakeDevTrainingRect(layout, 0, 0));
-            AddRegion("custom-validation-toggle", flowController.CustomGestureValidationActive ? "暂停持续验证" : "开始持续验证", MakeDevTrainingRect(layout, 1, 0));
-            AddRegion("custom-validation-reload", "重新加载库", MakeDevTrainingRect(layout, 2, 0));
-            AddRegion("custom-validation-delete", "删除当前模板", MakeDevTrainingRect(layout, 1, 1));
+            AddRegion("custom-validation-adapt", flowController.CustomGestureAdaptationActive ? "停止增强采集" : "开始增强采集", MakeDevTrainingRect(layout, 1, 0));
+            AddRegion("custom-validation-toggle", flowController.CustomGestureValidationActive ? "暂停验证" : "开始验证", MakeDevTrainingRect(layout, 2, 0));
+            AddRegion("custom-validation-replay", "回放参考", MakeDevTrainingRect(layout, 0, 1));
+            AddRegion("custom-validation-reload", "重新加载", MakeDevTrainingRect(layout, 1, 1));
+            AddRegion("custom-validation-delete", "删除模板", MakeDevTrainingRect(layout, 2, 1));
             AddRegion("dev-custom-page", "返回录入页", MakeDevTrainingRect(layout, 0, 2));
             AddRegion("dev-home", "返回开发者首页", MakeDevTrainingRect(layout, 2, 2));
         }
@@ -691,9 +704,11 @@ namespace SpellGuard.UI
         private void DrawCustomGestureValidationRegions(OverlayLayout layout)
         {
             DrawRegion("custom-validation-target", $"目标：{flowController.CustomGestureValidationTargetLabel}", MakeDevTrainingRect(layout, 0, 0));
-            DrawRegion("custom-validation-toggle", flowController.CustomGestureValidationActive ? "暂停持续验证" : "开始持续验证", MakeDevTrainingRect(layout, 1, 0));
-            DrawRegion("custom-validation-reload", "重新加载库", MakeDevTrainingRect(layout, 2, 0));
-            DrawRegion("custom-validation-delete", "删除当前模板", MakeDevTrainingRect(layout, 1, 1));
+            DrawRegion("custom-validation-adapt", flowController.CustomGestureAdaptationActive ? "停止增强采集" : "开始增强采集", MakeDevTrainingRect(layout, 1, 0));
+            DrawRegion("custom-validation-toggle", flowController.CustomGestureValidationActive ? "暂停验证" : "开始验证", MakeDevTrainingRect(layout, 2, 0));
+            DrawRegion("custom-validation-replay", "回放参考", MakeDevTrainingRect(layout, 0, 1));
+            DrawRegion("custom-validation-reload", "重新加载", MakeDevTrainingRect(layout, 1, 1));
+            DrawRegion("custom-validation-delete", "删除模板", MakeDevTrainingRect(layout, 2, 1));
             DrawRegion("dev-custom-page", "返回录入页", MakeDevTrainingRect(layout, 0, 2));
             DrawRegion("dev-home", "返回开发者首页", MakeDevTrainingRect(layout, 2, 2));
         }
@@ -740,7 +755,9 @@ namespace SpellGuard.UI
             else if (key == "custom-validation-target") flowController.CycleCustomGestureValidationTarget();
             else if (key == "custom-validation-toggle") flowController.ToggleCustomGestureValidation();
             else if (key == "custom-validation-reload") flowController.StartCustomGestureValidation();
+            else if (key == "custom-validation-replay") flowController.ReplayCustomGestureValidationReference();
             else if (key == "custom-validation-delete") flowController.DeleteSelectedCustomGestureTemplate();
+            else if (key == "custom-validation-adapt") flowController.ToggleCustomGestureValidationAdaptation();
             else if (key == "performance-toggle") TogglePerformanceRecording();
             else if (key == "performance-export") ExportPerformanceCsv();
             else if (key == "demo-export") ExportDemoRunCsv();
@@ -787,7 +804,13 @@ namespace SpellGuard.UI
         private string BuildCustomGestureValidationPageText(SpellGuardFlowViewData viewData)
         {
             var score = flowController != null ? flowController.CustomGestureValidationScore : float.PositiveInfinity;
-            return $"目标：{viewData.CustomGestureValidationTargetLabel}  模板：{viewData.CustomGestureTemplateCount}\n状态：{(viewData.CustomGestureValidationActive ? "持续监测中" : "已暂停")}\n最近命中：{viewData.CustomGestureLastMatchedName}\n评分：{(float.IsPositiveInfinity(score) ? "--" : score.ToString("F3"))}\n\n点“目标”切模板，点“开始持续验证”后直接做目标手势。";
+            var failureReason = flowController != null ? flowController.CustomGestureValidationFailureReason : "无";
+            if (viewData.CustomGestureAdaptationActive)
+            {
+                return $"视频模板：{viewData.CustomGestureValidationTargetLabel}\n模式：增强采集  采纳：{viewData.CustomGestureAdaptationAcceptedSamples}  拒绝：{viewData.CustomGestureAdaptationRejectedSamples}\n\n状态：{viewData.CustomGestureValidationStatusText}\n\n采集规则：你正在做的是人工确认的正确动作；系统只检查关键点完整度、掌根位移和轨迹抖动。合格样本会自动加入当前模板。\n\n模板：\n{viewData.CustomGestureValidationListText}";
+            }
+
+            return $"视频模板：{viewData.CustomGestureValidationTargetLabel}\n监测：{(viewData.CustomGestureValidationActive ? "持续监测中" : "已暂停")}  增强：{(viewData.CustomGestureAdaptationActive ? "采集中" : "关闭")}  采纳/拒绝：{viewData.CustomGestureAdaptationAcceptedSamples}/{viewData.CustomGestureAdaptationRejectedSamples}\n窗口：{viewData.CustomGestureValidationWindowFrameCount}帧/{viewData.CustomGestureValidationWindowDurationSeconds:F2}s  评分：{(float.IsPositiveInfinity(score) ? "--" : score.ToString("F3"))}\n原因：{failureReason}\n状态：{viewData.CustomGestureValidationStatusText}\n\n模板：\n{viewData.CustomGestureValidationListText}";
         }
 
         private static string BuildCustomGestureStageText(SpellGuardFlowViewData viewData)
@@ -1191,14 +1214,19 @@ namespace SpellGuard.UI
         {
             private static readonly System.Reflection.MethodInfo LoadImageMethod =
                 Type.GetType("UnityEngine.ImageConversion, UnityEngine.ImageConversionModule")
-                    ?.GetMethod("LoadImage", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                    ?.GetMethod(
+                        "LoadImage",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+                        null,
+                        new[] { typeof(Texture2D), typeof(byte[]), typeof(bool) },
+                        null);
 
             private readonly List<Texture2D> frames = new List<Texture2D>();
             private string loadedTemplateId;
             private string loadedSampleId;
             private float lastFrameAt = -999f;
             private int frameIndex;
-            private const float FrameInterval = 1f / 18f;
+            private const float FrameInterval = 1f / 6f;
 
             public Texture2D CurrentTexture => frames.Count > 0 ? frames[Mathf.Clamp(frameIndex, 0, frames.Count - 1)] : null;
             public string StatusText { get; private set; } = "等待参考视频";

@@ -14,7 +14,9 @@ namespace SpellGuard.InputSystem
     {
         Directional,
         Repeat,
-        Loop
+        Loop,
+        FingerSpread,
+        FeatureSequence
     }
 
     public enum CustomGestureMotionDirection
@@ -37,9 +39,16 @@ namespace SpellGuard.InputSystem
         public float MaximumDrift = 0.22f;
         public float MinimumDuration = 0.12f;
         public float MaximumDuration = 2f;
+        public float MinimumAxisRatio = 0f;
         public int RepeatCount = 2;
         public float MinimumPathRatio = 1.6f;
         public float MaximumClosureDistance = 0.12f;
+        public int FingerAIndex = 4;
+        public int FingerBIndex = 8;
+        public float MinimumFingerDistanceDelta = 0.22f;
+        public float MaximumPalmMotion = 0.18f;
+        public float MinimumFeatureDelta = 0.16f;
+        public float MinimumFeaturePath = 0.22f;
     }
 
     [Serializable]
@@ -48,6 +57,20 @@ namespace SpellGuard.InputSystem
         public string SampleId;
         public float DurationSeconds;
         public Vector2[] Points = System.Array.Empty<Vector2>();
+    }
+
+    [Serializable]
+    public sealed class CustomGestureFeatureSequenceTemplate
+    {
+        public string SampleId;
+        public float DurationSeconds;
+        public CustomGestureFeatureFrameTemplate[] Frames = System.Array.Empty<CustomGestureFeatureFrameTemplate>();
+    }
+
+    [Serializable]
+    public sealed class CustomGestureFeatureFrameTemplate
+    {
+        public float[] Features = System.Array.Empty<float>();
     }
 
     [Serializable]
@@ -62,6 +85,7 @@ namespace SpellGuard.InputSystem
         public CustomGestureDynamicRule DynamicRule;
         public List<CustomGestureSample> Samples = new List<CustomGestureSample>();
         public List<CustomGestureTrajectoryTemplate> TrajectoryTemplates = new List<CustomGestureTrajectoryTemplate>();
+        public List<CustomGestureFeatureSequenceTemplate> FeatureSequenceTemplates = new List<CustomGestureFeatureSequenceTemplate>();
 
         public bool HasSamples => Samples != null && Samples.Count > 0;
     }
