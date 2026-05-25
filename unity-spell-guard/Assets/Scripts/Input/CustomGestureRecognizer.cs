@@ -18,9 +18,9 @@ namespace SpellGuard.InputSystem
         private float lastAcceptedFrameTimestamp = float.NaN;
         private GestureSourceKind lastAcceptedFrameSource = GestureSourceKind.Unknown;
         private GestureAction currentAction = GestureAction.None;
-        private string lastMatchedName = "无";
+        private string lastMatchedName = "None";
         private float lastScore = float.PositiveInfinity;
-        private string lastFailureReason = "无";
+        private string lastFailureReason = "None";
 
         public GestureAction CurrentCustomAction => currentAction;
         public string LastMatchedName => lastMatchedName;
@@ -40,9 +40,9 @@ namespace SpellGuard.InputSystem
         {
             window.Clear();
             currentAction = GestureAction.None;
-            lastMatchedName = "无";
+            lastMatchedName = "None";
             lastScore = float.PositiveInfinity;
-            lastFailureReason = "无";
+            lastFailureReason = "None";
             lastTriggeredAt = -999f;
             lastAcceptedFrameId = long.MinValue;
             lastAcceptedFrameTimestamp = float.NaN;
@@ -54,8 +54,15 @@ namespace SpellGuard.InputSystem
             action = GestureAction.None;
             currentAction = GestureAction.None;
             AddFrame(frame, now);
-            if (templates == null || templates.Count == 0 || now - lastTriggeredAt < cooldownSeconds)
+            if (templates == null || templates.Count == 0)
             {
+                lastFailureReason = "template library is empty";
+                return false;
+            }
+
+            if (now - lastTriggeredAt < cooldownSeconds)
+            {
+                lastFailureReason = "recognizer is cooling down";
                 return false;
             }
 
@@ -63,6 +70,7 @@ namespace SpellGuard.InputSystem
             var hasStaticFeatures = TryGetLatestStaticFeatures(window, minimumConfidence, out var runtimeStaticFeatures);
             if (!hasDynamicFrames && !hasStaticFeatures)
             {
+                lastFailureReason = $"not enough usable frames; window={window.Count} frames, duration={WindowDurationSeconds:F2}s";
                 return false;
             }
 
@@ -105,12 +113,16 @@ namespace SpellGuard.InputSystem
             lastScore = bestScore;
             if (bestTemplate == null || bestScore > bestTemplate.MatchThreshold)
             {
+                lastFailureReason = bestTemplate == null
+                    ? "no usable template matched"
+                    : $"score too high: {bestScore:F3} > {bestTemplate.MatchThreshold:F3}";
                 return false;
             }
 
             if (secondBestScore <= bestTemplate.MatchThreshold && secondBestScore - bestScore < AmbiguousMatchMargin)
             {
-                lastMatchedName = "相近手势冲突";
+                lastMatchedName = "Ambiguous custom gestures";
+                lastFailureReason = $"ambiguous custom gestures: best={bestScore:F3}, second={secondBestScore:F3}";
                 return false;
             }
 
@@ -128,6 +140,7 @@ namespace SpellGuard.InputSystem
             currentAction = action;
             lastTriggeredAt = now;
             lastMatchedName = string.IsNullOrWhiteSpace(bestTemplate.DisplayName) ? bestTemplate.GestureId : bestTemplate.DisplayName;
+            lastFailureReason = "matched";
             if (bestTemplate.Kind == CustomGestureKind.DynamicMotion)
             {
                 window.Clear();
@@ -148,26 +161,26 @@ namespace SpellGuard.InputSystem
             lastScore = float.PositiveInfinity;
             if (!IsUsableTemplate(template))
             {
-                lastFailureReason = "模板不可用";
+                lastFailureReason = "template is not usable";
                 return false;
             }
 
             if (now - lastTriggeredAt < cooldownSeconds)
             {
-                lastFailureReason = "命中冷却中";
+                lastFailureReason = "recognizer is cooling down";
                 return false;
             }
 
             var hasStaticFeatures = TryGetLatestStaticFeatures(window, minimumConfidence, out var runtimeStaticFeatures);
             if (template.Kind == CustomGestureKind.StaticPose && !hasStaticFeatures)
             {
-                lastFailureReason = "没有可用静态特征";
+                lastFailureReason = "no usable static features";
                 return false;
             }
 
             if (template.Kind == CustomGestureKind.DynamicMotion && !HasEnoughDynamicFrames())
             {
-                lastFailureReason = $"动态帧不足 {window.Count}/4，窗口 {WindowDurationSeconds:F2}s";
+                lastFailureReason = $"not enough dynamic frames: {window.Count}/4, duration={WindowDurationSeconds:F2}s";
                 return false;
             }
 
@@ -176,7 +189,7 @@ namespace SpellGuard.InputSystem
                 && runtimeHandedness != GestureHandedness.Unknown
                 && template.RequiredHandedness != runtimeHandedness)
             {
-                lastFailureReason = $"手别不一致：需要 {template.RequiredHandedness}，当前 {runtimeHandedness}";
+                lastFailureReason = $"handedness mismatch: required={template.RequiredHandedness}, current={runtimeHandedness}";
                 return false;
             }
 
@@ -186,7 +199,7 @@ namespace SpellGuard.InputSystem
 
             if (lastScore > template.MatchThreshold)
             {
-                lastFailureReason = $"分数过高 {lastScore:F3} > {template.MatchThreshold:F3}，窗口 {window.Count} 帧/{WindowDurationSeconds:F2}s";
+                lastFailureReason = $"score too high: {lastScore:F3} > {template.MatchThreshold:F3}; window={window.Count} frames, duration={WindowDurationSeconds:F2}s";
                 return false;
             }
 
@@ -196,7 +209,7 @@ namespace SpellGuard.InputSystem
             {
                 window.Clear();
             }
-            lastFailureReason = $"已命中，窗口 {window.Count} 帧/{WindowDurationSeconds:F2}s";
+            lastFailureReason = $"matched; window={window.Count} frames, duration={WindowDurationSeconds:F2}s";
             return true;
         }
 
@@ -251,26 +264,32 @@ namespace SpellGuard.InputSystem
             var best = float.PositiveInfinity;
             var hasTrajectoryTemplates = template.TrajectoryTemplates != null && template.TrajectoryTemplates.Count > 0;
             var hasFeatureSequenceTemplates = template.FeatureSequenceTemplates != null && template.FeatureSequenceTemplates.Count > 0;
-            var hasTemplateSequence = hasTrajectoryTemplates || hasFeatureSequenceTemplates;
+            var normalizedPattern = template.DynamicRule != null
+                ? CustomGestureDynamicPatternUtility.Normalize(template.DynamicRule.Pattern)
+                : CustomGestureDynamicPattern.PalmTrajectory;
+            var usesPalmTrajectory = CustomGestureDynamicPatternUtility.UsesPalmTrajectoryTemplate(normalizedPattern);
+            var usesFeatureSequence = normalizedPattern == CustomGestureDynamicPattern.FeatureSequence;
+            var hasTemplateSequence = usesPalmTrajectory && hasTrajectoryTemplates || usesFeatureSequence && hasFeatureSequenceTemplates;
             var hasDynamicRule = template.DynamicRule != null && template.Samples != null && template.Samples.Count > 0;
-            var isPalmTrajectoryTemplate = hasTrajectoryTemplates
-                                           && (template.DynamicRule == null
-                                               || template.DynamicRule.Pattern == CustomGestureDynamicPattern.Directional
-                                               || template.DynamicRule.Pattern == CustomGestureDynamicPattern.Loop
-                                               || template.DynamicRule.Pattern == CustomGestureDynamicPattern.Repeat);
-            var allowFeatureSequenceScore = hasFeatureSequenceTemplates && !isPalmTrajectoryTemplate;
-            var dynamicRuleMatched = !hasDynamicRule || hasTemplateSequence;
-            if (isPalmTrajectoryTemplate && HasTooMuchFingerPoseNoise() && !TemplateAllowsFingerPoseMotion(template))
+            var requiresDynamicRuleMatch = hasDynamicRule
+                                           && (normalizedPattern == CustomGestureDynamicPattern.Repeat
+                                               || normalizedPattern == CustomGestureDynamicPattern.Loop
+                                               || !hasTemplateSequence);
+            var dynamicRuleMatched = !requiresDynamicRuleMatch;
+            if (usesPalmTrajectory && hasTrajectoryTemplates && HasTooMuchFingerPoseNoise() && !TemplateAllowsFingerPoseMotion(template))
             {
                 return float.PositiveInfinity;
             }
 
-            if (hasTemplateSequence && !HasEnoughRuntimeMotion(template))
+            if (usesPalmTrajectory
+                && hasTemplateSequence
+                && normalizedPattern != CustomGestureDynamicPattern.Loop
+                && !HasEnoughRuntimeMotion(template))
             {
                 return float.PositiveInfinity;
             }
 
-            if (template.TrajectoryTemplates != null)
+            if (usesPalmTrajectory && template.TrajectoryTemplates != null)
             {
                 for (var index = 0; index < template.TrajectoryTemplates.Count; index++)
                 {
@@ -288,7 +307,7 @@ namespace SpellGuard.InputSystem
                 }
             }
 
-            if (allowFeatureSequenceScore)
+            if (usesFeatureSequence && hasFeatureSequenceTemplates && HasEnoughFeatureMotion(template))
             {
                 for (var index = 0; index < template.FeatureSequenceTemplates.Count; index++)
                 {
@@ -306,7 +325,7 @@ namespace SpellGuard.InputSystem
                 }
             }
 
-            if (hasDynamicRule && !isPalmTrajectoryTemplate)
+            if (hasDynamicRule && CustomGestureDynamicPatternUtility.IsDynamicRulePattern(normalizedPattern))
             {
                 var activeRule = template.DynamicRule;
                 for (var index = 0; index < template.Samples.Count; index++)
@@ -331,6 +350,14 @@ namespace SpellGuard.InputSystem
             }
 
             return dynamicRuleMatched ? best : float.PositiveInfinity;
+        }
+
+        private bool HasEnoughFeatureMotion(CustomGestureTemplate template)
+        {
+            var rule = template?.DynamicRule;
+            var minimumFeaturePath = Mathf.Max(0.04f, (rule?.MinimumFeaturePath ?? 0.12f) * 0.35f);
+            return CustomGestureFeatureExtractor.TryExtractSequenceFeatures(window, minimumConfidence, rule?.FingerAIndex ?? 4, rule?.FingerBIndex ?? 8, out var features)
+                   && features.FeaturePathLength >= minimumFeaturePath;
         }
 
         private bool HasTooMuchFingerPoseNoise()

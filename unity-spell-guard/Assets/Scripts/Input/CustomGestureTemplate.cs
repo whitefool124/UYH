@@ -16,7 +16,11 @@ namespace SpellGuard.InputSystem
         Repeat,
         Loop,
         FingerSpread,
-        FeatureSequence
+        FeatureSequence,
+        PalmTrajectory,
+        PoseTransition,
+        FingerDistanceChange,
+        FingerOscillation
     }
 
     public enum CustomGestureMotionDirection
@@ -45,10 +49,17 @@ namespace SpellGuard.InputSystem
         public float MaximumClosureDistance = 0.12f;
         public int FingerAIndex = 4;
         public int FingerBIndex = 8;
+        public int FingerCIndex = 12;
         public float MinimumFingerDistanceDelta = 0.22f;
+        public float MinimumFingerDistancePath = 0.18f;
+        public float MinimumFingerVelocity = 0.35f;
+        public int MinimumOscillationCount = 2;
         public float MaximumPalmMotion = 0.18f;
         public float MinimumFeatureDelta = 0.16f;
         public float MinimumFeaturePath = 0.22f;
+        public GestureType StartPose = GestureType.Unknown;
+        public GestureType EndPose = GestureType.Unknown;
+        public float PoseTransitionMaxPalmMotion = 0.12f;
     }
 
     [Serializable]
@@ -76,6 +87,7 @@ namespace SpellGuard.InputSystem
     [Serializable]
     public sealed class CustomGestureTemplate
     {
+        public int SchemaVersion = 1;
         public string GestureId;
         public string DisplayName;
         public CustomGestureKind Kind = CustomGestureKind.DynamicMotion;

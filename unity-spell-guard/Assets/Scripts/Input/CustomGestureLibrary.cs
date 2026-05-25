@@ -10,6 +10,7 @@ namespace SpellGuard.InputSystem
         private const string FolderName = "CustomGestures";
         private const string ProjectLibraryFolder = "ProjectGestureLibrary";
         private readonly List<CustomGestureTemplate> templates = new List<CustomGestureTemplate>();
+        private readonly List<CustomGestureTemplateValidationReport> validationReports = new List<CustomGestureTemplateValidationReport>();
         private readonly string folderPath;
 
         [Serializable]
@@ -28,11 +29,13 @@ namespace SpellGuard.InputSystem
         }
 
         public IReadOnlyList<CustomGestureTemplate> Templates => templates;
+        public IReadOnlyList<CustomGestureTemplateValidationReport> ValidationReports => validationReports;
         public string FolderPath => folderPath;
 
         public void LoadAll()
         {
             templates.Clear();
+            validationReports.Clear();
             if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
             {
                 return;
@@ -44,7 +47,12 @@ namespace SpellGuard.InputSystem
             {
                 if (TryLoad(files[index], out var template))
                 {
-                    templates.Add(template);
+                    var report = ValidateTemplate(template);
+                    validationReports.Add(report);
+                    if (report.Active)
+                    {
+                        templates.Add(template);
+                    }
                 }
             }
         }
@@ -60,7 +68,16 @@ namespace SpellGuard.InputSystem
             var path = GetTemplatePath(sanitized.GestureId);
             var wrapper = new TemplateFile { Template = sanitized };
             File.WriteAllText(path, JsonUtility.ToJson(wrapper, true));
-            ReplaceInMemory(sanitized);
+            var report = ValidateTemplate(sanitized);
+            if (report.Active)
+            {
+                ReplaceInMemory(sanitized);
+            }
+            else
+            {
+                templates.RemoveAll(templateInMemory => string.Equals(templateInMemory.GestureId, sanitized.GestureId, StringComparison.OrdinalIgnoreCase));
+            }
+            ReplaceValidationReport(report);
             return true;
         }
 
@@ -73,6 +90,7 @@ namespace SpellGuard.InputSystem
             }
 
             templates.RemoveAll(template => string.Equals(template.GestureId, sanitizedId, StringComparison.OrdinalIgnoreCase));
+            validationReports.RemoveAll(report => string.Equals(report.GestureId, sanitizedId, StringComparison.OrdinalIgnoreCase));
             var path = GetTemplatePath(sanitizedId);
             if (!File.Exists(path))
             {
@@ -81,6 +99,110 @@ namespace SpellGuard.InputSystem
 
             File.Delete(path);
             return true;
+        }
+
+        public static CustomGestureTemplateValidationReport ValidateTemplate(CustomGestureTemplate template)
+        {
+            var report = new CustomGestureTemplateValidationReport
+            {
+                GestureId = template?.GestureId ?? string.Empty,
+                DisplayName = template?.DisplayName ?? string.Empty,
+                Pattern = template?.DynamicRule != null
+                    ? CustomGestureDynamicPatternUtility.Normalize(template.DynamicRule.Pattern)
+                    : CustomGestureDynamicPattern.PalmTrajectory,
+                Active = false,
+                FailureReason = string.Empty,
+                Samples = new List<CustomGestureTemplateValidationSampleResult>()
+            };
+
+            if (template == null)
+            {
+                report.FailureReason = "template is null";
+                return report;
+            }
+
+            if (!IsAllowedTargetIntent(template.TargetIntent))
+            {
+                report.FailureReason = "target intent is not allowed";
+                return report;
+            }
+
+            if (template.Samples == null || template.Samples.Count == 0)
+            {
+                report.FailureReason = "template has no recorded samples";
+                return report;
+            }
+
+            for (var sampleIndex = 0; sampleIndex < template.Samples.Count; sampleIndex++)
+            {
+                var sample = template.Samples[sampleIndex];
+                var sampleResult = ValidateSample(template, sample);
+                report.Samples.Add(sampleResult);
+                report.SampleCount += 1;
+                if (sampleResult.Matched)
+                {
+                    report.MatchedSampleCount += 1;
+                }
+            }
+
+            report.Active = report.SampleCount > 0 && report.MatchedSampleCount == report.SampleCount;
+            if (!report.Active)
+            {
+                report.FailureReason = report.SampleCount == 0
+                    ? "template has no usable sample frames"
+                    : $"{report.MatchedSampleCount}/{report.SampleCount} samples matched their template";
+            }
+
+            return report;
+        }
+
+        private static CustomGestureTemplateValidationSampleResult ValidateSample(CustomGestureTemplate template, CustomGestureSample sample)
+        {
+            var result = new CustomGestureTemplateValidationSampleResult
+            {
+                SampleId = sample?.SampleId ?? string.Empty,
+                Threshold = template?.MatchThreshold ?? 0f,
+                BestScore = float.PositiveInfinity,
+                TriggeredAt = -1f,
+                FailureReason = string.Empty
+            };
+
+            if (template == null || sample?.Frames == null || sample.Frames.Count == 0)
+            {
+                result.FailureReason = "sample has no frames";
+                return result;
+            }
+
+            result.FrameCount = sample.Frames.Count;
+            var recognizer = new CustomGestureRecognizer();
+            recognizer.Configure(0.2f, 2.4f, 0.01f);
+            recognizer.Reset();
+            var firstTime = sample.Frames[0].Time;
+            for (var frameIndex = 0; frameIndex < sample.Frames.Count; frameIndex++)
+            {
+                var frameSample = sample.Frames[frameIndex];
+                var runtimeFrame = ToGestureFrame(frameSample, sample.Handedness, frameIndex + 1, frameSample.Time - firstTime);
+                if (recognizer.TryResolveSingle(runtimeFrame, template, runtimeFrame.Timestamp))
+                {
+                    result.Matched = true;
+                    result.BestScore = recognizer.LastScore;
+                    result.TriggeredAt = runtimeFrame.Timestamp;
+                    return result;
+                }
+
+                result.FailureReason = recognizer.LastFailureReason;
+                if (recognizer.LastScore < result.BestScore)
+                {
+                    result.BestScore = recognizer.LastScore;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(result.FailureReason))
+            {
+                result.FailureReason = "sample did not match";
+            }
+
+            return result;
         }
 
         public static bool IsAllowedTargetIntent(GestureIntent intent)
@@ -148,6 +270,7 @@ namespace SpellGuard.InputSystem
             template.MatchThreshold = Mathf.Clamp(template.MatchThreshold <= 0f ? defaultThreshold : template.MatchThreshold, 0.01f, 2f);
             template.Samples ??= new List<CustomGestureSample>();
             template.TrajectoryTemplates ??= new List<CustomGestureTrajectoryTemplate>();
+            template.FeatureSequenceTemplates ??= new List<CustomGestureFeatureSequenceTemplate>();
             if (template.Kind == CustomGestureKind.DynamicMotion)
             {
                 if (template.TrajectoryTemplates.Count == 0)
@@ -156,12 +279,26 @@ namespace SpellGuard.InputSystem
                 }
 
                 template.DynamicRule ??= CustomGestureDynamicRuleEvaluator.InferRule(template.Samples);
+                if (template.DynamicRule != null)
+                {
+                    template.DynamicRule.Pattern = CustomGestureDynamicPatternUtility.Normalize(template.DynamicRule.Pattern);
+                }
+
+                if (template.FeatureSequenceTemplates.Count == 0
+                    && template.DynamicRule != null
+                    && CustomGestureDynamicPatternUtility.IsFeatureSequence(template.DynamicRule.Pattern))
+                {
+                    template.FeatureSequenceTemplates = CustomGestureTrajectoryTemplateBuilder.BuildFeatureSequences(template.Samples);
+                }
+
+                template.SchemaVersion = Mathf.Max(template.SchemaVersion, 2);
                 ApplyDynamicTemplateProfile(template);
             }
             else
             {
                 template.DynamicRule = null;
                 template.TrajectoryTemplates.Clear();
+                template.FeatureSequenceTemplates.Clear();
             }
             template.RequiredHandedness = ResolveTemplateHandedness(template);
             sanitized = template;
@@ -177,13 +314,17 @@ namespace SpellGuard.InputSystem
 
             switch (template.DynamicRule.Pattern)
             {
-                case CustomGestureDynamicPattern.FingerSpread:
+                case CustomGestureDynamicPattern.FingerDistanceChange:
+                case CustomGestureDynamicPattern.FingerOscillation:
                 case CustomGestureDynamicPattern.FeatureSequence:
                     template.MatchThreshold = Mathf.Clamp(template.MatchThreshold, 0.01f, 0.38f);
                     break;
 
                 default:
-                    template.FeatureSequenceTemplates?.Clear();
+                    if (!CustomGestureDynamicPatternUtility.IsFeatureSequence(template.DynamicRule.Pattern))
+                    {
+                        template.FeatureSequenceTemplates?.Clear();
+                    }
                     template.MatchThreshold = Mathf.Clamp(template.MatchThreshold, 0.01f, 0.22f);
                     template.DynamicRule.MinimumDistance = Mathf.Max(template.DynamicRule.MinimumDistance, 0.06f);
                     template.DynamicRule.MaximumDrift = Mathf.Min(Mathf.Max(template.DynamicRule.MaximumDrift, 0.14f), 0.28f);
@@ -237,6 +378,46 @@ namespace SpellGuard.InputSystem
             }
 
             templates.Add(template);
+        }
+
+        private void ReplaceValidationReport(CustomGestureTemplateValidationReport report)
+        {
+            if (report == null)
+            {
+                return;
+            }
+
+            for (var index = 0; index < validationReports.Count; index++)
+            {
+                if (string.Equals(validationReports[index].GestureId, report.GestureId, StringComparison.OrdinalIgnoreCase))
+                {
+                    validationReports[index] = report;
+                    return;
+                }
+            }
+
+            validationReports.Add(report);
+        }
+
+        private static GestureFrame ToGestureFrame(CustomGestureFrameSample sample, GestureHandedness handedness, long frameId, float timestamp)
+        {
+            var hand = new TrackedHandState
+            {
+                IsTracked = true,
+                Confidence = sample?.Confidence ?? 0f,
+                StaticGesture = sample?.StaticGesture ?? GestureType.None,
+                Handedness = handedness,
+                PalmCenter = sample?.PalmCenter ?? Vector2.zero,
+                Landmarks = sample?.Landmarks ?? Array.Empty<Vector2>()
+            };
+
+            return new GestureFrame
+            {
+                FrameId = frameId,
+                Timestamp = timestamp,
+                Source = GestureSourceKind.Mock,
+                Hands = new[] { hand }
+            };
         }
 
         private static string SanitizeId(string value)

@@ -34,10 +34,17 @@ namespace SpellGuard.InputSystem
                 MaximumClosureDistance = 0.12f,
                 FingerAIndex = 4,
                 FingerBIndex = 8,
+                FingerCIndex = 12,
                 MinimumFingerDistanceDelta = 0.22f,
+                MinimumFingerDistancePath = 0.18f,
+                MinimumFingerVelocity = 0.35f,
+                MinimumOscillationCount = 2,
                 MaximumPalmMotion = 0.18f,
                 MinimumFeatureDelta = 0.16f,
-                MinimumFeaturePath = 0.22f
+                MinimumFeaturePath = 0.22f,
+                StartPose = GestureType.Unknown,
+                EndPose = GestureType.Unknown,
+                PoseTransitionMaxPalmMotion = 0.12f
             };
         }
 
@@ -198,11 +205,12 @@ namespace SpellGuard.InputSystem
                 averagePalmMotion /= spreadAnalysisCount;
                 if (averageFingerDistanceDelta > 0.18f && averagePalmMotion <= 0.2f)
                 {
-                    rule.Pattern = CustomGestureDynamicPattern.FingerSpread;
+                    rule.Pattern = CustomGestureDynamicPattern.FingerDistanceChange;
                     rule.Direction = CustomGestureMotionDirection.Any;
                     rule.RequireOpenPalm = false;
                     rule.MinimumOpenPalmRatio = 0f;
                     rule.MinimumFingerDistanceDelta = Mathf.Max(0.12f, averageFingerDistanceDelta * 0.8f);
+                    rule.MinimumFingerDistancePath = Mathf.Max(0.10f, averageFingerDistanceDelta * 0.9f);
                     rule.MaximumPalmMotion = Mathf.Max(0.12f, averagePalmMotion * 1.5f);
                     return rule;
                 }
@@ -237,7 +245,7 @@ namespace SpellGuard.InputSystem
                 return rule;
             }
 
-            rule.Pattern = CustomGestureDynamicPattern.Directional;
+            rule.Pattern = CustomGestureDynamicPattern.PalmTrajectory;
             rule.Direction = horizontalAnalysisCount >= Mathf.CeilToInt(analysisCount * 0.5f)
                 ? (averageHorizontalDelta >= 0f ? CustomGestureMotionDirection.LeftToRight : CustomGestureMotionDirection.RightToLeft)
                 : (averageVerticalDelta >= 0f ? CustomGestureMotionDirection.BottomToTop : CustomGestureMotionDirection.TopToBottom);
@@ -306,15 +314,31 @@ namespace SpellGuard.InputSystem
 
             switch (rule.Pattern)
             {
+                case CustomGestureDynamicPattern.PalmTrajectory:
                 case CustomGestureDynamicPattern.Loop:
                     if (!analysis.IsClosedLoop(rule.MaximumClosureDistance, rule.MinimumPathRatio))
+                    {
+                        if (rule.Pattern == CustomGestureDynamicPattern.Loop)
+                        {
+                            return false;
+                        }
+                    }
+
+                    if (rule.Pattern == CustomGestureDynamicPattern.Loop)
+                    {
+                        confidence = analysis.ClosedLoopScore;
+                        return true;
+                    }
+
+                    if (!analysis.IsDirectional(rule.Direction, rule.MinimumDistance, rule.MaximumDrift, rule.MinimumAxisRatio))
                     {
                         return false;
                     }
 
-                    confidence = analysis.ClosedLoopScore;
+                    confidence = analysis.DirectionScore;
                     return true;
 
+                case CustomGestureDynamicPattern.FingerDistanceChange:
                 case CustomGestureDynamicPattern.FingerSpread:
                     if (!analysis.IsFingerSpread(rule.FingerAIndex, rule.FingerBIndex, rule.MinimumFingerDistanceDelta, rule.MaximumPalmMotion))
                     {
@@ -322,6 +346,24 @@ namespace SpellGuard.InputSystem
                     }
 
                     confidence = analysis.FingerSpreadScore;
+                    return true;
+
+                case CustomGestureDynamicPattern.FingerOscillation:
+                    if (!analysis.IsFingerOscillation(rule.MinimumOscillationCount, rule.MinimumFingerDistancePath, rule.MaximumPalmMotion))
+                    {
+                        return false;
+                    }
+
+                    confidence = analysis.FingerOscillationScore;
+                    return true;
+
+                case CustomGestureDynamicPattern.PoseTransition:
+                    if (!analysis.IsPoseTransition(rule.StartPose, rule.EndPose, rule.PoseTransitionMaxPalmMotion))
+                    {
+                        return false;
+                    }
+
+                    confidence = analysis.PoseTransitionScore;
                     return true;
 
                 case CustomGestureDynamicPattern.FeatureSequence:
@@ -400,8 +442,15 @@ namespace SpellGuard.InputSystem
             var last = samples[samples.Count - 1];
             var pathLength = 0f;
             var directionFlipCount = 0;
+            var fingerDirectionFlipCount = 0;
             var previousDelta = Vector2.zero;
             var hasPreviousDelta = false;
+            var previousFingerDistance = 0f;
+            var previousFingerDelta = 0f;
+            var fingerPath = 0f;
+            var peakFingerVelocity = 0f;
+            var hasPreviousFingerDistance = false;
+            var poseCounts = new Dictionary<GestureType, int>();
 
             for (var index = 1; index < samples.Count; index++)
             {
@@ -419,6 +468,43 @@ namespace SpellGuard.InputSystem
 
                 previousDelta = delta;
                 hasPreviousDelta = true;
+            }
+
+            for (var index = 0; index < samples.Count; index++)
+            {
+                var sample = samples[index];
+                if (sample.StaticGesture != GestureType.None && sample.StaticGesture != GestureType.Unknown)
+                {
+                    poseCounts.TryGetValue(sample.StaticGesture, out var count);
+                    poseCounts[sample.StaticGesture] = count + 1;
+                }
+
+                if (!TryResolveFingerDistance(sample, fingerAIndex, fingerBIndex, out var fingerDistance))
+                {
+                    continue;
+                }
+
+                if (hasPreviousFingerDistance)
+                {
+                    var fingerDelta = fingerDistance - previousFingerDistance;
+                    fingerPath += Mathf.Abs(fingerDelta);
+                    var dt = Mathf.Max(0.0001f, sample.Time - samples[index - 1].Time);
+                    peakFingerVelocity = Mathf.Max(peakFingerVelocity, Mathf.Abs(fingerDelta) / dt);
+                    if (Mathf.Abs(previousFingerDelta) > 0.0001f
+                        && Mathf.Abs(fingerDelta) > 0.0001f
+                        && Mathf.Sign(previousFingerDelta) != Mathf.Sign(fingerDelta))
+                    {
+                        fingerDirectionFlipCount += 1;
+                    }
+
+                    if (Mathf.Abs(fingerDelta) > 0.0001f)
+                    {
+                        previousFingerDelta = fingerDelta;
+                    }
+                }
+
+                previousFingerDistance = fingerDistance;
+                hasPreviousFingerDistance = true;
             }
 
             var horizontalDelta = last.Palm.x - first.Palm.x;
@@ -467,9 +553,17 @@ namespace SpellGuard.InputSystem
                 FirstFingerDistance = firstFingerDistance,
                 LastFingerDistance = lastFingerDistance,
                 FingerSpreadScore = ComputeFingerSpreadScore(firstFingerDistance, lastFingerDistance, pathLength),
+                FingerDistancePath = fingerPath,
+                FingerPeakVelocity = peakFingerVelocity,
+                FingerDirectionFlipCount = fingerDirectionFlipCount,
+                FingerOscillationScore = ComputeFingerOscillationScore(fingerDirectionFlipCount, fingerPath, pathLength),
                 FeatureDelta = featureDelta,
                 FeaturePath = featurePath,
-                FeatureMotionScore = ComputeFeatureMotionScore(featureDelta, featurePath)
+                FeatureMotionScore = ComputeFeatureMotionScore(featureDelta, featurePath),
+                StartPose = first.StaticGesture,
+                EndPose = last.StaticGesture,
+                DominantPose = ResolveDominantPose(poseCounts),
+                PoseTransitionScore = ComputePoseTransitionScore(first.StaticGesture, last.StaticGesture, pathLength)
             };
         }
 
@@ -548,6 +642,41 @@ namespace SpellGuard.InputSystem
             return Mathf.Clamp01((deltaScore * 0.55f) + (pathScore * 0.45f));
         }
 
+        private static float ComputeFingerOscillationScore(int flipCount, float fingerPath, float palmPath)
+        {
+            var flipScore = Mathf.Clamp01(flipCount / 2f);
+            var pathScore = Mathf.Clamp01(fingerPath / 0.22f);
+            var palmStabilityScore = 1f - Mathf.Clamp01(palmPath / 0.18f);
+            return Mathf.Clamp01((flipScore * 0.45f) + (pathScore * 0.4f) + (palmStabilityScore * 0.15f));
+        }
+
+        private static float ComputePoseTransitionScore(GestureType startPose, GestureType endPose, float palmPath)
+        {
+            if (startPose == GestureType.None || startPose == GestureType.Unknown || endPose == GestureType.None || endPose == GestureType.Unknown || startPose == endPose)
+            {
+                return 0f;
+            }
+
+            var palmStabilityScore = 1f - Mathf.Clamp01(palmPath / 0.16f);
+            return Mathf.Clamp01(0.75f + palmStabilityScore * 0.25f);
+        }
+
+        private static GestureType ResolveDominantPose(Dictionary<GestureType, int> counts)
+        {
+            var best = GestureType.Unknown;
+            var bestCount = 0;
+            foreach (var pair in counts)
+            {
+                if (pair.Value > bestCount)
+                {
+                    best = pair.Key;
+                    bestCount = pair.Value;
+                }
+            }
+
+            return best;
+        }
+
         private struct MotionAnalysis
         {
             public int TotalFrames;
@@ -569,9 +698,17 @@ namespace SpellGuard.InputSystem
             public float FirstFingerDistance;
             public float LastFingerDistance;
             public float FingerSpreadScore;
+            public float FingerDistancePath;
+            public float FingerPeakVelocity;
+            public int FingerDirectionFlipCount;
+            public float FingerOscillationScore;
             public float FeatureDelta;
             public float FeaturePath;
             public float FeatureMotionScore;
+            public GestureType StartPose;
+            public GestureType EndPose;
+            public GestureType DominantPose;
+            public float PoseTransitionScore;
 
             public bool IsDirectional(CustomGestureMotionDirection direction, float minimumDistance, float maximumDrift, float minimumAxisRatio)
             {
@@ -634,6 +771,33 @@ namespace SpellGuard.InputSystem
 
                 var distanceDelta = LastFingerDistance - FirstFingerDistance;
                 if (distanceDelta < minimumFingerDistanceDelta)
+                {
+                    return false;
+                }
+
+                return PathLength <= Mathf.Max(0.0001f, maximumPalmMotion);
+            }
+
+            public bool IsFingerOscillation(int minimumOscillationCount, float minimumFingerDistancePath, float maximumPalmMotion)
+            {
+                return FingerDirectionFlipCount >= minimumOscillationCount
+                       && FingerDistancePath >= minimumFingerDistancePath
+                       && PathLength <= Mathf.Max(0.0001f, maximumPalmMotion);
+            }
+
+            public bool IsPoseTransition(GestureType startPose, GestureType endPose, float maximumPalmMotion)
+            {
+                if (startPose != GestureType.Unknown && startPose != GestureType.None && StartPose != startPose)
+                {
+                    return false;
+                }
+
+                if (endPose != GestureType.Unknown && endPose != GestureType.None && EndPose != endPose)
+                {
+                    return false;
+                }
+
+                if (StartPose == GestureType.None || StartPose == GestureType.Unknown || EndPose == GestureType.None || EndPose == GestureType.Unknown || StartPose == EndPose)
                 {
                     return false;
                 }
