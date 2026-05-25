@@ -235,7 +235,7 @@ node: {
             Protobuf.SetLogHandler(Protobuf.DefaultLogHandler);
             if (!IsGoogleLoggingInitialized())
             {
-                Glog.Initialize("SpellGuardLegacyMediapipe");
+                Glog.Initialize("SpellGuardMediapipe");
                 MarkGoogleLoggingInitialized();
             }
             IResourceManager resourceManager = new LocalResourceManager();
