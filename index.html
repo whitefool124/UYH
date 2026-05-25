@@ -21,7 +21,7 @@
         <div>
           <p class="eyebrow">SpellGuard Gesture Lab</p>
           <h1>自定义动态手势工作台</h1>
-          <p class="hero-copy">外部录入、管理、验证并导入 Unity。把自定义手势流程放在浏览器里完成，Unity 只负责加载和消费结果。</p>
+          <p class="hero-copy">外部录入、管理、本地预览并导入 Unity。浏览器负责采集模板，最终有效性以 Unity 自检为准。</p>
         </div>
         <div class="status-stack">
           <span id="camera-status" class="pill pending">等待摄像头</span>
@@ -118,13 +118,13 @@
           <section class="panel compact-panel">
             <div class="panel-head compact">
               <div>
-                <h2>验证</h2>
+                <h2>本地预览</h2>
                 <p>选中模板后，实时做动作查看命中结果。</p>
               </div>
             </div>
             <canvas id="trajectory-canvas" width="520" height="220"></canvas>
             <div class="button-row tight">
-              <button id="start-validation">开始验证</button>
+              <button id="start-validation">开始预览</button>
               <button id="stop-validation">停止</button>
             </div>
             <div id="validation-log" class="log-box">等待选择模板。</div>
@@ -153,7 +153,7 @@
           <div class="panel-head">
             <div>
               <h2>导入 Unity</h2>
-              <p>把导出的 JSON 放进 Unity 项目里的自定义手势目录即可自动读取。</p>
+              <p>把导出的 JSON 放进 Unity 项目里的自定义手势目录，再运行 Unity 自检确认模板可用。</p>
             </div>
           </div>
           <div class="unity-path">

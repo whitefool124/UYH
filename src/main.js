@@ -200,20 +200,20 @@ function clearSamples() {
 
 function startValidation() {
   if (state.templates.length === 0) {
-    updateCaptureStatus('没有模板可验证。');
+    updateCaptureStatus('没有模板可预览。');
     return;
   }
 
   state.validating = true;
   state.validationStartedAt = performance.now();
-  dom.validationLog.textContent = '验证中，做出目标动作即可。';
-  updateCaptureStatus('验证模式已开启。');
+  dom.validationLog.textContent = '本地预览中，最终结果以 Unity 自检为准。';
+  updateCaptureStatus('本地预览模式已开启。');
 }
 
 function stopValidation() {
   state.validating = false;
-  dom.validationLog.textContent = '验证已停止。';
-  updateCaptureStatus('验证模式已停止。');
+  dom.validationLog.textContent = '本地预览已停止。';
+  updateCaptureStatus('本地预览模式已停止。');
 }
 
 function importJsonFiles(event) {
@@ -378,7 +378,7 @@ function updateCaptureStatus(message) {
   dom.cameraHint.textContent = state.capturing
       ? `录制中，已收集 ${state.recordedSamples.length} 组，保持动作。`
       : state.validating
-        ? '验证中，直接做目标手势。'
+        ? '本地预览中，直接做目标手势。'
         : state.cameraReady
           ? `录入、管理、验证、导出都已就位。当前已收集 ${state.recordedSamples.length} 组样本。`
           : '先启动摄像头，再开始录入。';
@@ -630,8 +630,8 @@ function updateValidation(gesture) {
   state.lastMatchName = match ? match.DisplayName : '无';
   state.lastMatchScore = match ? match.score.toFixed(4) : '--';
   dom.validationLog.textContent = match
-    ? `命中：${match.DisplayName} / ${intentLabels[match.TargetIntent] || match.TargetIntent} / 分数 ${match.score.toFixed(4)}`
-    : `未命中。当前识别：${gesture.label}`;
+    ? `本地预览命中：${match.DisplayName} / ${intentLabels[match.TargetIntent] || match.TargetIntent} / 分数 ${match.score.toFixed(4)}。最终以 Unity 自检为准。`
+    : `本地预览未命中。当前识别：${gesture.label}`;
 }
 
 function buildRuntimeFrame() {
@@ -713,7 +713,7 @@ function scoreDynamicRule(template, trajectory) {
 function buildSampleFromFrames(frames) {
   return {
     SampleId: crypto.randomUUID(),
-    Handedness: 'Right',
+    Handedness: 'Unknown',
     DurationSeconds: Math.max(0.01, frames.at(-1).time - frames[0].time),
     Frames: frames.map((frame) => ({
       Time: frame.time,
@@ -803,24 +803,38 @@ function normalizeTrajectoryTemplateList(templates) {
 function buildTemplate({ gestureId, displayName, targetIntent, requiredSamples, samples }) {
   const normalizedSamples = samples.slice(0, Math.max(1, requiredSamples));
   return {
+    SchemaVersion: 2,
     GestureId: gestureId,
     DisplayName: displayName,
     Kind: 'DynamicMotion',
-    RequiredHandedness: 'Right',
+    RequiredHandedness: resolveTemplateHandedness(normalizedSamples),
     TargetIntent: targetIntent,
-    MatchThreshold: 0.18,
+    MatchThreshold: 0.38,
     DynamicRule: {
-      Pattern: 'Directional',
+      Pattern: inferDynamicPattern(normalizedSamples),
       Direction: 'Any',
-      RequireOpenPalm: true,
-      MinimumOpenPalmRatio: 0.65,
+      RequireOpenPalm: false,
+      MinimumOpenPalmRatio: 0,
       MinimumDistance: 0.08,
       MaximumDrift: 0.18,
       MinimumDuration: 0.08,
       MaximumDuration: 2.0,
       RepeatCount: 2,
       MinimumPathRatio: 1.6,
-      MaximumClosureDistance: 0.12
+      MaximumClosureDistance: 0.12,
+      FingerAIndex: 4,
+      FingerBIndex: 8,
+      FingerCIndex: 12,
+      MinimumFingerDistanceDelta: 0.10,
+      MinimumFingerDistancePath: 0.10,
+      MinimumFingerVelocity: 0.35,
+      MinimumOscillationCount: 2,
+      MaximumPalmMotion: 0.12,
+      MinimumFeatureDelta: 0.06,
+      MinimumFeaturePath: 0.08,
+      StartPose: 'Unknown',
+      EndPose: 'Unknown',
+      PoseTransitionMaxPalmMotion: 0.12
     },
     Samples: normalizedSamples,
     TrajectoryTemplates: normalizedSamples.map((sample) => ({
@@ -829,6 +843,35 @@ function buildTemplate({ gestureId, displayName, targetIntent, requiredSamples, 
       Points: resampleTrajectory(sample.Frames.map((item) => normalizePalmCenter(item))).map((point) => ({ x: point.x, y: point.y }))
     }))
   };
+}
+
+function resolveTemplateHandedness(samples) {
+  const handedness = samples.map((sample) => sample.Handedness).find((value) => value && value !== 'Unknown');
+  return handedness || 'Unknown';
+}
+
+function inferDynamicPattern(samples) {
+  const sample = samples[0];
+  if (!sample?.Frames?.length) {
+    return 'FeatureSequence';
+  }
+
+  const palms = sample.Frames.map((frame) => normalizePalmCenter(frame));
+  const palmDistance = pointDistance(palms[0], palms.at(-1));
+  const thumbIndexStart = fingerDistance(sample.Frames[0], 4, 8);
+  const thumbIndexEnd = fingerDistance(sample.Frames.at(-1), 4, 8);
+  if (Math.abs(thumbIndexEnd - thumbIndexStart) >= 0.08 && palmDistance <= 0.12) {
+    return 'FingerDistanceChange';
+  }
+
+  return palmDistance >= 0.06 ? 'PalmTrajectory' : 'FeatureSequence';
+}
+
+function fingerDistance(frame, firstIndex, secondIndex) {
+  const landmarks = normalizeLandmarks(frame?.Landmarks || frame?.landmarks);
+  const first = landmarks[firstIndex];
+  const second = landmarks[secondIndex];
+  return first && second ? pointDistance(first, second) : 0;
 }
 
 function normalizeImportedTemplates(parsed) {
@@ -855,12 +898,13 @@ function normalizeTemplate(template) {
   const samples = normalizeSampleList(template.Samples || template.samples || []);
   const trajectoryTemplates = normalizeTrajectoryTemplateList(template.TrajectoryTemplates || template.trajectoryTemplates || []);
   return {
+    SchemaVersion: template.SchemaVersion ?? template.schemaVersion ?? 1,
     GestureId: template.GestureId,
     DisplayName: template.DisplayName || template.displayName || template.GestureId,
     Kind: template.Kind || template.kind || 'DynamicMotion',
     RequiredHandedness: template.RequiredHandedness || template.requiredHandedness || 'Unknown',
     TargetIntent: template.TargetIntent || template.targetIntent || 'CustomGesture',
-    MatchThreshold: template.MatchThreshold ?? template.matchThreshold ?? 0.18,
+    MatchThreshold: template.MatchThreshold ?? template.matchThreshold ?? 0.38,
     DynamicRule: template.DynamicRule || template.dynamicRule || null,
     Samples: samples,
     TrajectoryTemplates: trajectoryTemplates

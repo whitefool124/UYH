@@ -37,6 +37,7 @@ internal static class Program
         var minedJson = ParseArg(args, "--dataset") ?? Path.Combine(root, "build-temp", "jester_mined_motion_subset.json");
         var reportDir = ParseArg(args, "--report") ?? Path.Combine(root, "build-temp", "external-regression-report");
         var explicitLibraryDir = ParseArg(args, "--library");
+        var relaxForLiveValidation = HasFlag(args, "--relax-live-validation");
         Directory.CreateDirectory(reportDir);
 
         if (!File.Exists(minedJson))
@@ -91,14 +92,17 @@ internal static class Program
                 DisplayName = pair.Key,
                 Kind = CustomGestureKind.DynamicMotion,
                 TargetIntent = GestureIntent.CustomGesture,
-                MatchThreshold = 0.78f,
+                MatchThreshold = CustomGestureRecognizer.DefaultDynamicThreshold,
                 Samples = pair.Value,
                 TrajectoryTemplates = CustomGestureTrajectoryTemplateBuilder.Build(pair.Value),
                 FeatureSequenceTemplates = CustomGestureTrajectoryTemplateBuilder.BuildFeatureSequences(pair.Value),
                 DynamicRule = CustomGestureDynamicRuleEvaluator.InferRule(pair.Value),
                 RequiredHandedness = GestureHandedness.Unknown
             };
-            RelaxForLiveValidation(template);
+            if (relaxForLiveValidation)
+            {
+                RelaxForLiveValidation(template);
+            }
 
             SaveTemplate(saveFolder, template);
             savedLabels.Add(pair.Key);
@@ -154,6 +158,7 @@ internal static class Program
         File.WriteAllText(Path.Combine(reportDir, "import_manifest.txt"),
             $"dataset={Path.GetFullPath(minedJson)}{Environment.NewLine}" +
             $"library={Path.GetFullPath(saveFolder)}{Environment.NewLine}" +
+            $"relax_live_validation={relaxForLiveValidation}{Environment.NewLine}" +
             $"saved_templates={savedLabels.Count}{Environment.NewLine}" +
             $"validated_clips={heldOut.Count}{Environment.NewLine}");
         Console.WriteLine($"Saved templates: {savedLabels.Count}");
@@ -169,7 +174,7 @@ internal static class Program
         var templates = LoadTemplatesForSelfCheck(libraryFolder);
         var rows = new List<string>
         {
-            "gesture_id,display_name,sample_id,frames,threshold,min_score,matched,triggered_at,pattern,direction,trajectory_templates,feature_sequence_templates"
+            "gesture_id,display_name,sample_id,frames,threshold,min_score,matched,triggered_at,pattern,direction,trajectory_templates,feature_sequence_templates,failure_reason,active"
         };
 
         var checkedSamples = 0;
@@ -195,6 +200,7 @@ internal static class Program
                 var matched = false;
                 var bestScore = float.PositiveInfinity;
                 var triggeredAt = -1f;
+                var failureReason = "";
                 var firstTime = sample.Frames[0].Time;
                 for (var index = 0; index < sample.Frames.Count; index++)
                 {
@@ -207,6 +213,7 @@ internal static class Program
                         break;
                     }
 
+                    failureReason = recognizer.LastFailureReason;
                     if (recognizer.LastScore < bestScore)
                     {
                         bestScore = recognizer.LastScore;
@@ -230,7 +237,9 @@ internal static class Program
                     template.DynamicRule != null ? template.DynamicRule.Pattern.ToString() : "",
                     template.DynamicRule != null ? template.DynamicRule.Direction.ToString() : "",
                     (template.TrajectoryTemplates?.Count ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    (template.FeatureSequenceTemplates?.Count ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                    (template.FeatureSequenceTemplates?.Count ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    Csv(matched ? "" : failureReason),
+                    matched.ToString(System.Globalization.CultureInfo.InvariantCulture)));
             }
         }
 
@@ -278,6 +287,11 @@ internal static class Program
                 template.DynamicRule ??= template.Kind == CustomGestureKind.DynamicMotion
                     ? CustomGestureDynamicRuleEvaluator.InferRule(template.Samples)
                     : null;
+                if (template.DynamicRule != null)
+                {
+                    template.DynamicRule.Pattern = CustomGestureDynamicPatternUtility.Normalize(template.DynamicRule.Pattern);
+                }
+
                 if (template.MatchThreshold <= 0f)
                 {
                     template.MatchThreshold = template.Kind == CustomGestureKind.StaticPose
@@ -411,6 +425,19 @@ internal static class Program
         }
 
         return null;
+    }
+
+    private static bool HasFlag(string[] args, string name)
+    {
+        for (var index = 0; index < args.Length; index++)
+        {
+            if (string.Equals(args[index], name, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static GestureHandedness ResolveHandedness(IReadOnlyList<CustomGestureSample> samples)
