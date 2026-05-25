@@ -22,10 +22,11 @@ namespace SpellGuard.EditorTools
         public List<string> ReferenceClipsMissingTemplates { get; } = new List<string>();
         public List<string> UndeclaredReferenceClipsMissingTemplates { get; } = new List<string>();
         public List<string> TemplatesOnlyInArchive { get; } = new List<string>();
-        public List<string> InvalidTemplateFiles { get; } = new List<string>();
+        public List<string> InvalidActiveTemplateFiles { get; } = new List<string>();
+        public List<string> InvalidArchivedTemplateFiles { get; } = new List<string>();
         public List<string> EmptyReferenceClipFolders { get; } = new List<string>();
 
-        public bool HasBlockingIssues => TemplatesMissingReferenceClips.Count > 0 || UndeclaredReferenceClipsMissingTemplates.Count > 0 || InvalidTemplateFiles.Count > 0 || EmptyReferenceClipFolders.Count > 0;
+        public bool HasBlockingIssues => TemplatesMissingReferenceClips.Count > 0 || UndeclaredReferenceClipsMissingTemplates.Count > 0 || InvalidActiveTemplateFiles.Count > 0 || EmptyReferenceClipFolders.Count > 0;
     }
 
     public static class CustomGestureAssetAudit
@@ -57,12 +58,12 @@ namespace SpellGuard.EditorTools
                 ReferenceVideoPath = NormalizePath(referenceVideoPath)
             };
 
-            var activeIds = LoadTemplateIds(activeLibraryPath, report.InvalidTemplateFiles);
+            var activeIds = LoadTemplateIds(activeLibraryPath, report.InvalidActiveTemplateFiles);
             report.ActiveTemplateIds.AddRange(activeIds);
 
             foreach (var archiveFolder in EnumerateArchiveFolders(projectGestureLibraryPath))
             {
-                report.ArchivedTemplateIds.AddRange(LoadTemplateIds(archiveFolder, report.InvalidTemplateFiles));
+                report.ArchivedTemplateIds.AddRange(LoadTemplateIds(archiveFolder, report.InvalidArchivedTemplateFiles));
             }
 
             report.ReferenceClipIds.AddRange(EnumerateReferenceClipIds(referenceVideoPath, report.EmptyReferenceClipFolders));
@@ -151,7 +152,8 @@ namespace SpellGuard.EditorTools
             LogList("Declared reference-only clips", report.ReferenceOnlyClipIds);
             LogList("Undeclared reference clips missing active templates", report.UndeclaredReferenceClipsMissingTemplates, true);
             LogList("Reference clips backed only by archive templates", report.TemplatesOnlyInArchive);
-            LogList("Invalid or inactive template files", report.InvalidTemplateFiles, true);
+            LogList("Invalid or inactive active template files", report.InvalidActiveTemplateFiles, true);
+            LogList("Invalid or inactive archived template files", report.InvalidArchivedTemplateFiles);
             LogList("Empty reference clip folders", report.EmptyReferenceClipFolders, true);
         }
 
