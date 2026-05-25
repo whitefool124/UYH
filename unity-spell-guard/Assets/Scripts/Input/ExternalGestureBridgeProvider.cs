@@ -268,7 +268,7 @@ namespace SpellGuard.InputSystem
 
         private void RefreshGestureFrame()
         {
-            currentGestureFrame = LegacyGestureRuntimeAdapter.BuildSingleHandFrame(
+            currentGestureFrame = GestureFrameAdapter.BuildSingleHandFrame(
                 snapshot,
                 handLandmarks,
                 frameVersion,

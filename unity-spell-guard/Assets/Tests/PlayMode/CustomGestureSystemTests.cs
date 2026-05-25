@@ -564,7 +564,7 @@ namespace SpellGuard.Tests.PlayMode
                 Confidence = 1f
             };
 
-            return LegacyGestureRuntimeAdapter.BuildSingleHandFrame(snapshot, landmarks, Mathf.RoundToInt(time * 100f), time, GestureSourceKind.Mock, MotionGestureEvent.None, handedness, 7);
+            return GestureFrameAdapter.BuildSingleHandFrame(snapshot, landmarks, Mathf.RoundToInt(time * 100f), time, GestureSourceKind.Mock, MotionGestureEvent.None, handedness, 7);
         }
 
         private static GestureFrame BuildFrameFromSample(CustomGestureFrameSample sample, int frameId, GestureHandedness handedness)
@@ -577,7 +577,7 @@ namespace SpellGuard.Tests.PlayMode
                 Confidence = sample.Confidence
             };
 
-            return LegacyGestureRuntimeAdapter.BuildSingleHandFrame(snapshot, sample.Landmarks, frameId, sample.Time, GestureSourceKind.ExternalBridge, MotionGestureEvent.None, handedness, 1);
+            return GestureFrameAdapter.BuildSingleHandFrame(snapshot, sample.Landmarks, frameId, sample.Time, GestureSourceKind.ExternalBridge, MotionGestureEvent.None, handedness, 1);
         }
 
         private static Vector2[] BuildLandmarks(Vector2 offset, float scale, float phase)

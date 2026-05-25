@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace SpellGuard.InputSystem
 {
-    public static class LegacyGestureRuntimeAdapter
+    public static class GestureFrameAdapter
     {
         public static GestureFrame BuildSingleHandFrame(
             GestureSnapshot snapshot,

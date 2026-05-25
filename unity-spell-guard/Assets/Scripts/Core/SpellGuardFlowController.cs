@@ -1399,7 +1399,7 @@ namespace SpellGuard.Core
                 Confidence = sample != null ? sample.Confidence : 0f
             };
 
-            return LegacyGestureRuntimeAdapter.BuildSingleHandFrame(
+            return GestureFrameAdapter.BuildSingleHandFrame(
                 snapshot,
                 sample != null ? sample.Landmarks : null,
                 frameId,

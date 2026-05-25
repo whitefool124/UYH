@@ -8,7 +8,7 @@ namespace SpellGuard.InputSystem
 
         public virtual MotionGestureEvent CurrentMotionGesture => MotionGestureEvent.None;
 
-        public virtual GestureFrame CurrentGestureFrame => LegacyGestureRuntimeAdapter.BuildSingleHandFrame(
+        public virtual GestureFrame CurrentGestureFrame => GestureFrameAdapter.BuildSingleHandFrame(
             CurrentSnapshot,
             null,
             0,
@@ -16,7 +16,7 @@ namespace SpellGuard.InputSystem
             GestureSourceKind.Unknown,
             CurrentMotionGesture);
 
-        public virtual GestureCommand CurrentGestureCommand => LegacyGestureRuntimeAdapter.BuildCommand(CurrentSnapshot, CurrentMotionGesture);
+        public virtual GestureCommand CurrentGestureCommand => GestureFrameAdapter.BuildCommand(CurrentSnapshot, CurrentMotionGesture);
 
         public virtual GestureAction CurrentCustomAction => GestureAction.None;
 
@@ -39,7 +39,7 @@ namespace SpellGuard.InputSystem
 
         protected static GestureCommand ChooseGestureCommand(GestureSnapshot snapshot, MotionGestureEvent motion)
         {
-            return LegacyGestureRuntimeAdapter.BuildCommand(snapshot, motion);
+            return GestureFrameAdapter.BuildCommand(snapshot, motion);
         }
     }
 }

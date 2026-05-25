@@ -6,23 +6,6 @@ namespace SpellGuard.InputSystem
     public class ExternalMotionGestureRecognizer : MonoBehaviour
     {
         [SerializeField] private bool debugLogs = true;
-
-        private struct HandSample
-        {
-            public float Time;
-            public Vector2 Palm;
-            public Vector2 ThumbTip;
-            public Vector2 MiddleTip;
-            public bool HasSnapData;
-        }
-
-        private struct PoseSample
-        {
-            public float Time;
-            public Vector2 ShoulderCenter;
-            public float ShoulderVisibility;
-        }
-
         [SerializeField] private ExternalGestureBridgeProvider bridgeProvider;
         [SerializeField] private GestureRecognitionProfile recognitionProfile;
         [SerializeField] private float historySeconds = 0.7f;
@@ -41,16 +24,7 @@ namespace SpellGuard.InputSystem
         [SerializeField] private float bodyShiftCooldownSeconds = 0.45f;
         [SerializeField] private float minPoseVisibility = 0.45f;
 
-        private readonly Queue<HandSample> handHistory = new Queue<HandSample>();
-        private readonly Queue<PoseSample> poseHistory = new Queue<PoseSample>();
-        private float lastSwipeTime = -999f;
-        private float lastSnapTime = -999f;
-        private float lastBodyShiftTime = -999f;
-        private bool snapPrimed;
-        private bool hasLastAcceptedHandSample;
-        private Vector2 lastAcceptedPalm;
-        private float lastAcceptedTipDistance;
-        private float snapPrimedTime;
+        private readonly MotionGestureDetector detector = new MotionGestureDetector();
 
         public void Configure(ExternalGestureBridgeProvider provider)
         {
@@ -77,26 +51,48 @@ namespace SpellGuard.InputSystem
 
         private void ApplyRecognitionProfile()
         {
-            if (recognitionProfile == null)
+            if (recognitionProfile != null)
             {
-                return;
+                historySeconds = recognitionProfile.historySeconds;
+                sampleJitterDeadZone = recognitionProfile.sampleJitterDeadZone;
+                swipeMinDistance = recognitionProfile.swipeMinDistance;
+                swipeMaxVerticalDrift = recognitionProfile.swipeMaxVerticalDrift;
+                swipeMinSpeed = recognitionProfile.swipeMinSpeed;
+                swipeCooldownSeconds = recognitionProfile.swipeCooldownSeconds;
+                snapCloseDistance = recognitionProfile.snapCloseDistance;
+                snapReleaseDistance = recognitionProfile.snapReleaseDistance;
+                snapMaxDuration = recognitionProfile.snapMaxDuration;
+                snapCooldownSeconds = recognitionProfile.snapCooldownSeconds;
+                bodyShiftMinDistance = recognitionProfile.bodyShiftMinDistance;
+                bodyShiftMaxVerticalDrift = recognitionProfile.bodyShiftMaxVerticalDrift;
+                bodyShiftMinSpeed = recognitionProfile.bodyShiftMinSpeed;
+                bodyShiftCooldownSeconds = recognitionProfile.bodyShiftCooldownSeconds;
+                minPoseVisibility = recognitionProfile.minPoseVisibility;
             }
 
-            historySeconds = recognitionProfile.historySeconds;
-            sampleJitterDeadZone = recognitionProfile.sampleJitterDeadZone;
-            swipeMinDistance = recognitionProfile.swipeMinDistance;
-            swipeMaxVerticalDrift = recognitionProfile.swipeMaxVerticalDrift;
-            swipeMinSpeed = recognitionProfile.swipeMinSpeed;
-            swipeCooldownSeconds = recognitionProfile.swipeCooldownSeconds;
-            snapCloseDistance = recognitionProfile.snapCloseDistance;
-            snapReleaseDistance = recognitionProfile.snapReleaseDistance;
-            snapMaxDuration = recognitionProfile.snapMaxDuration;
-            snapCooldownSeconds = recognitionProfile.snapCooldownSeconds;
-            bodyShiftMinDistance = recognitionProfile.bodyShiftMinDistance;
-            bodyShiftMaxVerticalDrift = recognitionProfile.bodyShiftMaxVerticalDrift;
-            bodyShiftMinSpeed = recognitionProfile.bodyShiftMinSpeed;
-            bodyShiftCooldownSeconds = recognitionProfile.bodyShiftCooldownSeconds;
-            minPoseVisibility = recognitionProfile.minPoseVisibility;
+            detector.Configure(
+                historySeconds,
+                sampleJitterDeadZone,
+                swipeMinDistance,
+                swipeMaxVerticalDrift,
+                swipeMinSpeed,
+                swipeCooldownSeconds,
+                0.11f,
+                0.8f,
+                0.24f,
+                0.32f,
+                0.08f,
+                0.4f,
+                0.18f,
+                0.45f,
+                snapCloseDistance,
+                snapReleaseDistance,
+                snapMaxDuration,
+                snapCooldownSeconds,
+                bodyShiftMinDistance,
+                bodyShiftMaxVerticalDrift,
+                bodyShiftMinSpeed,
+                bodyShiftCooldownSeconds);
         }
 
         private void Update()
@@ -116,7 +112,7 @@ namespace SpellGuard.InputSystem
         {
             if (frame == null)
             {
-                ResetState();
+                detector.ResetAll();
                 return;
             }
 
@@ -130,40 +126,24 @@ namespace SpellGuard.InputSystem
                     ? ConvertLandmarks(frame.handLandmarks)
                     : null;
                 var sample = BuildHandSample(landmarks, frame.ResolveViewportPosition(), sampleTime);
-                var tipDistance = sample.HasSnapData ? Vector2.Distance(sample.ThumbTip, sample.MiddleTip) : 0f;
-                if (hasLastAcceptedHandSample
-                    && Vector2.Distance(sample.Palm, lastAcceptedPalm) < sampleJitterDeadZone
-                    && Mathf.Abs(tipDistance - lastAcceptedTipDistance) < sampleJitterDeadZone)
-                {
-                    TrimHistory(handHistory, sample.Time);
-                }
-                else
-                {
-                    handHistory.Enqueue(sample);
-                    hasLastAcceptedHandSample = true;
-                    lastAcceptedPalm = sample.Palm;
-                    lastAcceptedTipDistance = tipDistance;
-                    TrimHistory(handHistory, sample.Time);
-                }
+                detector.AddHandSample(sample, false);
 
-                if (TryDetectSwipe(out var swipe))
+                if (detector.TryDetectSwipe(out var swipe))
                 {
-                    LogMotionDecision("hand-swipe", swipe, sample.Palm, 0.92f);
-                    bridgeProvider.PushMotionGesture(swipe, sample.Palm, 0.92f);
-                    ResetHandHistoryKeepingLatest(sample);
+                    PushMotion("hand-swipe", swipe, sample.Palm, 0.92f);
+                    detector.ResetHandHistoryKeepingLatest(sample);
                     return;
                 }
 
-                if (TryDetectSnap(sample, out var snap))
+                if (detector.TryDetectSnap(sample, out var snap))
                 {
-                    LogMotionDecision("snap", snap, sample.Palm, 0.9f);
-                    bridgeProvider.PushMotionGesture(snap, sample.Palm, 0.9f);
+                    PushMotion("snap", snap, sample.Palm, 0.9f);
                     return;
                 }
             }
             else
             {
-                ResetHandState();
+                detector.ResetHandState();
             }
 
             var poseLandmarks = frame.poseLandmarks != null && frame.poseLandmarks.Length > 0
@@ -173,29 +153,27 @@ namespace SpellGuard.InputSystem
             if (TryBuildPoseSample(poseLandmarks, frame, sampleTime, out var poseSample))
             {
                 processedAnyInput = true;
-                poseHistory.Enqueue(poseSample);
-                TrimHistory(poseHistory, poseSample.Time);
+                detector.AddPoseSample(poseSample);
 
-                if (TryDetectBodyShift(out var bodyShift))
+                if (detector.TryDetectBodyShift(out var bodyShift))
                 {
-                    LogMotionDecision("pose-shift", bodyShift, poseSample.ShoulderCenter, poseSample.ShoulderVisibility);
-                    bridgeProvider.PushMotionGesture(bodyShift, poseSample.ShoulderCenter, poseSample.ShoulderVisibility);
-                    ResetPoseHistoryKeepingLatest(poseSample);
+                    PushMotion("pose-shift", bodyShift, poseSample.ShoulderCenter, poseSample.ShoulderVisibility);
+                    detector.ResetPoseHistoryKeepingLatest(poseSample);
                     return;
                 }
             }
             else
             {
-                poseHistory.Clear();
+                detector.ResetPoseState();
             }
 
             if (!processedAnyInput)
             {
-                ResetState();
+                detector.ResetAll();
             }
         }
 
-        private HandSample BuildHandSample(IReadOnlyList<Vector2> landmarks, Vector2 fallbackPalm, float sampleTime)
+        private static MotionGestureDetector.HandSample BuildHandSample(IReadOnlyList<Vector2> landmarks, Vector2 fallbackPalm, float sampleTime)
         {
             var palm = fallbackPalm;
             if (landmarks != null && landmarks.Count > 17)
@@ -203,18 +181,18 @@ namespace SpellGuard.InputSystem
                 palm = (landmarks[0] + landmarks[5] + landmarks[17]) / 3f;
             }
 
-            var sample = new HandSample
+            return new MotionGestureDetector.HandSample
             {
                 Time = sampleTime,
                 Palm = palm,
                 ThumbTip = landmarks != null && landmarks.Count > 4 ? landmarks[4] : palm,
                 MiddleTip = landmarks != null && landmarks.Count > 12 ? landmarks[12] : palm,
+                StaticGesture = GestureType.None,
                 HasSnapData = landmarks != null && landmarks.Count > 12
             };
-            return sample;
         }
 
-        private bool TryBuildPoseSample(IReadOnlyList<Vector2> landmarks, ExternalVisionFrame frame, float sampleTime, out PoseSample sample)
+        private bool TryBuildPoseSample(IReadOnlyList<Vector2> landmarks, ExternalVisionFrame frame, float sampleTime, out MotionGestureDetector.PoseSample sample)
         {
             sample = default;
             if (landmarks == null || landmarks.Count <= 24 || frame?.poseLandmarks == null || frame.poseLandmarks.Length <= 24)
@@ -222,10 +200,6 @@ namespace SpellGuard.InputSystem
                 return false;
             }
 
-            var leftShoulder = landmarks[11];
-            var rightShoulder = landmarks[12];
-            var leftHip = landmarks[23];
-            var rightHip = landmarks[24];
             var framePose = frame.poseLandmarks;
             var visibility = Mathf.Min(
                 framePose[11].visibility,
@@ -239,9 +213,9 @@ namespace SpellGuard.InputSystem
                 return false;
             }
 
-            var shoulderCenter = (leftShoulder + rightShoulder) * 0.5f;
-            var hipCenter = (leftHip + rightHip) * 0.5f;
-            sample = new PoseSample
+            var shoulderCenter = (landmarks[11] + landmarks[12]) * 0.5f;
+            var hipCenter = (landmarks[23] + landmarks[24]) * 0.5f;
+            sample = new MotionGestureDetector.PoseSample
             {
                 Time = sampleTime,
                 ShoulderCenter = (shoulderCenter + hipCenter) * 0.5f,
@@ -266,172 +240,10 @@ namespace SpellGuard.InputSystem
             return frame != null && frame.timestamp > 0f ? frame.timestamp : Time.time;
         }
 
-        private void TrimHistory<T>(Queue<T> history, float currentTime) where T : struct
+        private void PushMotion(string source, MotionGestureType gesture, Vector2 position, float confidence)
         {
-            while (history.Count > 0)
-            {
-                float time;
-                var peek = history.Peek();
-                if (peek is HandSample handSample)
-                {
-                    time = handSample.Time;
-                }
-                else if (peek is PoseSample poseSample)
-                {
-                    time = poseSample.Time;
-                }
-                else
-                {
-                    break;
-                }
-
-                if (currentTime - time <= historySeconds)
-                {
-                    break;
-                }
-
-                history.Dequeue();
-            }
-        }
-
-        private bool TryDetectSwipe(out MotionGestureType gesture)
-        {
-            gesture = MotionGestureType.None;
-            if (handHistory.Count < 3)
-            {
-                return false;
-            }
-
-            var samples = handHistory.ToArray();
-            var first = samples[0];
-            var last = samples[samples.Length - 1];
-            var duration = Mathf.Max(0.0001f, last.Time - first.Time);
-            var horizontalDelta = last.Palm.x - first.Palm.x;
-            var verticalDelta = last.Palm.y - first.Palm.y;
-            var verticalDrift = Mathf.Abs(last.Palm.y - first.Palm.y);
-            var horizontalDrift = Mathf.Abs(last.Palm.x - first.Palm.x);
-            var speed = Mathf.Abs(horizontalDelta) / duration;
-
-            var horizontalSwipeDetected = verticalDrift <= swipeMaxVerticalDrift && Mathf.Abs(horizontalDelta) >= swipeMinDistance && speed >= swipeMinSpeed;
-            var verticalSwipeDetected = horizontalDrift <= swipeMaxVerticalDrift && Mathf.Abs(verticalDelta) >= swipeMinDistance && Mathf.Abs(verticalDelta) / duration >= swipeMinSpeed;
-
-            if (!horizontalSwipeDetected && !verticalSwipeDetected)
-            {
-                return false;
-            }
-
-            if (last.Time - lastSwipeTime < swipeCooldownSeconds)
-            {
-                return false;
-            }
-
-            lastSwipeTime = last.Time;
-            if (horizontalSwipeDetected && Mathf.Abs(horizontalDelta) >= Mathf.Abs(verticalDelta))
-            {
-                gesture = horizontalDelta > 0f ? MotionGestureType.SwipeLeftToRight : MotionGestureType.SwipeRightToLeft;
-                return true;
-            }
-
-            gesture = verticalDelta > 0f ? MotionGestureType.SwipeBottomToTop : MotionGestureType.SwipeTopToBottom;
-            return true;
-        }
-
-        private bool TryDetectBodyShift(out MotionGestureType gesture)
-        {
-            gesture = MotionGestureType.None;
-            if (poseHistory.Count < 3)
-            {
-                return false;
-            }
-
-            var samples = poseHistory.ToArray();
-            var first = samples[0];
-            var last = samples[samples.Length - 1];
-            var duration = Mathf.Max(0.0001f, last.Time - first.Time);
-            var horizontalDelta = last.ShoulderCenter.x - first.ShoulderCenter.x;
-            var verticalDrift = Mathf.Abs(last.ShoulderCenter.y - first.ShoulderCenter.y);
-            var speed = Mathf.Abs(horizontalDelta) / duration;
-
-            if (verticalDrift > bodyShiftMaxVerticalDrift || Mathf.Abs(horizontalDelta) < bodyShiftMinDistance || speed < bodyShiftMinSpeed)
-            {
-                return false;
-            }
-
-            if (last.Time - lastBodyShiftTime < bodyShiftCooldownSeconds)
-            {
-                return false;
-            }
-
-            lastBodyShiftTime = last.Time;
-            gesture = horizontalDelta > 0f ? MotionGestureType.BodyShiftRight : MotionGestureType.BodyShiftLeft;
-            return true;
-        }
-
-        private bool TryDetectSnap(HandSample sample, out MotionGestureType gesture)
-        {
-            gesture = MotionGestureType.None;
-            if (!sample.HasSnapData)
-            {
-                snapPrimed = false;
-                return false;
-            }
-
-            var tipDistance = Vector2.Distance(sample.ThumbTip, sample.MiddleTip);
-            if (!snapPrimed)
-            {
-                if (tipDistance <= snapCloseDistance)
-                {
-                    snapPrimed = true;
-                    snapPrimedTime = sample.Time;
-                }
-
-                return false;
-            }
-
-            if (sample.Time - snapPrimedTime > snapMaxDuration)
-            {
-                snapPrimed = false;
-                return false;
-            }
-
-            if (tipDistance < snapReleaseDistance || sample.Time - lastSnapTime < snapCooldownSeconds)
-            {
-                return false;
-            }
-
-            snapPrimed = false;
-            lastSnapTime = sample.Time;
-            gesture = MotionGestureType.Snap;
-            return true;
-        }
-
-        private void ResetHandHistoryKeepingLatest(HandSample latest)
-        {
-            handHistory.Clear();
-            handHistory.Enqueue(latest);
-            hasLastAcceptedHandSample = true;
-            lastAcceptedPalm = latest.Palm;
-            lastAcceptedTipDistance = latest.HasSnapData ? Vector2.Distance(latest.ThumbTip, latest.MiddleTip) : 0f;
-        }
-
-        private void ResetPoseHistoryKeepingLatest(PoseSample latest)
-        {
-            poseHistory.Clear();
-            poseHistory.Enqueue(latest);
-        }
-
-        private void ResetHandState()
-        {
-            handHistory.Clear();
-            snapPrimed = false;
-            hasLastAcceptedHandSample = false;
-        }
-
-        private void ResetState()
-        {
-            handHistory.Clear();
-            poseHistory.Clear();
-            snapPrimed = false;
+            LogMotionDecision(source, gesture, position, confidence);
+            bridgeProvider.PushMotionGesture(gesture, position, confidence);
         }
 
         private void LogMotionDecision(string source, MotionGestureType gesture, Vector2 position, float confidence)
@@ -441,7 +253,7 @@ namespace SpellGuard.InputSystem
                 return;
             }
 
-            Debug.Log($"[Gesture][MotionRecognizer] source={source} gesture={gesture} position={position} confidence={confidence:F2} handSamples={handHistory.Count} poseSamples={poseHistory.Count}", this);
+            Debug.Log($"[Gesture][MotionRecognizer] source={source} gesture={gesture} position={position} confidence={confidence:F2} handSamples={detector.HandSampleCount} poseSamples={detector.PoseSampleCount}", this);
         }
     }
 }

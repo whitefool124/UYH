@@ -30,7 +30,7 @@ namespace SpellGuard.InputSystem
             }
         }
 
-        public override GestureFrame CurrentGestureFrame => LegacyGestureRuntimeAdapter.BuildSingleHandFrame(
+        public override GestureFrame CurrentGestureFrame => GestureFrameAdapter.BuildSingleHandFrame(
             CurrentSnapshot,
             null,
             0,
