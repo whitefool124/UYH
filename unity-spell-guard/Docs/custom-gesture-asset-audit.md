@@ -11,6 +11,8 @@ This audit captures the current custom gesture asset boundary after the runtime 
 - Active templates: 16
 - Reference-frame folders with images: 18
 - Active template/reference matches: 16
+- Declared reference-only folders: 2
+- Undeclared reference folders without active templates: 0
 
 Matched active validation set:
 
@@ -31,9 +33,9 @@ Matched active validation set:
 - `ext_motion_up_right_short`
 - `ext_two_finger_spread_easy`
 
-## Reference folders without active templates
+## Declared reference-only folders
 
-These folders have reference images, but their matching templates are not currently active. They will not appear as selectable validation targets unless the corresponding template is restored to `CustomGestures`.
+These folders have reference images, but their matching templates are not currently active and no matching archive template exists. They are intentionally retained as reference-only material, so the editor audit reports them separately instead of treating them as production template gaps.
 
 - `ext_any_motion_easy`
 - `ext_finger_snap_video_template`
@@ -42,14 +44,9 @@ These folders have reference images, but their matching templates are not curren
 
 The archive-backed reference folders have been restored to `CustomGestures`.
 
-## Needs decision
+## Remaining template/reference gaps
 
-These reference folders currently have no matching active or archived template:
-
-- `ext_any_motion_easy`
-- `ext_finger_snap_video_template`
-
-Either restore/create matching templates, or move these folders out of the validation reference path.
+None. Any new folder under `Assets/StreamingAssets/CustomGestureReferenceVideos` must either match an active template id or be explicitly declared as reference-only in `CustomGestureAssetAudit`.
 
 ## Unity audit tool
 
@@ -59,7 +56,8 @@ Run `Spell Guard > Custom Gestures > Audit Asset Boundaries` in the Unity Editor
 - reference clips
 - active template/reference matches
 - active templates missing clips
-- reference clips missing active templates
+- declared reference-only clips
+- undeclared reference clips missing active templates
 - reference clips backed only by archived templates
 - invalid or inactive template files
 - empty reference folders

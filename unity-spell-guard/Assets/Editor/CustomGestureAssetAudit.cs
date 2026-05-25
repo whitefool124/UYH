@@ -15,20 +15,27 @@ namespace SpellGuard.EditorTools
         public string ReferenceVideoPath { get; set; }
         public List<string> ActiveTemplateIds { get; } = new List<string>();
         public List<string> ReferenceClipIds { get; } = new List<string>();
+        public List<string> ReferenceOnlyClipIds { get; } = new List<string>();
         public List<string> ArchivedTemplateIds { get; } = new List<string>();
         public List<string> MatchedReferenceIds { get; } = new List<string>();
         public List<string> TemplatesMissingReferenceClips { get; } = new List<string>();
         public List<string> ReferenceClipsMissingTemplates { get; } = new List<string>();
+        public List<string> UndeclaredReferenceClipsMissingTemplates { get; } = new List<string>();
         public List<string> TemplatesOnlyInArchive { get; } = new List<string>();
         public List<string> InvalidTemplateFiles { get; } = new List<string>();
         public List<string> EmptyReferenceClipFolders { get; } = new List<string>();
 
-        public bool HasBlockingIssues => TemplatesMissingReferenceClips.Count > 0 || InvalidTemplateFiles.Count > 0 || EmptyReferenceClipFolders.Count > 0;
+        public bool HasBlockingIssues => TemplatesMissingReferenceClips.Count > 0 || UndeclaredReferenceClipsMissingTemplates.Count > 0 || InvalidTemplateFiles.Count > 0 || EmptyReferenceClipFolders.Count > 0;
     }
 
     public static class CustomGestureAssetAudit
     {
         private const string MenuPath = "Spell Guard/Custom Gestures/Audit Asset Boundaries";
+        private static readonly HashSet<string> DeclaredReferenceOnlyClipIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "ext_any_motion_easy",
+            "ext_finger_snap_video_template"
+        };
 
         [MenuItem(MenuPath)]
         public static void AuditFromMenu()
@@ -67,6 +74,8 @@ namespace SpellGuard.EditorTools
             report.MatchedReferenceIds.AddRange(activeSet.Where(referenceSet.Contains).OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
             report.TemplatesMissingReferenceClips.AddRange(activeSet.Where(id => !referenceSet.Contains(id)).OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
             report.ReferenceClipsMissingTemplates.AddRange(referenceSet.Where(id => !activeSet.Contains(id)).OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
+            report.ReferenceOnlyClipIds.AddRange(report.ReferenceClipsMissingTemplates.Where(id => DeclaredReferenceOnlyClipIds.Contains(id)).OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
+            report.UndeclaredReferenceClipsMissingTemplates.AddRange(report.ReferenceClipsMissingTemplates.Where(id => !DeclaredReferenceOnlyClipIds.Contains(id)).OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
             report.TemplatesOnlyInArchive.AddRange(archivedSet.Where(id => !activeSet.Contains(id) && referenceSet.Contains(id)).OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
 
             Debug.Log($"[CustomGestureAssetAudit] project={NormalizePath(projectRoot)} activeTemplates={report.ActiveTemplateIds.Count} referenceClips={report.ReferenceClipIds.Count} matched={report.MatchedReferenceIds.Count}");
@@ -139,7 +148,8 @@ namespace SpellGuard.EditorTools
             Debug.Log($"[CustomGestureAssetAudit][{status}] active={report.ActiveTemplateIds.Count}, reference={report.ReferenceClipIds.Count}, matched={report.MatchedReferenceIds.Count}, archivedReferenceMatches={report.TemplatesOnlyInArchive.Count}");
             LogList("Matched active template/reference ids", report.MatchedReferenceIds);
             LogList("Active templates missing reference clips", report.TemplatesMissingReferenceClips, true);
-            LogList("Reference clips missing active templates", report.ReferenceClipsMissingTemplates);
+            LogList("Declared reference-only clips", report.ReferenceOnlyClipIds);
+            LogList("Undeclared reference clips missing active templates", report.UndeclaredReferenceClipsMissingTemplates, true);
             LogList("Reference clips backed only by archive templates", report.TemplatesOnlyInArchive);
             LogList("Invalid or inactive template files", report.InvalidTemplateFiles, true);
             LogList("Empty reference clip folders", report.EmptyReferenceClipFolders, true);

@@ -13,7 +13,7 @@ This note defines which parts of the repository are production project assets, w
 
 ## Review before committing
 
-- `unity-spell-guard/Assets/StreamingAssets/CustomGestureReferenceVideos/` - reference-frame sets used by the in-game custom gesture validation page. These can be large and easy to partially regenerate, so commit only complete frame folders with matching `.meta` files.
+- `unity-spell-guard/Assets/StreamingAssets/CustomGestureReferenceVideos/` - reference-frame sets used by the in-game custom gesture validation page. These can be large and easy to partially regenerate, so commit only complete frame folders with matching `.meta` files. Folders without active templates must be declared as reference-only in `Assets/Editor/CustomGestureAssetAudit.cs`.
 - `unity-spell-guard/ExperimentResults/` - keep only selected evidence artifacts that are referenced by documentation or thesis text. Raw repeated runs and timestamped CSV files should stay local.
 - `论文材料/` - commit final or reviewed thesis materials only. Temporary recovery, sanitized, generated, or duplicate drafts should stay local unless they are part of the submitted package.
 - Root Vite app files (`index.html`, `src/`, `package.json`) - this is an external browser custom-gesture workbench, not the Unity runtime. Keep it only as support tooling unless the project scope changes back to a browser game.
