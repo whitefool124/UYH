@@ -40,6 +40,16 @@ opencode.json
 *.tgz
 *.avi
 
+# Local ML weights and generated probe outputs
+*.pt
+unity-spell-guard/bridge/outputs/
+
+# Generated experiment runs. Keep curated summaries by adding them explicitly
+# with `git add -f` after review.
+unity-spell-guard/ExperimentResults/**/*.csv
+unity-spell-guard/ExperimentResults/extended_*/
+unity-spell-guard/ExperimentResults/demo_run_*.csv
+
 # Unity generated folders
 unity-spell-guard/[Ll]ibrary/
 unity-spell-guard/[Tt]emp/
