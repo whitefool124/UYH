@@ -7,12 +7,32 @@ namespace SpellGuard.Tests.PlayMode
     public class MotionGestureDetectorTests
     {
         [Test]
-        public void DetectsShortFourWaySwipes()
+        public void DetectsStableFourWaySwipes()
         {
-            AssertDetectsSwipe(new Vector2(0.40f, 0.50f), new Vector2(0.47f, 0.51f), MotionGestureType.SwipeLeftToRight);
-            AssertDetectsSwipe(new Vector2(0.50f, 0.50f), new Vector2(0.43f, 0.49f), MotionGestureType.SwipeRightToLeft);
-            AssertDetectsSwipe(new Vector2(0.50f, 0.42f), new Vector2(0.51f, 0.49f), MotionGestureType.SwipeBottomToTop);
-            AssertDetectsSwipe(new Vector2(0.50f, 0.49f), new Vector2(0.49f, 0.42f), MotionGestureType.SwipeTopToBottom);
+            AssertDetectsSwipe(MotionGestureType.SwipeLeftToRight, new[]
+            {
+                new Vector2(0.40f, 0.50f),
+                new Vector2(0.45f, 0.505f),
+                new Vector2(0.49f, 0.51f)
+            });
+            AssertDetectsSwipe(MotionGestureType.SwipeRightToLeft, new[]
+            {
+                new Vector2(0.50f, 0.50f),
+                new Vector2(0.45f, 0.495f),
+                new Vector2(0.41f, 0.49f)
+            });
+            AssertDetectsSwipe(MotionGestureType.SwipeBottomToTop, new[]
+            {
+                new Vector2(0.50f, 0.42f),
+                new Vector2(0.505f, 0.47f),
+                new Vector2(0.51f, 0.51f)
+            });
+            AssertDetectsSwipe(MotionGestureType.SwipeTopToBottom, new[]
+            {
+                new Vector2(0.50f, 0.51f),
+                new Vector2(0.495f, 0.46f),
+                new Vector2(0.49f, 0.42f)
+            });
         }
 
         [Test]
@@ -21,7 +41,8 @@ namespace SpellGuard.Tests.PlayMode
             var detector = CreateDetector();
             AddHandSample(detector, 0.00f, new Vector2(0.70f, 0.50f));
             AddHandSample(detector, 0.18f, new Vector2(0.50f, 0.50f));
-            AddHandSample(detector, 0.23f, new Vector2(0.57f, 0.51f));
+            AddHandSample(detector, 0.22f, new Vector2(0.55f, 0.505f));
+            AddHandSample(detector, 0.26f, new Vector2(0.60f, 0.51f));
 
             Assert.That(detector.TryDetectSwipe(out var gesture), Is.True);
             Assert.That(gesture, Is.EqualTo(MotionGestureType.SwipeLeftToRight));
@@ -32,16 +53,41 @@ namespace SpellGuard.Tests.PlayMode
         {
             var detector = CreateDetector();
             AddHandSample(detector, 0.00f, new Vector2(0.40f, 0.30f));
-            AddHandSample(detector, 0.08f, new Vector2(0.47f, 0.64f));
+            AddHandSample(detector, 0.04f, new Vector2(0.44f, 0.47f));
+            AddHandSample(detector, 0.08f, new Vector2(0.49f, 0.64f));
 
             Assert.That(detector.TryDetectSwipe(out _), Is.False);
         }
 
-        private static void AssertDetectsSwipe(Vector2 start, Vector2 end, MotionGestureType expected)
+        [Test]
+        public void RejectsSingleFrameDropThatLooksLikeDownSwipe()
         {
             var detector = CreateDetector();
-            AddHandSample(detector, 0.00f, start);
-            AddHandSample(detector, 0.05f, end);
+            AddHandSample(detector, 0.00f, new Vector2(0.50f, 0.52f));
+            AddHandSample(detector, 0.06f, new Vector2(0.50f, 0.43f));
+
+            Assert.That(detector.TryDetectSwipe(out _), Is.False);
+        }
+
+        [Test]
+        public void RejectsJitteryDownwardMotionWithOppositeTravel()
+        {
+            var detector = CreateDetector();
+            AddHandSample(detector, 0.00f, new Vector2(0.50f, 0.54f));
+            AddHandSample(detector, 0.04f, new Vector2(0.50f, 0.48f));
+            AddHandSample(detector, 0.08f, new Vector2(0.50f, 0.51f));
+            AddHandSample(detector, 0.12f, new Vector2(0.50f, 0.43f));
+
+            Assert.That(detector.TryDetectSwipe(out _), Is.False);
+        }
+
+        private static void AssertDetectsSwipe(MotionGestureType expected, Vector2[] points)
+        {
+            var detector = CreateDetector();
+            for (var index = 0; index < points.Length; index++)
+            {
+                AddHandSample(detector, index * 0.04f, points[index]);
+            }
 
             Assert.That(detector.TryDetectSwipe(out var gesture), Is.True);
             Assert.That(gesture, Is.EqualTo(expected));
@@ -52,11 +98,11 @@ namespace SpellGuard.Tests.PlayMode
             var detector = new MotionGestureDetector();
             detector.Configure(
                 historySeconds: 0.5f,
-                sampleJitterDeadZone: 0.008f,
-                swipeMinDistance: 0.06f,
-                swipeMaxVerticalDrift: 0.28f,
-                swipeMinSpeed: 0.14f,
-                swipeCooldownSeconds: 0.18f,
+                sampleJitterDeadZone: 0.01f,
+                swipeMinDistance: 0.075f,
+                swipeMaxVerticalDrift: 0.16f,
+                swipeMinSpeed: 0.18f,
+                swipeCooldownSeconds: 0.22f,
                 slapMinDistance: 0.11f,
                 slapMinOpenPalmRatio: 0.8f,
                 slapMinSpeed: 0.24f,

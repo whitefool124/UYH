@@ -5,6 +5,12 @@ namespace SpellGuard.InputSystem
 {
     public sealed class MotionGestureDetector
     {
+        private const int SwipeMinSamples = 3;
+        private const float SwipeAxisDominanceRatio = 1.45f;
+        private const float SwipeMinimumDuration = 0.035f;
+        private const float SwipeMinimumPathEfficiency = 0.72f;
+        private const float SwipeMaximumOppositeTravelRatio = 0.22f;
+
         public struct HandSample
         {
             public float Time;
@@ -225,7 +231,7 @@ namespace SpellGuard.InputSystem
         public bool TryDetectSwipe(out MotionGestureType gesture)
         {
             gesture = MotionGestureType.None;
-            if (handHistory.Count < 2)
+            if (handHistory.Count < SwipeMinSamples)
             {
                 return false;
             }
@@ -238,8 +244,14 @@ namespace SpellGuard.InputSystem
             for (var startIndex = samples.Length - 2; startIndex >= 0; startIndex--)
             {
                 var start = samples[startIndex];
+                var sampleCount = samples.Length - startIndex;
+                if (sampleCount < SwipeMinSamples)
+                {
+                    continue;
+                }
+
                 var duration = last.Time - start.Time;
-                if (duration <= 0.0001f)
+                if (duration < SwipeMinimumDuration)
                 {
                     continue;
                 }
@@ -250,11 +262,13 @@ namespace SpellGuard.InputSystem
                 var horizontalSwipeDetected = horizontalDistance >= swipeMinDistance
                     && verticalDistance <= swipeMaxVerticalDrift
                     && horizontalDistance / duration >= swipeMinSpeed
-                    && horizontalDistance >= verticalDistance;
+                    && horizontalDistance >= verticalDistance * SwipeAxisDominanceRatio
+                    && HasStableSwipePath(samples, startIndex, true, Mathf.Sign(delta.x), horizontalDistance);
                 var verticalSwipeDetected = verticalDistance >= swipeMinDistance
                     && horizontalDistance <= swipeMaxVerticalDrift
                     && verticalDistance / duration >= swipeMinSpeed
-                    && verticalDistance > horizontalDistance;
+                    && verticalDistance >= horizontalDistance * SwipeAxisDominanceRatio
+                    && HasStableSwipePath(samples, startIndex, false, Mathf.Sign(delta.y), verticalDistance);
 
                 if (!horizontalSwipeDetected && !verticalSwipeDetected)
                 {
@@ -290,6 +304,47 @@ namespace SpellGuard.InputSystem
             lastSwipeTime = last.Time;
             gesture = bestGesture;
             return true;
+        }
+
+        private bool HasStableSwipePath(HandSample[] samples, int startIndex, bool horizontalAxis, float direction, float dominantDistance)
+        {
+            if (Mathf.Approximately(direction, 0f))
+            {
+                return false;
+            }
+
+            var progressSteps = 0;
+            var pathDistance = 0f;
+            var oppositeTravel = 0f;
+            var stepDeadZone = Mathf.Max(sampleJitterDeadZone * 0.5f, 0.003f);
+            for (var index = startIndex + 1; index < samples.Length; index++)
+            {
+                var delta = samples[index].Palm - samples[index - 1].Palm;
+                var axisDelta = horizontalAxis ? delta.x : delta.y;
+                var directedDelta = axisDelta * direction;
+                var absAxisDelta = Mathf.Abs(axisDelta);
+                pathDistance += absAxisDelta;
+
+                if (directedDelta >= stepDeadZone)
+                {
+                    progressSteps += 1;
+                    continue;
+                }
+
+                if (directedDelta <= -stepDeadZone)
+                {
+                    oppositeTravel += -directedDelta;
+                }
+            }
+
+            if (progressSteps < SwipeMinSamples - 1 || pathDistance <= 0.0001f)
+            {
+                return false;
+            }
+
+            var pathEfficiency = dominantDistance / pathDistance;
+            return pathEfficiency >= SwipeMinimumPathEfficiency
+                && oppositeTravel <= dominantDistance * SwipeMaximumOppositeTravelRatio;
         }
 
         public bool TryDetectSnap(HandSample sample, out MotionGestureType gesture)

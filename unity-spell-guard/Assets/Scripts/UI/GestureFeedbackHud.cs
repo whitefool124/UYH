@@ -20,11 +20,14 @@ namespace SpellGuard.UI
         private GUIStyle smallStyle;
         private GUIStyle chipStyle;
         private GUIStyle bigSignalStyle;
+        private GUIStyle trackerStyle;
         private float cachedScale = -1f;
         private MotionGestureType lastMotion = MotionGestureType.None;
         private float lastMotionAt = -999f;
         private string lastSpellStatus = string.Empty;
         private float lastSpellStatusAt = -999f;
+        private Vector2 smoothedHandViewport = new Vector2(0.5f, 0.5f);
+        private bool hasSmoothedHandViewport;
 
         public void Configure(
             GestureInputProviderBase provider,
@@ -71,6 +74,7 @@ namespace SpellGuard.UI
 
             var snapshot = inputProvider != null ? inputProvider.CurrentSnapshot : GestureSnapshot.Missing;
             DrawTopGestureBanner(snapshot, scale);
+            DrawHandCaptureIndicator(scale);
             DrawBottomFeedbackStrip(snapshot, scale);
             DrawPulseOverlays(scale);
         }
@@ -97,6 +101,79 @@ namespace SpellGuard.UI
             GUI.color = Color.white;
 
             DrawConfidenceBar(new Rect(left.x, rect.yMax - 14f * scale, rect.width - 32f * scale, 5f * scale), snapshot.HandPresent ? snapshot.Confidence : 0f, scale);
+        }
+
+        private void DrawHandCaptureIndicator(float scale)
+        {
+            var frame = inputProvider != null ? inputProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.Unknown);
+            var hand = frame.PrimaryHand;
+            var isTracked = hand.IsTracked;
+            var target = isTracked ? ClampViewport(hand.PalmCenter) : new Vector2(0.5f, 0.5f);
+            if (!hasSmoothedHandViewport)
+            {
+                smoothedHandViewport = target;
+                hasSmoothedHandViewport = true;
+            }
+            else
+            {
+                var smoothing = isTracked ? 0.36f : 0.12f;
+                smoothedHandViewport = Vector2.Lerp(smoothedHandViewport, target, smoothing);
+            }
+
+            var width = Mathf.Clamp(Screen.width * 0.28f, 260f, 360f);
+            var height = Mathf.Clamp(width * 0.62f, 160f, 220f);
+            var rect = new Rect(
+                Screen.width - width - Mathf.Clamp(18f * scale, 12f, 28f),
+                Mathf.Clamp(126f * scale, 104f, 150f),
+                width,
+                height);
+            var border = isTracked ? new Color(0.35f, 0.95f, 0.72f, 0.82f) : new Color(0.62f, 0.66f, 0.74f, 0.54f);
+            DrawPanel(rect, new Color(0.025f, 0.035f, 0.055f, 0.78f), border);
+
+            var plot = new Rect(rect.x + 12f * scale, rect.y + 30f * scale, rect.width - 24f * scale, rect.height - 44f * scale);
+            DrawCaptureGrid(plot, scale, isTracked);
+
+            var point = new Vector2(
+                Mathf.Lerp(plot.x, plot.xMax, smoothedHandViewport.x),
+                Mathf.Lerp(plot.y, plot.yMax, 1f - smoothedHandViewport.y));
+            DrawCapturePoint(point, scale, isTracked);
+
+            var label = isTracked
+                ? $"\u624b\u90e8\u6355\u6349\u70b9  x:{hand.PalmCenter.x:0.00}  y:{hand.PalmCenter.y:0.00}"
+                : "\u624b\u90e8\u6355\u6349\u70b9  \u672a\u6355\u6349";
+            GUI.color = isTracked ? Color.white : new Color(0.78f, 0.82f, 0.9f, 0.72f);
+            GUI.Label(new Rect(rect.x + 12f * scale, rect.y + 7f * scale, rect.width - 24f * scale, 20f * scale), label, trackerStyle);
+            GUI.color = Color.white;
+        }
+
+        private static Vector2 ClampViewport(Vector2 value)
+        {
+            return new Vector2(Mathf.Clamp01(value.x), Mathf.Clamp01(value.y));
+        }
+
+        private static void DrawCaptureGrid(Rect rect, float scale, bool isTracked)
+        {
+            var color = isTracked ? new Color(1f, 1f, 1f, 0.14f) : new Color(1f, 1f, 1f, 0.08f);
+            GUI.color = color;
+            GUI.DrawTexture(new Rect(rect.x, rect.center.y, rect.width, Mathf.Max(1f, scale)), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(rect.center.x, rect.y, Mathf.Max(1f, scale), rect.height), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, Mathf.Max(1f, scale)), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(rect.x, rect.yMax - Mathf.Max(1f, scale), rect.width, Mathf.Max(1f, scale)), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(rect.x, rect.y, Mathf.Max(1f, scale), rect.height), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(rect.xMax - Mathf.Max(1f, scale), rect.y, Mathf.Max(1f, scale), rect.height), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+        }
+
+        private static void DrawCapturePoint(Vector2 point, float scale, bool isTracked)
+        {
+            var size = isTracked ? 16f * scale : 10f * scale;
+            var pulse = isTracked ? 1f + Mathf.Sin(Time.unscaledTime * 8f) * 0.12f : 1f;
+            var outer = size * 1.9f * pulse;
+            GUI.color = isTracked ? new Color(0.35f, 0.95f, 0.72f, 0.22f) : new Color(0.78f, 0.82f, 0.9f, 0.16f);
+            GUI.DrawTexture(new Rect(point.x - outer * 0.5f, point.y - outer * 0.5f, outer, outer), Texture2D.whiteTexture);
+            GUI.color = isTracked ? new Color(0.35f, 0.95f, 0.72f, 0.96f) : new Color(0.78f, 0.82f, 0.9f, 0.65f);
+            GUI.DrawTexture(new Rect(point.x - size * 0.5f, point.y - size * 0.5f, size, size), Texture2D.whiteTexture);
+            GUI.color = Color.white;
         }
 
         private void DrawBottomFeedbackStrip(GestureSnapshot snapshot, float scale)
@@ -295,6 +372,14 @@ namespace SpellGuard.UI
             {
                 fontSize = Mathf.RoundToInt(28f * scale),
                 fontStyle = FontStyle.Bold,
+                normal = { textColor = Color.white },
+                clipping = TextClipping.Clip
+            };
+            trackerStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = Mathf.RoundToInt(12f * scale),
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleLeft,
                 normal = { textColor = Color.white },
                 clipping = TextClipping.Clip
             };
