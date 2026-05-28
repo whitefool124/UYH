@@ -12,12 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4f6b12f3c94b4e4c9b0b5b91f9e6a0d1, type: 3}
   m_Name: GestureRecognitionProfile_Default
   m_EditorClassIdentifier: SpellGuard.InputSystem::SpellGuard.InputSystem.GestureRecognitionProfile
-  historySeconds: 0.7
-  sampleJitterDeadZone: 0.015
-  swipeMinDistance: 0.09
-  swipeMaxVerticalDrift: 0.22
-  swipeMinSpeed: 0.2
-  swipeCooldownSeconds: 0.28
+  historySeconds: 0.5
+  sampleJitterDeadZone: 0.008
+  swipeMinDistance: 0.06
+  swipeMaxVerticalDrift: 0.28
+  swipeMinSpeed: 0.14
+  swipeCooldownSeconds: 0.18
   slapMinDistance: 0.11
   slapMinOpenPalmRatio: 0.8
   slapMinSpeed: 0.24

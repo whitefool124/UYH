@@ -225,24 +225,59 @@ namespace SpellGuard.InputSystem
         public bool TryDetectSwipe(out MotionGestureType gesture)
         {
             gesture = MotionGestureType.None;
-            if (handHistory.Count < 3)
+            if (handHistory.Count < 2)
             {
                 return false;
             }
 
             var samples = handHistory.ToArray();
-            var first = samples[0];
             var last = samples[samples.Length - 1];
-            var duration = Mathf.Max(0.0001f, last.Time - first.Time);
-            var horizontalDelta = last.Palm.x - first.Palm.x;
-            var verticalDelta = last.Palm.y - first.Palm.y;
-            var verticalDrift = Mathf.Abs(last.Palm.y - first.Palm.y);
-            var horizontalDrift = Mathf.Abs(last.Palm.x - first.Palm.x);
-            var speed = Mathf.Abs(horizontalDelta) / duration;
-            var horizontalSwipeDetected = verticalDrift <= swipeMaxVerticalDrift && Mathf.Abs(horizontalDelta) >= swipeMinDistance && speed >= swipeMinSpeed;
-            var verticalSwipeDetected = horizontalDrift <= swipeMaxVerticalDrift && Mathf.Abs(verticalDelta) >= swipeMinDistance && Mathf.Abs(verticalDelta) / duration >= swipeMinSpeed;
+            var bestGesture = MotionGestureType.None;
+            var bestScore = 0f;
 
-            if (!horizontalSwipeDetected && !verticalSwipeDetected)
+            for (var startIndex = samples.Length - 2; startIndex >= 0; startIndex--)
+            {
+                var start = samples[startIndex];
+                var duration = last.Time - start.Time;
+                if (duration <= 0.0001f)
+                {
+                    continue;
+                }
+
+                var delta = last.Palm - start.Palm;
+                var horizontalDistance = Mathf.Abs(delta.x);
+                var verticalDistance = Mathf.Abs(delta.y);
+                var horizontalSwipeDetected = horizontalDistance >= swipeMinDistance
+                    && verticalDistance <= swipeMaxVerticalDrift
+                    && horizontalDistance / duration >= swipeMinSpeed
+                    && horizontalDistance >= verticalDistance;
+                var verticalSwipeDetected = verticalDistance >= swipeMinDistance
+                    && horizontalDistance <= swipeMaxVerticalDrift
+                    && verticalDistance / duration >= swipeMinSpeed
+                    && verticalDistance > horizontalDistance;
+
+                if (!horizontalSwipeDetected && !verticalSwipeDetected)
+                {
+                    continue;
+                }
+
+                var score = Mathf.Max(horizontalDistance, verticalDistance) / duration;
+                if (score <= bestScore)
+                {
+                    continue;
+                }
+
+                bestScore = score;
+                if (horizontalSwipeDetected)
+                {
+                    bestGesture = delta.x > 0f ? MotionGestureType.SwipeLeftToRight : MotionGestureType.SwipeRightToLeft;
+                    continue;
+                }
+
+                bestGesture = delta.y > 0f ? MotionGestureType.SwipeBottomToTop : MotionGestureType.SwipeTopToBottom;
+            }
+
+            if (bestGesture == MotionGestureType.None)
             {
                 return false;
             }
@@ -253,13 +288,7 @@ namespace SpellGuard.InputSystem
             }
 
             lastSwipeTime = last.Time;
-            if (horizontalSwipeDetected && Mathf.Abs(horizontalDelta) >= Mathf.Abs(verticalDelta))
-            {
-                gesture = horizontalDelta > 0f ? MotionGestureType.SwipeLeftToRight : MotionGestureType.SwipeRightToLeft;
-                return true;
-            }
-
-            gesture = verticalDelta > 0f ? MotionGestureType.SwipeBottomToTop : MotionGestureType.SwipeTopToBottom;
+            gesture = bestGesture;
             return true;
         }
 
