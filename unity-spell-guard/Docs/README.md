@@ -4,6 +4,8 @@ This folder keeps the graduation-project planning, implementation notes, and dem
 
 ## Start here
 
+- `custom-gesture-unification-plan.md` - authoritative plan for the next custom dynamic gesture unification pass, including palm trajectory, pose transition, finger-distance, oscillation, and feature-sequence gestures.
+
 - `符印守卫_Unity项目技术文档.md` - technical architecture and runtime notes.
 - `Day1_项目收口与范围冻结.md` - current delivery scope and P0/P1/P2 boundaries.
 - `20天冲刺任务表.md` - day-by-day delivery checklist.

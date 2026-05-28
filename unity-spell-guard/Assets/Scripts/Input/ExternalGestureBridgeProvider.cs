@@ -324,7 +324,7 @@ namespace SpellGuard.InputSystem
             }
         }
 
-        private static GestureType ParseGesture(string gestureName)
+        public static GestureType ParseGesture(string gestureName)
         {
             if (string.IsNullOrWhiteSpace(gestureName))
             {

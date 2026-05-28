@@ -1,0 +1,6 @@
+﻿gesture,attempts,correct,missed,false_match,precision,recall,f1,success_rate
+body_shift_left,4,3,0,1,0.75,1.0,0.8571,0.75
+body_shift_right,5,4,0,1,0.8,1.0,0.8889,0.8
+swipe_lr,5,4,0,1,0.8,1.0,0.8889,0.8
+swipe_rl,2,2,0,0,1.0,1.0,1.0,1.0
+strict_passed_subset,13,13,0,0,1.0,1.0,1.0,1.0

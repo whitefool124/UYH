@@ -640,6 +640,14 @@ CSV 字段包括：
 
 这组数据可用于论文第 6 章比较“纯 MediaPipe”和“YOLO 前置检测 + MediaPipe 关键点”的检测连续性与运行开销。
 
+2026-05-25 的一轮小样本实测表明，这条链路已经可以落地运行，但 YOLO 会明显抬高单帧处理开销。对同一段离线视频 `ipn_229_g05_throw_left.mp4`，30 帧小样本 benchmark 结果为：
+
+- 纯 MediaPipe：`avg_processing_ms = 30.56`
+- YOLO + MediaPipe：`avg_processing_ms = 130.06`
+- 两种模式的 `hand_present_ratio` 都是 `1.0`
+
+这说明 YOLO 在当前工程里更适合承担外部桥接链路的前置定位、裁剪或复杂背景兜底，而不适合作为 Unity 内部默认实时识别路径。
+
 ### 19.3 建议论文引用方式
 
 论文中建议将该实验写成“小规模可复现实验”，而不是写成完整 YOLO 训练。推荐表述为：

@@ -13,7 +13,7 @@ namespace SpellGuard.InputSystem
         [SerializeField] private float swipeMinDistance = 0.09f;
         [SerializeField] private float swipeMaxVerticalDrift = 0.22f;
         [SerializeField] private float swipeMinSpeed = 0.2f;
-        [SerializeField] private float swipeCooldownSeconds = 0.28f;
+        [SerializeField] private float swipeCooldownSeconds = 2f;
         [SerializeField] private float snapCloseDistance = 0.09f;
         [SerializeField] private float snapReleaseDistance = 0.14f;
         [SerializeField] private float snapMaxDuration = 0.35f;
@@ -125,7 +125,7 @@ namespace SpellGuard.InputSystem
                 var landmarks = frame.handLandmarks != null && frame.handLandmarks.Length > 0
                     ? ConvertLandmarks(frame.handLandmarks)
                     : null;
-                var sample = BuildHandSample(landmarks, frame.ResolveViewportPosition(), sampleTime);
+                var sample = BuildHandSample(landmarks, frame.ResolveViewportPosition(), frame, sampleTime);
                 detector.AddHandSample(sample, false);
 
                 if (detector.TryDetectSwipe(out var swipe))
@@ -173,7 +173,7 @@ namespace SpellGuard.InputSystem
             }
         }
 
-        private static MotionGestureDetector.HandSample BuildHandSample(IReadOnlyList<Vector2> landmarks, Vector2 fallbackPalm, float sampleTime)
+        private static MotionGestureDetector.HandSample BuildHandSample(IReadOnlyList<Vector2> landmarks, Vector2 fallbackPalm, ExternalVisionFrame frame, float sampleTime)
         {
             var palm = fallbackPalm;
             if (landmarks != null && landmarks.Count > 17)
@@ -185,9 +185,10 @@ namespace SpellGuard.InputSystem
             {
                 Time = sampleTime,
                 Palm = palm,
+                SwipePoint = landmarks != null && landmarks.Count > 8 ? landmarks[8] : palm,
                 ThumbTip = landmarks != null && landmarks.Count > 4 ? landmarks[4] : palm,
                 MiddleTip = landmarks != null && landmarks.Count > 12 ? landmarks[12] : palm,
-                StaticGesture = GestureType.None,
+                StaticGesture = ExternalGestureBridgeProvider.ParseGesture(frame?.gesture),
                 HasSnapData = landmarks != null && landmarks.Count > 12
             };
         }

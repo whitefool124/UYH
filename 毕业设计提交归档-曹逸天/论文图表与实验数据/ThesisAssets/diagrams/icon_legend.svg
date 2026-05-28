@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="480" viewBox="0 0 860 480">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <style>
+      .title { font: 700 24px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #1f2937; }
+      .subtitle { font: 400 13px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #6b7280; }
+      .label { font: 700 15px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #1f2937; }
+      .small { font: 400 12px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #6b7280; }
+      .tiny { font: 400 10px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #6b7280; }
+      .box { rx: 8; ry: 8; stroke-width: 1.5; }
+      .line { stroke: #64748b; stroke-width: 1.8; fill: none; marker-end: url(#arrow); }
+      .plainline { stroke: #64748b; stroke-width: 1.4; fill: none; }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="860" height="480" fill="#ffffff"/>
+<text x="430" y="38" class="title" text-anchor="middle">论文图例与图标</text>
+<text x="430" y="60" class="subtitle" text-anchor="middle">用于图中标识输入、Unity、外部桥接和实验统计</text>
+<g transform="translate(90,120)" stroke="#2563eb" fill="none" stroke-width="2">
+  <rect x="2" y="8" width="30" height="20" rx="4"/>
+  <path d="M10 8 L14 3 H22 L26 8"/>
+  <circle cx="17" cy="18" r="6"/>
+</g>
+<text x="170" y="145" class="label" text-anchor="start">摄像头 / 视觉输入</text>
+<g transform="translate(90,205)" stroke="#475569" fill="none" stroke-width="2" stroke-linejoin="round">
+  <path d="M17 3 L31 11 V27 L17 35 L3 27 V11 Z"/>
+  <path d="M17 3 V18 L31 11"/>
+  <path d="M17 18 L3 11"/>
+  <path d="M17 18 V35"/>
+</g>
+<text x="170" y="232" class="label" text-anchor="start">Unity 游戏系统</text>
+<g transform="translate(90,292)" stroke="#d97706" fill="none" stroke-width="2">
+  <path d="M4 20 H34"/>
+  <path d="M25 11 L34 20 L25 29"/>
+  <path d="M4 10 H17"/>
+  <path d="M4 30 H17"/>
+</g>
+<text x="170" y="318" class="label" text-anchor="start">UDP / ExternalBridge</text>
+<g transform="translate(90,377)" stroke="#16a34a" fill="none" stroke-width="2">
+  <path d="M5 32 V6"/>
+  <path d="M5 32 H34"/>
+  <rect x="10" y="20" width="5" height="12" fill="none"/>
+  <rect x="19" y="14" width="5" height="18" fill="none"/>
+  <rect x="28" y="9" width="5" height="23" fill="none"/>
+</g>
+<text x="170" y="405" class="label" text-anchor="start">实验统计 / CSV</text>
+<rect class="box" x="480" y="115" width="220" height="62" fill="#dbeafe" stroke="#2563eb"/>
+<text x="590.0" y="143" class="label" text-anchor="middle">蓝色</text>
+<text x="590.0" y="165" class="small" text-anchor="middle">输入或视觉链路</text>
+<rect class="box" x="480" y="200" width="220" height="62" fill="#dcfce7" stroke="#16a34a"/>
+<text x="590.0" y="228" class="label" text-anchor="middle">绿色</text>
+<text x="590.0" y="250" class="small" text-anchor="middle">识别、处理、通过状态</text>
+<rect class="box" x="480" y="285" width="220" height="62" fill="#fef3c7" stroke="#d97706"/>
+<text x="590.0" y="313" class="label" text-anchor="middle">黄色</text>
+<text x="590.0" y="335" class="small" text-anchor="middle">桥接、回放、转换</text>
+<rect class="box" x="480" y="370" width="220" height="62" fill="#ffe4e6" stroke="#e11d48"/>
+<text x="590.0" y="398" class="label" text-anchor="middle">红色</text>
+<text x="590.0" y="420" class="small" text-anchor="middle">玩法、战斗、输出反馈</text>
+</svg>

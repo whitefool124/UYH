@@ -14,10 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: SpellGuard.InputSystem::SpellGuard.InputSystem.GestureRecognitionProfile
   historySeconds: 0.5
   sampleJitterDeadZone: 0.01
-  swipeMinDistance: 0.075
-  swipeMaxVerticalDrift: 0.16
-  swipeMinSpeed: 0.18
-  swipeCooldownSeconds: 0.22
+  swipeMinDistance: 0.14
+  swipeMaxVerticalDrift: 0.14
+  swipeMinSpeed: 0.5
+  swipeCooldownSeconds: 2
   slapMinDistance: 0.11
   slapMinOpenPalmRatio: 0.8
   slapMinSpeed: 0.24

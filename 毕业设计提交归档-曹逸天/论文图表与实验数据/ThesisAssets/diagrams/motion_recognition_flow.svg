@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="360" viewBox="0 0 1120 360">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <style>
+      .title { font: 700 24px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #1f2937; }
+      .subtitle { font: 400 13px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #6b7280; }
+      .label { font: 700 15px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #1f2937; }
+      .small { font: 400 12px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #6b7280; }
+      .tiny { font: 400 10px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #6b7280; }
+      .box { rx: 8; ry: 8; stroke-width: 1.5; }
+      .line { stroke: #64748b; stroke-width: 1.8; fill: none; marker-end: url(#arrow); }
+      .plainline { stroke: #64748b; stroke-width: 1.4; fill: none; }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1120" height="360" fill="#ffffff"/>
+<text x="560" y="38" class="title" text-anchor="middle">动态手势识别流程图</text>
+<text x="560" y="60" class="subtitle" text-anchor="middle">基于时间窗口、位移阈值、状态变化和冷却机制</text>
+<rect class="box" x="45" y="140" width="150" height="92" fill="#dbeafe" stroke="#2563eb"/>
+<text x="120.0" y="168" class="label" text-anchor="middle">输入帧</text>
+<text x="120.0" y="190" class="small" text-anchor="middle">GestureFrame</text>
+<text x="120.0" y="206" class="small" text-anchor="middle">关键点 / 手势 / 时间戳</text>
+<path class="line" d="M 195 186.0 L 223 186.0"/>
+<rect class="box" x="223" y="140" width="150" height="92" fill="#dcfce7" stroke="#16a34a"/>
+<text x="298.0" y="168" class="label" text-anchor="middle">历史窗口</text>
+<text x="298.0" y="190" class="small" text-anchor="middle">0.7 秒队列</text>
+<text x="298.0" y="206" class="small" text-anchor="middle">过滤低置信度帧</text>
+<path class="line" d="M 373 186.0 L 401 186.0"/>
+<rect class="box" x="401" y="140" width="150" height="92" fill="#fef3c7" stroke="#d97706"/>
+<text x="476.0" y="168" class="label" text-anchor="middle">特征计算</text>
+<text x="476.0" y="190" class="small" text-anchor="middle">Δx / Δy / velocity</text>
+<text x="476.0" y="206" class="small" text-anchor="middle">指尖距离 / 状态转换</text>
+<path class="line" d="M 551 186.0 L 579 186.0"/>
+<rect class="box" x="579" y="140" width="150" height="92" fill="#ffe4e6" stroke="#e11d48"/>
+<text x="654.0" y="168" class="label" text-anchor="middle">规则判断</text>
+<text x="654.0" y="190" class="small" text-anchor="middle">Swipe / Snap</text>
+<text x="654.0" y="206" class="small" text-anchor="middle">PointToFist / BodyShift</text>
+<path class="line" d="M 729 186.0 L 757 186.0"/>
+<rect class="box" x="757" y="140" width="150" height="92" fill="#f1f5f9" stroke="#475569"/>
+<text x="832.0" y="168" class="label" text-anchor="middle">冷却过滤</text>
+<text x="832.0" y="190" class="small" text-anchor="middle">避免重复触发</text>
+<text x="832.0" y="206" class="small" text-anchor="middle">降低误触</text>
+<path class="line" d="M 907 186.0 L 935 186.0"/>
+<rect class="box" x="935" y="140" width="150" height="92" fill="#ede9fe" stroke="#7c3aed"/>
+<text x="1010.0" y="168" class="label" text-anchor="middle">生成命令</text>
+<text x="1010.0" y="190" class="small" text-anchor="middle">MotionGestureEvent</text>
+<text x="1010.0" y="206" class="small" text-anchor="middle">GestureCommand</text>
+<path class="plainline" d="M 138 250 C 138 310, 915 310, 915 250" stroke-dasharray="6 6"/>
+<text x="525" y="300" class="small" text-anchor="middle">所有规则均工作在统一手势帧与命令层，可复用 Mock / Native / ExternalBridge 输入</text>
+</svg>

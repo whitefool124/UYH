@@ -1,5 +1,6 @@
 using SpellGuard.InputSystem;
 using SpellGuard.Audio;
+using SpellGuard.Diagnostics;
 using SpellGuard.UI;
 using UnityEngine;
 
@@ -69,8 +70,9 @@ namespace SpellGuard.Core
             }
             if (sceneContext.PerformanceMonitor != null)
             {
-                sceneContext.PerformanceMonitor.Configure(sceneContext.InputRouter, sceneContext.ExternalBridge);
+                sceneContext.PerformanceMonitor.Configure(sceneContext.InputRouter, sceneContext.ExternalBridge, sceneContext.WebcamFeed, sceneContext.NativeMediapipeRunner);
             }
+            EnsurePerformanceMonitor();
             if (sceneContext.AudioController != null)
             {
                 sceneContext.AudioController.ApplySettings(sceneContext.GameSettings);
@@ -123,9 +125,28 @@ namespace SpellGuard.Core
             feedbackHud.Configure(
                 sceneContext.InputProvider,
                 sceneContext.SpellCaster,
+                sceneContext.FpsMotor,
                 sceneContext.PlayerHealth,
                 sceneContext.EnemySpawner,
-                sceneContext.FlowController);
+                sceneContext.FlowController,
+                sceneContext.PerformanceMonitor);
+        }
+
+        private void EnsurePerformanceMonitor()
+        {
+            if (sceneContext == null || sceneContext.PerformanceMonitor != null)
+            {
+                return;
+            }
+
+            var performanceMonitor = sceneContext.GetComponent<GesturePerformanceMonitor>();
+            if (performanceMonitor == null)
+            {
+                performanceMonitor = sceneContext.gameObject.AddComponent<GesturePerformanceMonitor>();
+            }
+
+            performanceMonitor.Configure(sceneContext.InputRouter, sceneContext.ExternalBridge, sceneContext.WebcamFeed, sceneContext.NativeMediapipeRunner);
+            SetPrivateField(sceneContext, "performanceMonitor", performanceMonitor);
         }
 
         private static void SetPrivateField(Object target, string fieldName, Object value)

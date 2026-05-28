@@ -1,0 +1,9 @@
+﻿gesture,support,tp,fp,fn,precision,recall,f1,miss_rate
+motion_down_left,2,2,0,0,1.0,1.0,1.0,0.0
+motion_down_right,2,2,0,0,1.0,1.0,1.0,0.0
+motion_left_left,2,2,0,0,1.0,1.0,1.0,0.0
+motion_left_right,2,2,0,0,1.0,1.0,1.0,0.0
+motion_right_left,2,2,0,0,1.0,1.0,1.0,0.0
+motion_right_right,2,2,0,0,1.0,1.0,1.0,0.0
+motion_up_left,2,2,0,0,1.0,1.0,1.0,0.0
+motion_up_right,2,2,0,0,1.0,1.0,1.0,0.0

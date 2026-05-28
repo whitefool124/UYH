@@ -10,11 +10,19 @@ namespace SpellGuard.InputSystem
         private const float SwipeMinimumDuration = 0.035f;
         private const float SwipeMinimumPathEfficiency = 0.72f;
         private const float SwipeMaximumOppositeTravelRatio = 0.22f;
+        private const float SwipeRelaxedDistanceMultiplier = 0.78f;
+        private const float SwipeRelaxedSpeedMultiplier = 0.82f;
+        private const float SwipeDownDistanceMultiplier = 1f;
+        private const float SwipeDownSpeedMultiplier = 1f;
+        private const float SwipeDownAxisDominanceRatio = 1.5f;
+        private const float SwipeHorizontalPointSampleRatio = 0.5f;
+        private const float SwipeVerticalPointSampleRatio = 0.7f;
 
         public struct HandSample
         {
             public float Time;
             public Vector2 Palm;
+            public Vector2 SwipePoint;
             public Vector2 ThumbTip;
             public Vector2 MiddleTip;
             public GestureType StaticGesture;
@@ -35,7 +43,7 @@ namespace SpellGuard.InputSystem
         private float swipeMinDistance = 0.09f;
         private float swipeMaxVerticalDrift = 0.22f;
         private float swipeMinSpeed = 0.2f;
-        private float swipeCooldownSeconds = 0.28f;
+        private float swipeCooldownSeconds = 2f;
         private float slapMinDistance = 0.11f;
         private float slapMinOpenPalmRatio = 0.8f;
         private float slapMinSpeed = 0.24f;
@@ -250,25 +258,37 @@ namespace SpellGuard.InputSystem
                     continue;
                 }
 
+                var horizontalDirection = Mathf.Sign(GetSwipePosition(last, true).x - GetSwipePosition(start, true).x);
+                var verticalDirection = Mathf.Sign(last.Palm.y - start.Palm.y);
+                if (!HasRequiredPointGesture(samples, startIndex, true)
+                    && !HasRequiredPointGesture(samples, startIndex, false))
+                {
+                    continue;
+                }
+
                 var duration = last.Time - start.Time;
                 if (duration < SwipeMinimumDuration)
                 {
                     continue;
                 }
 
+                var horizontalDelta = GetSwipePosition(last, true) - GetSwipePosition(start, true);
                 var delta = last.Palm - start.Palm;
+                delta.x = horizontalDelta.x;
                 var horizontalDistance = Mathf.Abs(delta.x);
                 var verticalDistance = Mathf.Abs(delta.y);
-                var horizontalSwipeDetected = horizontalDistance >= swipeMinDistance
+                var horizontalSwipeDetected = horizontalDistance >= swipeMinDistance * GetSwipeDistanceMultiplier(true, horizontalDirection)
+                    && HasRequiredPointGesture(samples, startIndex, true)
                     && verticalDistance <= swipeMaxVerticalDrift
-                    && horizontalDistance / duration >= swipeMinSpeed
-                    && horizontalDistance >= verticalDistance * SwipeAxisDominanceRatio
-                    && HasStableSwipePath(samples, startIndex, true, Mathf.Sign(delta.x), horizontalDistance);
-                var verticalSwipeDetected = verticalDistance >= swipeMinDistance
+                    && horizontalDistance / duration >= swipeMinSpeed * GetSwipeSpeedMultiplier(true, horizontalDirection)
+                    && horizontalDistance >= verticalDistance * GetSwipeAxisDominanceRatio(true, horizontalDirection)
+                    && HasStableSwipePath(samples, startIndex, true, horizontalDirection, horizontalDistance);
+                var verticalSwipeDetected = verticalDistance >= swipeMinDistance * GetSwipeDistanceMultiplier(false, verticalDirection)
+                    && HasRequiredPointGesture(samples, startIndex, false)
                     && horizontalDistance <= swipeMaxVerticalDrift
-                    && verticalDistance / duration >= swipeMinSpeed
-                    && verticalDistance >= horizontalDistance * SwipeAxisDominanceRatio
-                    && HasStableSwipePath(samples, startIndex, false, Mathf.Sign(delta.y), verticalDistance);
+                    && verticalDistance / duration >= swipeMinSpeed * GetSwipeSpeedMultiplier(false, verticalDirection)
+                    && verticalDistance >= horizontalDistance * GetSwipeAxisDominanceRatio(false, verticalDirection)
+                    && HasStableSwipePath(samples, startIndex, false, verticalDirection, verticalDistance);
 
                 if (!horizontalSwipeDetected && !verticalSwipeDetected)
                 {
@@ -304,6 +324,49 @@ namespace SpellGuard.InputSystem
             lastSwipeTime = last.Time;
             gesture = bestGesture;
             return true;
+        }
+
+        private static float GetSwipeDistanceMultiplier(bool horizontalAxis, float direction)
+        {
+            return IsDownSwipe(horizontalAxis, direction) ? SwipeDownDistanceMultiplier : SwipeRelaxedDistanceMultiplier;
+        }
+
+        private static float GetSwipeSpeedMultiplier(bool horizontalAxis, float direction)
+        {
+            return IsDownSwipe(horizontalAxis, direction) ? SwipeDownSpeedMultiplier : SwipeRelaxedSpeedMultiplier;
+        }
+
+        private static float GetSwipeAxisDominanceRatio(bool horizontalAxis, float direction)
+        {
+            return IsDownSwipe(horizontalAxis, direction) ? SwipeDownAxisDominanceRatio : SwipeAxisDominanceRatio;
+        }
+
+        private static bool IsDownSwipe(bool horizontalAxis, float direction)
+        {
+            return !horizontalAxis && direction < 0f;
+        }
+
+        private static Vector2 GetSwipePosition(HandSample sample, bool horizontalAxis)
+        {
+            return horizontalAxis && sample.HasSnapData ? sample.SwipePoint : sample.Palm;
+        }
+
+        private static bool HasRequiredPointGesture(HandSample[] samples, int startIndex, bool horizontalAxis)
+        {
+            var pointSamples = 0;
+            var sampleCount = samples.Length - startIndex;
+            for (var index = startIndex; index < samples.Length; index++)
+            {
+                if (samples[index].StaticGesture == GestureType.Point)
+                {
+                    pointSamples += 1;
+                }
+            }
+
+            var requiredRatio = horizontalAxis ? SwipeHorizontalPointSampleRatio : SwipeVerticalPointSampleRatio;
+            var requiredPointSamples = Mathf.CeilToInt(sampleCount * requiredRatio);
+            return pointSamples >= requiredPointSamples
+                && samples[startIndex].StaticGesture == GestureType.Point;
         }
 
         private bool HasStableSwipePath(HandSample[] samples, int startIndex, bool horizontalAxis, float direction, float dominantDistance)

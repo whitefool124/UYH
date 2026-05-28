@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="500" viewBox="0 0 1040 500">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <style>
+      .title { font: 700 24px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #1f2937; }
+      .subtitle { font: 400 13px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #6b7280; }
+      .label { font: 700 15px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #1f2937; }
+      .small { font: 400 12px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #6b7280; }
+      .tiny { font: 400 10px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #6b7280; }
+      .box { rx: 8; ry: 8; stroke-width: 1.5; }
+      .line { stroke: #64748b; stroke-width: 1.8; fill: none; marker-end: url(#arrow); }
+      .plainline { stroke: #64748b; stroke-width: 1.4; fill: none; }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1040" height="500" fill="#ffffff"/>
+<text x="520" y="38" class="title" text-anchor="middle">Unity 原型模块结构图</text>
+<text x="520" y="60" class="subtitle" text-anchor="middle">《符印守卫》运行时代码与工具链模块划分</text>
+<rect class="box" x="420" y="105" width="200" height="76" fill="#f1f5f9" stroke="#475569"/>
+<text x="520.0" y="133" class="label" text-anchor="middle">Core</text>
+<text x="520.0" y="155" class="small" text-anchor="middle">Bootstrap</text>
+<text x="520.0" y="171" class="small" text-anchor="middle">SceneContext</text>
+<text x="520.0" y="187" class="small" text-anchor="middle">FlowController</text>
+<rect class="box" x="80" y="230" width="180" height="76" fill="#dbeafe" stroke="#2563eb"/>
+<text x="170.0" y="258" class="label" text-anchor="middle">Input</text>
+<text x="170.0" y="280" class="small" text-anchor="middle">Provider</text>
+<text x="170.0" y="296" class="small" text-anchor="middle">Router</text>
+<text x="170.0" y="312" class="small" text-anchor="middle">Recognizer</text>
+<rect class="box" x="310" y="230" width="180" height="76" fill="#dcfce7" stroke="#16a34a"/>
+<text x="400.0" y="258" class="label" text-anchor="middle">Player</text>
+<text x="400.0" y="280" class="small" text-anchor="middle">FpsGestureMotor</text>
+<text x="400.0" y="296" class="small" text-anchor="middle">SpellCaster</text>
+<rect class="box" x="540" y="230" width="180" height="76" fill="#ffe4e6" stroke="#e11d48"/>
+<text x="630.0" y="258" class="label" text-anchor="middle">Combat</text>
+<text x="630.0" y="280" class="small" text-anchor="middle">EnemySpawner</text>
+<text x="630.0" y="296" class="small" text-anchor="middle">Health</text>
+<text x="630.0" y="312" class="small" text-anchor="middle">Shield</text>
+<rect class="box" x="770" y="230" width="180" height="76" fill="#fef3c7" stroke="#d97706"/>
+<text x="860.0" y="258" class="label" text-anchor="middle">UI</text>
+<text x="860.0" y="280" class="small" text-anchor="middle">MenuOverlay</text>
+<text x="860.0" y="296" class="small" text-anchor="middle">DebugHud</text>
+<text x="860.0" y="312" class="small" text-anchor="middle">FeedbackBoard</text>
+<rect class="box" x="260" y="365" width="200" height="76" fill="#ede9fe" stroke="#7c3aed"/>
+<text x="360.0" y="393" class="label" text-anchor="middle">Diagnostics</text>
+<text x="360.0" y="415" class="small" text-anchor="middle">PerformanceMonitor</text>
+<text x="360.0" y="431" class="small" text-anchor="middle">DemoRunRecorder</text>
+<rect class="box" x="590" y="365" width="200" height="76" fill="#f1f5f9" stroke="#475569"/>
+<text x="690.0" y="393" class="label" text-anchor="middle">Editor / Tests</text>
+<text x="690.0" y="415" class="small" text-anchor="middle">Scene Generator</text>
+<text x="690.0" y="431" class="small" text-anchor="middle">Dataset Validator</text>
+<text x="690.0" y="447" class="small" text-anchor="middle">Test Suites</text>
+<path class="line" d="M 520 181 L 170 230"/>
+<path class="line" d="M 520 181 L 400 230"/>
+<path class="line" d="M 520 181 L 630 230"/>
+<path class="line" d="M 520 181 L 860 230"/>
+<path class="line" d="M 400 306 L 360 365"/>
+<path class="line" d="M 860 306 L 690 365"/>
+<path class="line" d="M 630 306 L 690 365"/>
+</svg>

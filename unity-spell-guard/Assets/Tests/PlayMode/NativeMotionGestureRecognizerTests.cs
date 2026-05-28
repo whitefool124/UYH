@@ -30,11 +30,11 @@ namespace SpellGuard.Tests.PlayMode
         [UnityTest]
         public IEnumerator DetectsSwipeFromNativeLandmarkFrames()
         {
-            PushHandFrame(new Vector2(0.18f, 0.42f), 0.18f);
+            PushHandFrame(new Vector2(0.24f, 0.42f), 0.18f);
             yield return new WaitForSeconds(0.02f);
-            PushHandFrame(new Vector2(0.31f, 0.44f), 0.18f);
+            PushHandFrame(new Vector2(0.43f, 0.44f), 0.18f);
             yield return new WaitForSeconds(0.02f);
-            PushHandFrame(new Vector2(0.48f, 0.45f), 0.18f);
+            PushHandFrame(new Vector2(0.62f, 0.45f), 0.18f);
             yield return null;
 
             Assert.That(nativeProvider.CurrentMotionGesture.IsValid, Is.True);
@@ -42,13 +42,30 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator MirrorsHorizontalNativeSwipeWhenPreviewIsMirrored()
+        {
+            var webcam = root.AddComponent<WebcamFeedController>();
+            nativeProvider.Configure(webcam);
+
+            PushHandFrame(new Vector2(0.24f, 0.42f), 0.18f);
+            yield return new WaitForSeconds(0.02f);
+            PushHandFrame(new Vector2(0.43f, 0.44f), 0.18f);
+            yield return new WaitForSeconds(0.02f);
+            PushHandFrame(new Vector2(0.62f, 0.45f), 0.18f);
+            yield return null;
+
+            Assert.That(nativeProvider.CurrentMotionGesture.IsValid, Is.True);
+            Assert.That(nativeProvider.CurrentMotionGesture.Gesture, Is.EqualTo(MotionGestureType.SwipeRightToLeft));
+        }
+
+        [UnityTest]
         public IEnumerator DetectsVerticalSwipeUpFromNativeLandmarkFrames()
         {
-            PushHandFrame(new Vector2(0.42f, 0.52f), 0.18f);
+            PushHandFrame(new Vector2(0.42f, 0.70f), 0.18f);
             yield return new WaitForSeconds(0.02f);
-            PushHandFrame(new Vector2(0.43f, 0.36f), 0.18f);
+            PushHandFrame(new Vector2(0.43f, 0.57f), 0.18f);
             yield return new WaitForSeconds(0.02f);
-            PushHandFrame(new Vector2(0.44f, 0.19f), 0.18f);
+            PushHandFrame(new Vector2(0.44f, 0.42f), 0.18f);
             yield return null;
 
             Assert.That(nativeProvider.CurrentMotionGesture.IsValid, Is.True);
@@ -58,11 +75,11 @@ namespace SpellGuard.Tests.PlayMode
         [UnityTest]
         public IEnumerator DetectsVerticalSwipeDownFromNativeLandmarkFrames()
         {
-            PushHandFrame(new Vector2(0.42f, 0.18f), 0.18f);
+            PushHandFrame(new Vector2(0.42f, 0.24f), 0.18f);
             yield return new WaitForSeconds(0.02f);
-            PushHandFrame(new Vector2(0.43f, 0.32f), 0.18f);
+            PushHandFrame(new Vector2(0.43f, 0.43f), 0.18f);
             yield return new WaitForSeconds(0.02f);
-            PushHandFrame(new Vector2(0.44f, 0.50f), 0.18f);
+            PushHandFrame(new Vector2(0.44f, 0.62f), 0.18f);
             yield return null;
 
             Assert.That(nativeProvider.CurrentMotionGesture.IsValid, Is.True);
@@ -124,7 +141,7 @@ namespace SpellGuard.Tests.PlayMode
         [UnityTest]
         public IEnumerator DoesNotPromoteGenericSwipeToSlapWhenOpenPalmHistoryIsInsufficient()
         {
-            PushHandFrame(new Vector2(0.18f, 0.42f), 0.18f, GestureType.Point);
+            PushHandFrame(new Vector2(0.24f, 0.42f), 0.18f, GestureType.Point);
             yield return new WaitForSeconds(0.02f);
             PushHandFrame(new Vector2(0.31f, 0.43f), 0.18f, GestureType.OpenPalm);
             yield return new WaitForSeconds(0.02f);
@@ -154,11 +171,11 @@ namespace SpellGuard.Tests.PlayMode
             profile.swipeMinSpeed = 0.2f;
             recognizer.Configure(nativeProvider, profile);
 
-            PushHandFrame(new Vector2(0.18f, 0.42f), 0.18f);
+            PushHandFrame(new Vector2(0.24f, 0.42f), 0.18f);
             yield return new WaitForSeconds(0.02f);
-            PushHandFrame(new Vector2(0.31f, 0.44f), 0.18f);
+            PushHandFrame(new Vector2(0.43f, 0.44f), 0.18f);
             yield return new WaitForSeconds(0.02f);
-            PushHandFrame(new Vector2(0.48f, 0.45f), 0.18f);
+            PushHandFrame(new Vector2(0.62f, 0.45f), 0.18f);
             yield return null;
 
             Assert.That(nativeProvider.CurrentMotionGesture.IsValid, Is.False);

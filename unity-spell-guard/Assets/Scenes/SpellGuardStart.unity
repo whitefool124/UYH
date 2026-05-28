@@ -294,7 +294,7 @@ MonoBehaviour:
   swipeMinDistance: 0.09
   swipeMaxVerticalDrift: 0.22
   swipeMinSpeed: 0.2
-  swipeCooldownSeconds: 0.28
+  swipeCooldownSeconds: 2
   snapCloseDistance: 0.09
   snapReleaseDistance: 0.14
   snapMaxDuration: 0.35
@@ -339,7 +339,7 @@ MonoBehaviour:
   swipeMinDistance: 0.09
   swipeMaxVerticalDrift: 0.22
   swipeMinSpeed: 0.2
-  swipeCooldownSeconds: 0.28
+  swipeCooldownSeconds: 2
   slapMinDistance: 0.11
   slapMinOpenPalmRatio: 0.8
   slapMinSpeed: 0.24
@@ -369,8 +369,9 @@ MonoBehaviour:
   maxNumHands: 1
   poolSize: 3
   autoStart: 0
-  requiredStableFrames: 3
+  requiredStableFrames: 2
   cameraWarmupTimeoutSeconds: 2.5
+  processOnlyFreshCameraFrames: 0
 --- !u!114 &572744980
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -417,9 +418,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   playOnAwake: 0
-  useRequestedFormat: 0
-  requestedWidth: 640
-  requestedHeight: 480
+  useRequestedFormat: 1
+  requestedWidth: 320
+  requestedHeight: 240
   requestedFps: 30
   mirrorPreview: 1
   preferredDeviceIndex: 0

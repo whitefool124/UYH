@@ -19,6 +19,9 @@ namespace SpellGuard.Player
         [SerializeField] private float shieldCounterRadius = 4.2f;
         [SerializeField] private int shieldCounterDamage = 1;
         [SerializeField] private float shieldCounterFreezeSeconds = 0.55f;
+        [SerializeField] private float fireCooldownSeconds = 0.35f;
+        [SerializeField] private float iceCooldownSeconds = 0.75f;
+        [SerializeField] private float shieldCooldownSeconds = 1.1f;
         [SerializeField] private int selectedFireVariantIndex;
         [SerializeField] private LayerMask hitMask = Physics.DefaultRaycastLayers;
         [SerializeField] private bool debugLogs = true;
@@ -29,6 +32,9 @@ namespace SpellGuard.Player
         private float lastHandledMotionTime = -999f;
         private float statusHoldUntil;
         private bool castingEnabled = true;
+        private float lastFireCastTime = -999f;
+        private float lastIceCastTime = -999f;
+        private float lastShieldCastTime = -999f;
 
         private string LastCastSourceLabel => lastHandledMotionTime > Time.time - 0.05f ? "dynamic-motion" : "static-snapshot";
 
@@ -41,6 +47,18 @@ namespace SpellGuard.Player
         public string SpellPromptText => BuildSpellPromptText();
         public string LastSpellFeedbackText { get; private set; } = "\u5c1a\u672a\u65bd\u6cd5";
         public event Action<SpellType, int> SpellResolved;
+        public float FireCooldownProgress => GetSpellCooldownProgress(SpellType.Fire);
+        public float IceCooldownProgress => GetSpellCooldownProgress(SpellType.Ice);
+        public float ShieldCooldownProgress => GetSpellCooldownProgress(SpellType.Shield);
+        public float GetSpellCooldownProgress(SpellType spell)
+        {
+            return GetCooldownProgress(GetLastCastTime(spell), GetCooldownDuration(spell));
+        }
+
+        public float GetSpellCooldownRemaining(SpellType spell)
+        {
+            return GetCooldownRemaining(GetLastCastTime(spell), GetCooldownDuration(spell));
+        }
 
         public SpellConfig GetSpellConfig(SpellType spellType)
         {
@@ -117,6 +135,14 @@ namespace SpellGuard.Player
                 return;
             }
 
+            if (!CanCastSpell(spell))
+            {
+                pendingSpell = SpellType.None;
+                PendingProgress = 0f;
+                StatusText = $"{spell.ToChinese()}\u51b7\u5374\u4e2d {GetSpellCooldownRemaining(spell):0.0}s";
+                return;
+            }
+
             if (pendingSpell != spell)
             {
                 pendingSpell = spell;
@@ -144,6 +170,7 @@ namespace SpellGuard.Player
             var hitCount = 0;
             var spellConfig = GetSpellConfig(spell);
             SpellGuardAudioController.Instance?.PlaySpellCastSfx(spell);
+            MarkSpellCast(spell);
             switch (spell)
             {
                 case SpellType.Fire:
@@ -179,6 +206,13 @@ namespace SpellGuard.Player
         {
             if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetMouseButtonDown(0))
             {
+                if (!CanCastSpell(SpellType.Fire))
+                {
+                    StatusText = $"\u706b\u7130\u51b7\u5374\u4e2d {GetSpellCooldownRemaining(SpellType.Fire):0.0}s";
+                    statusHoldUntil = Time.time + 0.35f;
+                    return true;
+                }
+
                 Cast(SpellType.Fire);
                 lastCastSpell = SpellType.Fire;
                 return true;
@@ -225,6 +259,13 @@ namespace SpellGuard.Player
             pendingSpell = SpellType.None;
             PendingProgress = 0f;
             lastCastSpell = spell;
+            if (!CanCastSpell(spell))
+            {
+                StatusText = $"{spell.ToChinese()}\u51b7\u5374\u4e2d {GetSpellCooldownRemaining(spell):0.0}s";
+                statusHoldUntil = Time.time + 0.35f;
+                return true;
+            }
+
             if (IsShieldCounterMotion(action))
             {
                 CastShieldCounter();
@@ -266,6 +307,7 @@ namespace SpellGuard.Player
         {
             var spellConfig = GetSpellConfig(SpellType.Shield);
             SpellGuardAudioController.Instance?.PlaySpellCastSfx(SpellType.Shield);
+            MarkSpellCast(SpellType.Shield);
             if (playerHealth != null)
             {
                 playerHealth.ActivateShield(Mathf.Max(spellConfig.ShieldDuration, shieldCounterFreezeSeconds));
@@ -349,6 +391,79 @@ namespace SpellGuard.Player
             }
 
             return 0;
+        }
+
+        private bool CanCastSpell(SpellType spell)
+        {
+            return GetSpellCooldownRemaining(spell) <= 0f;
+        }
+
+        private void MarkSpellCast(SpellType spell)
+        {
+            switch (spell)
+            {
+                case SpellType.Fire:
+                    lastFireCastTime = Time.time;
+                    break;
+                case SpellType.Ice:
+                    lastIceCastTime = Time.time;
+                    break;
+                case SpellType.Shield:
+                    lastShieldCastTime = Time.time;
+                    break;
+            }
+        }
+
+        private float GetLastCastTime(SpellType spell)
+        {
+            switch (spell)
+            {
+                case SpellType.Fire:
+                    return lastFireCastTime;
+                case SpellType.Ice:
+                    return lastIceCastTime;
+                case SpellType.Shield:
+                    return lastShieldCastTime;
+                default:
+                    return -999f;
+            }
+        }
+
+        private float GetCooldownDuration(SpellType spell)
+        {
+            switch (spell)
+            {
+                case SpellType.Fire:
+                    return fireCooldownSeconds;
+                case SpellType.Ice:
+                    return iceCooldownSeconds;
+                case SpellType.Shield:
+                    return shieldCooldownSeconds;
+                default:
+                    return 0f;
+            }
+        }
+
+        private static float GetCooldownProgress(float startedAt, float duration)
+        {
+            duration = Mathf.Max(0f, duration);
+            if (duration <= 0f)
+            {
+                return 1f;
+            }
+
+            return Mathf.Clamp01((Time.time - startedAt) / duration);
+        }
+
+        private static float GetCooldownRemaining(float startedAt, float duration)
+        {
+            duration = Mathf.Max(0f, duration);
+            if (duration <= 0f)
+            {
+                return 0f;
+            }
+
+            return Mathf.Max(0f, duration - (Time.time - startedAt));
         }
 
         private static SpellType MapIntentToSpell(GestureIntent intent)

@@ -19,8 +19,8 @@ namespace SpellGuard.Player
         [SerializeField] private float moveStepDistance = 1.5f;
         [SerializeField] private float moveStepDuration = 0.18f;
         [SerializeField] private float moveInputCooldown = 0.18f;
-        [SerializeField] private float horizontalMoveCooldown = 0.45f;
-        [SerializeField] private float verticalMoveCooldown = 0.45f;
+        [SerializeField] private float horizontalMoveCooldown = 2f;
+        [SerializeField] private float verticalMoveCooldown = 2f;
         [SerializeField] private float staticMoveHoldSeconds = 0.25f;
         [SerializeField] private bool keyboardFallbackEnabled = true;
         [SerializeField] private float gravity = -18f;
@@ -46,6 +46,11 @@ namespace SpellGuard.Player
         public bool IsStepInProgress => stepInProgress;
         public DiscreteMoveDirection CurrentStepDirection => currentStepDirection;
         public GestureFrame CurrentGestureFrame => currentGestureFrame;
+        public float HorizontalMoveCooldownProgress => GetCooldownProgress(lastHorizontalMoveTriggerTime, horizontalMoveCooldown);
+        public float VerticalMoveCooldownProgress => GetCooldownProgress(lastVerticalMoveTriggerTime, verticalMoveCooldown);
+        public float MoveInputCooldownProgress => GetCooldownProgress(lastMoveTriggerTime, moveInputCooldown);
+        public float HorizontalMoveCooldownRemaining => GetCooldownRemaining(lastHorizontalMoveTriggerTime, horizontalMoveCooldown);
+        public float VerticalMoveCooldownRemaining => GetCooldownRemaining(lastVerticalMoveTriggerTime, verticalMoveCooldown);
 
         private void Awake()
         {
@@ -137,10 +142,10 @@ namespace SpellGuard.Player
 
             if (action.IsValid && action.IsTransient && action.TriggeredTime > lastHandledMotionTime)
             {
+                lastHandledMotionTime = action.TriggeredTime;
                 switch (action.Intent)
                 {
                     case GestureIntent.MoveLeft:
-                        lastHandledMotionTime = action.TriggeredTime;
                         if (!CanTriggerHorizontalMove())
                         {
                             return;
@@ -149,7 +154,6 @@ namespace SpellGuard.Player
                         return;
 
                     case GestureIntent.MoveRight:
-                        lastHandledMotionTime = action.TriggeredTime;
                         if (!CanTriggerHorizontalMove())
                         {
                             return;
@@ -158,7 +162,6 @@ namespace SpellGuard.Player
                         return;
 
                     case GestureIntent.MoveForward:
-                        lastHandledMotionTime = action.TriggeredTime;
                         if (!CanTriggerVerticalMove())
                         {
                             return;
@@ -167,7 +170,6 @@ namespace SpellGuard.Player
                         return;
 
                     case GestureIntent.MoveBackward:
-                        lastHandledMotionTime = action.TriggeredTime;
                         if (!CanTriggerVerticalMove())
                         {
                             return;
@@ -278,6 +280,28 @@ namespace SpellGuard.Player
         private bool CanTriggerVerticalMove()
         {
             return Time.time - lastVerticalMoveTriggerTime >= Mathf.Max(0f, verticalMoveCooldown);
+        }
+
+        private static float GetCooldownProgress(float startedAt, float duration)
+        {
+            duration = Mathf.Max(0f, duration);
+            if (duration <= 0f)
+            {
+                return 1f;
+            }
+
+            return Mathf.Clamp01((Time.time - startedAt) / duration);
+        }
+
+        private static float GetCooldownRemaining(float startedAt, float duration)
+        {
+            duration = Mathf.Max(0f, duration);
+            if (duration <= 0f)
+            {
+                return 0f;
+            }
+
+            return Mathf.Max(0f, duration - (Time.time - startedAt));
         }
 
         private static bool IsHorizontalDirection(DiscreteMoveDirection direction)

@@ -1,0 +1,14 @@
+metric,value
+clips,300
+frames,2400
+sampled_frames_per_clip,8
+yolo_person_frames,2375
+weighted_person_ratio,0.9896
+positive_clips,300
+zero_detect_clips,0
+positive_clip_rate,1.0
+avg_clip_person_ratio,0.9896
+avg_yolo_confidence_positive,0.8362
+avg_person_area_ratio_positive,0.5831
+avg_processing_ms,42.4398
+avg_fps,23.8342

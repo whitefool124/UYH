@@ -13,7 +13,7 @@ namespace SpellGuard.InputSystem
         [Min(0f)] public float swipeMinDistance = 0.09f;
         [Min(0f)] public float swipeMaxVerticalDrift = 0.22f;
         [Min(0f)] public float swipeMinSpeed = 0.2f;
-        [Min(0f)] public float swipeCooldownSeconds = 0.28f;
+        [Min(0f)] public float swipeCooldownSeconds = 2f;
 
         [Header("Native Open Palm Slap")]
         [Min(0f)] public float slapMinDistance = 0.11f;

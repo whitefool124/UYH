@@ -1,0 +1,10 @@
+metric,value
+videos,9
+frames,533
+yolo_person_frames,533
+weighted_person_ratio,1.0
+avg_video_person_ratio,1.0
+avg_yolo_confidence,0.886
+avg_person_area_ratio,0.5557
+avg_processing_ms,58.965
+avg_fps,17.0194

@@ -29,8 +29,16 @@ namespace SpellGuard.Tests.PlayMode
 
             var csv = monitor.BuildCsv();
 
-            StringAssert.Contains("session_id,mode,source,elapsed_seconds,total_frames", csv);
+            StringAssert.Contains("section,session_id,mode,source,elapsed_seconds,total_frames", csv);
             StringAssert.Contains("avg_estimated_latency_ms", csv);
+            StringAssert.Contains("avg_hand_update_interval_ms", csv);
+            StringAssert.Contains("camera_device", csv);
+            StringAssert.Contains("camera_fps", csv);
+            StringAssert.Contains("camera_requested_fps", csv);
+            StringAssert.Contains("camera_uses_requested_format", csv);
+            StringAssert.Contains("native_fresh_frame_only", csv);
+            StringAssert.Contains("native_result_fps", csv);
+            StringAssert.Contains("timeseries", csv);
             StringAssert.Contains("body_shift_right", csv);
         }
 

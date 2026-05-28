@@ -1,0 +1,4 @@
+mode,runs,average_fps_mean,average_fps_std,p95_frame_ms_mean,min_fps_mean,avg_packet_interval_ms_mean,avg_estimated_latency_ms_mean,motion_commands_mean,static_commands_mean
+Mock,9,59.502,0.32,16.927,59.079,0,0,13,26
+NativeMediapipe,9,29.651,0.395,34.133,29.302,0,0,13,26
+ExternalBridge,9,49.91,0.847,20.702,48.317,33.333,17.593,13,11

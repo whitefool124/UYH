@@ -13,7 +13,7 @@ namespace SpellGuard.InputSystem
         [SerializeField] private float swipeMinDistance = 0.09f;
         [SerializeField] private float swipeMaxVerticalDrift = 0.22f;
         [SerializeField] private float swipeMinSpeed = 0.2f;
-        [SerializeField] private float swipeCooldownSeconds = 0.28f;
+        [SerializeField] private float swipeCooldownSeconds = 2f;
         [SerializeField] private float slapMinDistance = 0.11f;
         [SerializeField] private float slapMinOpenPalmRatio = 0.8f;
         [SerializeField] private float slapMinSpeed = 0.24f;
@@ -124,7 +124,12 @@ namespace SpellGuard.InputSystem
             }
 
             var sampleTime = nativeProvider.LastSampleTime > 0f ? nativeProvider.LastSampleTime : Time.time;
-            var sample = BuildHandSample(nativeProvider.HandLandmarks, snapshot.ViewportPosition, snapshot.Gesture, sampleTime);
+            var sample = BuildHandSample(
+                nativeProvider.HandLandmarks,
+                snapshot.ViewportPosition,
+                snapshot.Gesture,
+                sampleTime,
+                ShouldMirrorHorizontalMotion());
             if (!detector.AddHandSample(sample, true))
             {
                 return;
@@ -156,7 +161,14 @@ namespace SpellGuard.InputSystem
             }
         }
 
-        private static MotionGestureDetector.HandSample BuildHandSample(IReadOnlyList<Vector2> landmarks, Vector2 fallbackPalm, GestureType gesture, float sampleTime)
+        private bool ShouldMirrorHorizontalMotion()
+        {
+            return nativeProvider != null
+                && nativeProvider.WebcamFeed != null
+                && nativeProvider.WebcamFeed.MirrorPreview;
+        }
+
+        private static MotionGestureDetector.HandSample BuildHandSample(IReadOnlyList<Vector2> landmarks, Vector2 fallbackPalm, GestureType gesture, float sampleTime, bool mirrorX)
         {
             var palm = fallbackPalm;
             if (landmarks != null && landmarks.Count > 17)
@@ -164,12 +176,24 @@ namespace SpellGuard.InputSystem
                 palm = (landmarks[0] + landmarks[5] + landmarks[17]) / 3f;
             }
 
+            var thumbTip = landmarks != null && landmarks.Count > 4 ? landmarks[4] : palm;
+            var indexTip = landmarks != null && landmarks.Count > 8 ? landmarks[8] : palm;
+            var middleTip = landmarks != null && landmarks.Count > 12 ? landmarks[12] : palm;
+            if (mirrorX)
+            {
+                palm.x = 1f - palm.x;
+                indexTip.x = 1f - indexTip.x;
+                thumbTip.x = 1f - thumbTip.x;
+                middleTip.x = 1f - middleTip.x;
+            }
+
             return new MotionGestureDetector.HandSample
             {
                 Time = sampleTime,
                 Palm = palm,
-                ThumbTip = landmarks != null && landmarks.Count > 4 ? landmarks[4] : palm,
-                MiddleTip = landmarks != null && landmarks.Count > 12 ? landmarks[12] : palm,
+                SwipePoint = indexTip,
+                ThumbTip = thumbTip,
+                MiddleTip = middleTip,
                 StaticGesture = gesture,
                 HasSnapData = landmarks != null && landmarks.Count > 12
             };

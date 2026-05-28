@@ -1,0 +1,15 @@
+metric,value
+dataset_clips,48
+total_frames,987
+elapsed_seconds,32.9
+mining_rows,160
+accepted_rows,113
+sampled_frames,5744
+detected_frames,2510
+detect_ratio,0.437
+split_test,16
+split_train,32
+label_body_shift_left,12
+label_body_shift_right,15
+label_swipe_lr,15
+label_swipe_rl,6

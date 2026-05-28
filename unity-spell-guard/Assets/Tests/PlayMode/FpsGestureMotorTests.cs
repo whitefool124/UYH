@@ -77,6 +77,7 @@ namespace SpellGuard.Tests.PlayMode
 
             Assert.That(motor.IsStepInProgress, Is.True);
             Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.Forward));
+            Assert.That(motor.VerticalMoveCooldownProgress, Is.LessThan(1f));
         }
 
         [Test]
@@ -173,6 +174,7 @@ namespace SpellGuard.Tests.PlayMode
             PushMotion(MotionGestureType.SwipeRightToLeft, Time.time);
             InvokePrivateUpdate(motor);
             Assert.That(motor.CurrentStepDirection, Is.EqualTo(FpsGestureMotor.DiscreteMoveDirection.Left));
+            Assert.That(motor.HorizontalMoveCooldownProgress, Is.LessThan(1f));
 
             FinishStepForTest();
             PushMotion(MotionGestureType.SwipeLeftToRight, Time.time + 0.1f);

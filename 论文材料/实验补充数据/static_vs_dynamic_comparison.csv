@@ -1,0 +1,6 @@
+﻿gesture,single_static_frame,two_static_sequence,dynamic_trajectory,finger_level_features,recommended_method,reason
+swipe_lr / swipe_rl,low,medium,high,low,PalmTrajectory + time window + cooldown,The discriminative cue is palm displacement direction and duration.
+point_to_fist,low,high,medium,medium,PoseTransition + max palm motion constraint,The key cue is a stable pose transition rather than a long palm path.
+finger_snap,low,medium,low,high,FingerDistanceChange / FeatureSequence,The cue is fast thumb-middle or thumb-index distance change with limited palm movement.
+two_finger_spread,low,medium,low,high,FingerDistanceChange,The cue is continuous increase of the selected fingertip distance.
+crab_pinch_simulation,low,medium,low,high,FingerOscillation + oscillation count,"The cue is repeated opening and closing of two fingers, which requires temporal oscillation features."

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="460" viewBox="0 0 760 460">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<style>
+text { font-family: "Microsoft YaHei", "SimHei", Arial, sans-serif; fill: #24313d; }
+.title { font-size: 24px; font-weight: 700; }
+.label { font-size: 15px; }
+.small { font-size: 13px; fill: #52606d; }
+.axis { stroke: #9aa6b2; stroke-width: 1; }
+.grid { stroke: #d8dee6; stroke-width: 1; }
+</style>
+<text x="380.0" y="38" text-anchor="middle" class="title">YOLO+MediaPipe 外部桥接有效检出分布</text>
+<circle cx="240" cy="245" r="135" fill="#b35f5f"/>
+<path d="M 240 245 L 240.0 110.0 A 135 135 0 0 1 372.9 221.6 Z" fill="#3a8f6b"/>
+<text x="240" y="250" text-anchor="middle" class="title">18 个</text>
+<rect x="470" y="170" width="18" height="18" fill="#3a8f6b"/><text x="500" y="185" class="label">检出手部关键点：4 个 (22.2%)</text>
+<rect x="470" y="220" width="18" height="18" fill="#b35f5f"/><text x="500" y="235" class="label">未检出手部关键点：14 个 (77.8%)</text>
+<text x="470" y="285" class="small">平均 hand_ratio：0.1124</text>
+<text x="470" y="315" class="small">平均 FPS：7.5617</text>
+</svg>

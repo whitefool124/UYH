@@ -1,0 +1,17 @@
+﻿split,label,clips
+test,motion_down_left,2
+test,motion_down_right,2
+test,motion_left_left,2
+test,motion_left_right,2
+test,motion_right_left,2
+test,motion_right_right,2
+test,motion_up_left,2
+test,motion_up_right,2
+train,motion_down_left,2
+train,motion_down_right,2
+train,motion_left_left,2
+train,motion_left_right,2
+train,motion_right_left,2
+train,motion_right_right,2
+train,motion_up_left,2
+train,motion_up_right,2

@@ -101,6 +101,32 @@ namespace SpellGuard.Tests.PlayMode
 
             Assert.That(caster.LastCastSpell, Is.EqualTo(SpellType.Fire));
             Assert.That(caster.StatusText, Does.Contain("\u5feb\u901f\u706b\u7130"));
+            Assert.That(caster.FireCooldownProgress, Is.LessThan(1f));
+        }
+
+        [Test]
+        public void SpellCooldownBlocksImmediateRepeatCast()
+        {
+            inputProvider.motion = new MotionGestureEvent
+            {
+                Gesture = MotionGestureType.PointToFist,
+                ViewportPosition = new Vector2(0.5f, 0.5f),
+                Confidence = 1f,
+                TriggeredTime = Time.time
+            };
+
+            InvokePrivateUpdate(caster);
+            inputProvider.motion = new MotionGestureEvent
+            {
+                Gesture = MotionGestureType.PointToFist,
+                ViewportPosition = new Vector2(0.5f, 0.5f),
+                Confidence = 1f,
+                TriggeredTime = Time.time + 0.01f
+            };
+            InvokePrivateUpdate(caster);
+
+            Assert.That(caster.StatusText, Does.Contain("\u51b7\u5374"));
+            Assert.That(caster.FireCooldownProgress, Is.LessThan(1f));
         }
 
         private static void InvokePrivateUpdate(GestureSpellCaster target)

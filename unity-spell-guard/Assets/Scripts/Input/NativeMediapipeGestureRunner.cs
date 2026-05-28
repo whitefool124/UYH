@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Mediapipe;
 using Mediapipe.Unity;
 using Mediapipe.Unity.CoordinateSystem;
@@ -83,8 +82,9 @@ node: {
         [SerializeField] private int maxNumHands = 1;
         [SerializeField] private int poolSize = 3;
         [SerializeField] private bool autoStart = false;
-        [SerializeField] private int requiredStableFrames = 3;
+        [SerializeField] private int requiredStableFrames = 2;
         [SerializeField] private float cameraWarmupTimeoutSeconds = 2.5f;
+        [SerializeField] private bool processOnlyFreshCameraFrames = false;
 
         private TextureFramePool textureFramePool;
         private CalculatorGraph calculatorGraph;
@@ -95,6 +95,7 @@ node: {
         private bool mediapipeInitialized;
         private bool graphRunning;
         private bool stopping;
+        private bool restartingForCamera;
 
         private readonly object resultLock = new object();
         private List<NormalizedLandmarkList> latestLandmarkLists;
@@ -105,13 +106,43 @@ node: {
         private GestureType stableGesture = GestureType.None;
         private int candidateFrames;
         private long latestTimestamp;
+        private float lastInputFrameAt = -1f;
+        private float inputFrameIntervalTotalMs;
+        private int inputFrameIntervalSamples;
+        private int inputFrameCount;
+        private float lastResultAt = -1f;
+        private float resultIntervalTotalMs;
+        private int resultIntervalSamples;
+        private int resultCount;
+        private int lastProcessedCameraFrameCount = -1;
+        private float processingLatencyTotalMs;
+        private int processingLatencySamples;
 
         public string StatusText { get; private set; } = "原生识别未启动";
+        public int InputFrameCount => inputFrameCount;
+        public int ResultCount => resultCount;
+        public float AverageInputFrameIntervalMs => inputFrameIntervalSamples > 0 ? inputFrameIntervalTotalMs / inputFrameIntervalSamples : 0f;
+        public float AverageResultIntervalMs => resultIntervalSamples > 0 ? resultIntervalTotalMs / resultIntervalSamples : 0f;
+        public float AverageProcessingLatencyMs => processingLatencySamples > 0 ? processingLatencyTotalMs / processingLatencySamples : 0f;
+        public float EstimatedInputFps => AverageInputFrameIntervalMs > 0f ? 1000f / AverageInputFrameIntervalMs : 0f;
+        public float EstimatedResultFps => AverageResultIntervalMs > 0f ? 1000f / AverageResultIntervalMs : 0f;
+        public bool ProcessOnlyFreshCameraFrames => processOnlyFreshCameraFrames;
 
         public void Configure(NativeMediapipeGestureProvider provider, WebcamFeedController feed)
         {
+            if (webcamFeed != null)
+            {
+                webcamFeed.CameraRestarting -= HandleCameraRestarting;
+                webcamFeed.CameraRestarted -= HandleCameraRestarted;
+            }
+
             targetProvider = provider;
             webcamFeed = feed;
+            if (webcamFeed != null)
+            {
+                webcamFeed.CameraRestarting += HandleCameraRestarting;
+                webcamFeed.CameraRestarted += HandleCameraRestarted;
+            }
         }
 
         private void OnEnable()
@@ -187,12 +218,41 @@ node: {
 
         private void OnDisable()
         {
+            if (webcamFeed != null)
+            {
+                webcamFeed.CameraRestarting -= HandleCameraRestarting;
+                webcamFeed.CameraRestarted -= HandleCameraRestarted;
+            }
+
             StopRunner();
         }
 
         private void OnApplicationQuit()
         {
             StopRunner();
+        }
+
+        private void HandleCameraRestarting()
+        {
+            if (!enabled || runCoroutine == null)
+            {
+                return;
+            }
+
+            restartingForCamera = true;
+            StopRunner();
+        }
+
+        private void HandleCameraRestarted()
+        {
+            if (!enabled || !restartingForCamera)
+            {
+                restartingForCamera = false;
+                return;
+            }
+
+            restartingForCamera = false;
+            StartRunner();
         }
 
         private void Update()
@@ -277,6 +337,8 @@ node: {
             calculatorGraph.StartRun(BuildSidePacket());
             graphRunning = true;
             latestTimestamp = 0L;
+            ResetPerformanceMetrics();
+            lastProcessedCameraFrameCount = webcamFeed.CameraFrameCount;
             StatusText = "原生识别运行中";
             targetProvider.SetStatusText(StatusText);
 
@@ -289,6 +351,12 @@ node: {
                     if (!webcamFeed.HasReadyFrame)
                     {
                         targetProvider.SetStatusText($"摄像头画面暂不可用：{GetTextureSizeLabel()}");
+                        yield return null;
+                        continue;
+                    }
+
+                    if (processOnlyFreshCameraFrames && webcamFeed.CameraFrameCount == lastProcessedCameraFrameCount)
+                    {
                         yield return null;
                         continue;
                     }
@@ -326,6 +394,8 @@ node: {
                     }
 
                     latestTimestamp = GetCurrentTimestampMicrosec();
+                    lastProcessedCameraFrameCount = webcamFeed.CameraFrameCount;
+                    RecordInputFrame();
                     calculatorGraph.AddPacketToInputStream(InputStreamName, Packet.CreateImageFrameAt(imageFrame, latestTimestamp));
 
                     var outputTask = outputVideoStream.WaitNextAsync();
@@ -426,6 +496,7 @@ node: {
 
         private void ApplyResult(List<NormalizedLandmarkList> landmarkLists, List<ClassificationList> handednessLists)
         {
+            RecordResult();
             if (landmarkLists == null || landmarkLists.Count == 0 || landmarkLists[0] == null || landmarkLists[0].Landmark.Count <= 8)
             {
                 targetProvider.SetSnapshot(false, GestureType.None, new Vector2(0.5f, 0.5f), 0f);
@@ -452,6 +523,50 @@ node: {
             targetProvider.SetSnapshot(true, gesture, new Vector2(pointerTip.X, pointerTip.Y), 1f);
             StatusText = $"原生识别：{gesture.ToChinese()} · {FormatHandedness(handedness)}";
             targetProvider.SetStatusText(StatusText);
+        }
+
+        private void RecordInputFrame()
+        {
+            inputFrameCount++;
+            if (lastInputFrameAt > 0f)
+            {
+                inputFrameIntervalTotalMs += Mathf.Max(0f, Time.unscaledTime - lastInputFrameAt) * 1000f;
+                inputFrameIntervalSamples++;
+            }
+
+            lastInputFrameAt = Time.unscaledTime;
+        }
+
+        private void RecordResult()
+        {
+            resultCount++;
+            if (lastResultAt > 0f)
+            {
+                resultIntervalTotalMs += Mathf.Max(0f, Time.unscaledTime - lastResultAt) * 1000f;
+                resultIntervalSamples++;
+            }
+
+            lastResultAt = Time.unscaledTime;
+            if (lastInputFrameAt > 0f)
+            {
+                processingLatencyTotalMs += Mathf.Max(0f, Time.unscaledTime - lastInputFrameAt) * 1000f;
+                processingLatencySamples++;
+            }
+        }
+
+        private void ResetPerformanceMetrics()
+        {
+            lastInputFrameAt = -1f;
+            inputFrameIntervalTotalMs = 0f;
+            inputFrameIntervalSamples = 0;
+            inputFrameCount = 0;
+            lastResultAt = -1f;
+            resultIntervalTotalMs = 0f;
+            resultIntervalSamples = 0;
+            resultCount = 0;
+            lastProcessedCameraFrameCount = -1;
+            processingLatencyTotalMs = 0f;
+            processingLatencySamples = 0;
         }
 
         private static GestureHandedness ResolveHandedness(List<ClassificationList> handednessLists)

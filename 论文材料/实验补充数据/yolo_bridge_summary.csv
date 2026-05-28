@@ -1,0 +1,8 @@
+﻿metric,value
+videos,18
+success_videos,18
+hand_positive_videos,4
+zero_hand_videos,14
+avg_hand_ratio,0.1124
+avg_fps,7.5617
+avg_confidence_on_hand_positive,0.9012

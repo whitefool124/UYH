@@ -1,0 +1,15 @@
+metric,value
+clips,51
+video_clips,9
+frame_window_clips,42
+frames,938
+yolo_person_frames,681
+weighted_person_ratio,0.726
+avg_clip_person_ratio,0.4545
+avg_yolo_confidence,0.6566
+avg_person_area_ratio,0.3497
+avg_processing_ms,59.3718
+avg_fps,17.3309
+video_weighted_ratio,1.0
+window_weighted_ratio,0.3654
+zero_detect_clips,14

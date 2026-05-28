@@ -1,5 +1,6 @@
 using SpellGuard.Combat;
 using SpellGuard.Core;
+using SpellGuard.Diagnostics;
 using SpellGuard.InputSystem;
 using SpellGuard.Player;
 using UnityEngine;
@@ -10,9 +11,11 @@ namespace SpellGuard.UI
     {
         [SerializeField] private GestureInputProviderBase inputProvider;
         [SerializeField] private GestureSpellCaster spellCaster;
+        [SerializeField] private FpsGestureMotor fpsMotor;
         [SerializeField] private PlayerHealth playerHealth;
         [SerializeField] private EnemySpawner enemySpawner;
         [SerializeField] private SpellGuardFlowController flowController;
+        [SerializeField] private GesturePerformanceMonitor performanceMonitor;
         [SerializeField] private bool visible = true;
 
         private GUIStyle titleStyle;
@@ -27,24 +30,33 @@ namespace SpellGuard.UI
         private string lastSpellStatus = string.Empty;
         private float lastSpellStatusAt = -999f;
         private Vector2 smoothedHandViewport = new Vector2(0.5f, 0.5f);
+        private Vector2 previousRawHandViewport = new Vector2(0.5f, 0.5f);
+        private Vector2 handViewportVelocity;
+        private float lastRawHandViewportAt = -999f;
         private bool hasSmoothedHandViewport;
 
         public void Configure(
             GestureInputProviderBase provider,
             GestureSpellCaster caster,
+            FpsGestureMotor motor,
             PlayerHealth health,
             EnemySpawner spawner,
-            SpellGuardFlowController controller)
+            SpellGuardFlowController controller,
+            GesturePerformanceMonitor monitor)
         {
             inputProvider = provider;
             spellCaster = caster;
+            fpsMotor = motor;
             playerHealth = health;
             enemySpawner = spawner;
             flowController = controller;
+            performanceMonitor = monitor;
         }
 
         private void Update()
         {
+            EnsurePerformanceMonitorBound();
+
             if (inputProvider != null)
             {
                 var motion = inputProvider.CurrentMotionGesture;
@@ -76,6 +88,7 @@ namespace SpellGuard.UI
             DrawTopGestureBanner(snapshot, scale);
             DrawHandCaptureIndicator(scale);
             DrawBottomFeedbackStrip(snapshot, scale);
+            DrawPerformanceControls(scale);
             DrawPulseOverlays(scale);
         }
 
@@ -108,7 +121,7 @@ namespace SpellGuard.UI
             var frame = inputProvider != null ? inputProvider.CurrentGestureFrame : GestureFrame.Empty(GestureSourceKind.Unknown);
             var hand = frame.PrimaryHand;
             var isTracked = hand.IsTracked;
-            var target = isTracked ? ClampViewport(hand.PalmCenter) : new Vector2(0.5f, 0.5f);
+            var target = ResolveCaptureIndicatorTarget(hand, isTracked, frame.Timestamp);
             if (!hasSmoothedHandViewport)
             {
                 smoothedHandViewport = target;
@@ -116,34 +129,61 @@ namespace SpellGuard.UI
             }
             else
             {
-                var smoothing = isTracked ? 0.36f : 0.12f;
+                var smoothing = isTracked ? 0.34f : 0.12f;
                 smoothedHandViewport = Vector2.Lerp(smoothedHandViewport, target, smoothing);
             }
 
-            var width = Mathf.Clamp(Screen.width * 0.28f, 260f, 360f);
-            var height = Mathf.Clamp(width * 0.62f, 160f, 220f);
-            var rect = new Rect(
-                Screen.width - width - Mathf.Clamp(18f * scale, 12f, 28f),
-                Mathf.Clamp(126f * scale, 104f, 150f),
-                width,
-                height);
-            var border = isTracked ? new Color(0.35f, 0.95f, 0.72f, 0.82f) : new Color(0.62f, 0.66f, 0.74f, 0.54f);
-            DrawPanel(rect, new Color(0.025f, 0.035f, 0.055f, 0.78f), border);
-
-            var plot = new Rect(rect.x + 12f * scale, rect.y + 30f * scale, rect.width - 24f * scale, rect.height - 44f * scale);
-            DrawCaptureGrid(plot, scale, isTracked);
-
             var point = new Vector2(
-                Mathf.Lerp(plot.x, plot.xMax, smoothedHandViewport.x),
-                Mathf.Lerp(plot.y, plot.yMax, 1f - smoothedHandViewport.y));
+                Mathf.Lerp(0f, Screen.width, 1f - smoothedHandViewport.x),
+                Mathf.Lerp(0f, Screen.height, 1f - smoothedHandViewport.y));
+            DrawCaptureGuides(point, scale, isTracked);
             DrawCapturePoint(point, scale, isTracked);
 
+            var labelPosition = ResolveTrackedDisplayPoint(hand);
             var label = isTracked
-                ? $"\u624b\u90e8\u6355\u6349\u70b9  x:{hand.PalmCenter.x:0.00}  y:{hand.PalmCenter.y:0.00}"
+                ? $"\u624b\u90e8\u6355\u6349\u70b9  x:{labelPosition.x:0.00}  y:{labelPosition.y:0.00}"
                 : "\u624b\u90e8\u6355\u6349\u70b9  \u672a\u6355\u6349";
+            var labelWidth = 220f * scale;
+            var labelHeight = 22f * scale;
+            var labelX = Mathf.Clamp(point.x + 14f * scale, 8f * scale, Screen.width - labelWidth - 8f * scale);
+            var labelY = Mathf.Clamp(point.y - labelHeight - 10f * scale, 118f * scale, Screen.height - 178f * scale);
+            var labelRect = new Rect(labelX, labelY, labelWidth, labelHeight);
+            GUI.color = isTracked ? new Color(0.025f, 0.035f, 0.055f, 0.76f) : new Color(0.025f, 0.035f, 0.055f, 0.48f);
+            GUI.DrawTexture(labelRect, Texture2D.whiteTexture);
             GUI.color = isTracked ? Color.white : new Color(0.78f, 0.82f, 0.9f, 0.72f);
-            GUI.Label(new Rect(rect.x + 12f * scale, rect.y + 7f * scale, rect.width - 24f * scale, 20f * scale), label, trackerStyle);
+            GUI.Label(new Rect(labelRect.x + 8f * scale, labelRect.y + 1f * scale, labelRect.width - 16f * scale, labelRect.height), label, trackerStyle);
             GUI.color = Color.white;
+        }
+
+        private Vector2 ResolveCaptureIndicatorTarget(TrackedHandState hand, bool isTracked, float frameTimestamp)
+        {
+            if (!isTracked)
+            {
+                handViewportVelocity = Vector2.zero;
+                lastRawHandViewportAt = -999f;
+                return new Vector2(0.5f, 0.5f);
+            }
+
+            var raw = ClampViewport(ResolveTrackedDisplayPoint(hand));
+            var sampleTime = frameTimestamp > 0f ? frameTimestamp : Time.unscaledTime;
+            if (lastRawHandViewportAt > 0f && sampleTime > lastRawHandViewportAt + 0.0001f)
+            {
+                var dt = Mathf.Clamp(sampleTime - lastRawHandViewportAt, 0.001f, 0.25f);
+                var measuredVelocity = (raw - previousRawHandViewport) / dt;
+                handViewportVelocity = Vector2.Lerp(handViewportVelocity, measuredVelocity, 0.45f);
+            }
+
+            previousRawHandViewport = raw;
+            lastRawHandViewportAt = sampleTime;
+            var extrapolation = Mathf.Clamp(Time.unscaledTime - sampleTime, 0f, 0.12f);
+            return ClampViewport(raw + handViewportVelocity * extrapolation);
+        }
+
+        private static Vector2 ResolveTrackedDisplayPoint(TrackedHandState hand)
+        {
+            return hand.Landmarks != null && hand.Landmarks.Length > 8
+                ? hand.Landmarks[8]
+                : hand.PalmCenter;
         }
 
         private static Vector2 ClampViewport(Vector2 value)
@@ -151,16 +191,13 @@ namespace SpellGuard.UI
             return new Vector2(Mathf.Clamp01(value.x), Mathf.Clamp01(value.y));
         }
 
-        private static void DrawCaptureGrid(Rect rect, float scale, bool isTracked)
+        private static void DrawCaptureGuides(Vector2 point, float scale, bool isTracked)
         {
-            var color = isTracked ? new Color(1f, 1f, 1f, 0.14f) : new Color(1f, 1f, 1f, 0.08f);
-            GUI.color = color;
-            GUI.DrawTexture(new Rect(rect.x, rect.center.y, rect.width, Mathf.Max(1f, scale)), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(rect.center.x, rect.y, Mathf.Max(1f, scale), rect.height), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, Mathf.Max(1f, scale)), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(rect.x, rect.yMax - Mathf.Max(1f, scale), rect.width, Mathf.Max(1f, scale)), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(rect.x, rect.y, Mathf.Max(1f, scale), rect.height), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(rect.xMax - Mathf.Max(1f, scale), rect.y, Mathf.Max(1f, scale), rect.height), Texture2D.whiteTexture);
+            var alpha = isTracked ? 0.12f : 0.06f;
+            var thickness = Mathf.Max(1f, scale);
+            GUI.color = new Color(0.35f, 0.95f, 0.72f, alpha);
+            GUI.DrawTexture(new Rect(0f, point.y - thickness * 0.5f, Screen.width, thickness), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(point.x - thickness * 0.5f, 0f, thickness, Screen.height), Texture2D.whiteTexture);
             GUI.color = Color.white;
         }
 
@@ -179,7 +216,7 @@ namespace SpellGuard.UI
         private void DrawBottomFeedbackStrip(GestureSnapshot snapshot, float scale)
         {
             var width = Mathf.Clamp(Screen.width * 0.68f, 720f, 980f);
-            var height = Mathf.Clamp(92f * scale, 78f, 108f);
+            var height = Mathf.Clamp(132f * scale, 118f, 150f);
             var rect = new Rect((Screen.width - width) * 0.5f, Screen.height - height - Mathf.Clamp(18f * scale, 12f, 26f), width, height);
             DrawPanel(rect, new Color(0.04f, 0.045f, 0.065f, 0.9f), new Color(0.95f, 0.68f, 0.25f, 0.8f));
 
@@ -196,6 +233,134 @@ namespace SpellGuard.UI
 
             var rightText = BuildRuntimeText(snapshot);
             GUI.Label(new Rect(rect.xMax - 260f * scale, chipY - 1f * scale, 250f * scale, 24f * scale), rightText, smallStyle);
+            DrawCooldownStrip(new Rect(rect.x + padding, rect.yMax - 38f * scale, rect.width - padding * 2f, 30f * scale), scale);
+        }
+
+        private void DrawCooldownStrip(Rect rect, float scale)
+        {
+            var gap = 8f * scale;
+            var itemWidth = (rect.width - gap * 4f) / 5f;
+            DrawCooldownSlot(new Rect(rect.x, rect.y, itemWidth, rect.height), "\u6a2a\u79fb", fpsMotor != null ? fpsMotor.HorizontalMoveCooldownProgress : 1f, new Color(0.35f, 0.95f, 0.72f), scale);
+            DrawCooldownSlot(new Rect(rect.x + (itemWidth + gap), rect.y, itemWidth, rect.height), "\u524d\u540e", fpsMotor != null ? fpsMotor.VerticalMoveCooldownProgress : 1f, new Color(0.35f, 0.72f, 1f), scale);
+            DrawCooldownSlot(new Rect(rect.x + (itemWidth + gap) * 2f, rect.y, itemWidth, rect.height), "\u706b\u7130", spellCaster != null ? spellCaster.FireCooldownProgress : 1f, new Color(1f, 0.36f, 0.12f), scale);
+            DrawCooldownSlot(new Rect(rect.x + (itemWidth + gap) * 3f, rect.y, itemWidth, rect.height), "\u51b0\u971c", spellCaster != null ? spellCaster.IceCooldownProgress : 1f, new Color(0.36f, 0.82f, 1f), scale);
+            DrawCooldownSlot(new Rect(rect.x + (itemWidth + gap) * 4f, rect.y, itemWidth, rect.height), "\u62a4\u76fe", spellCaster != null ? spellCaster.ShieldCooldownProgress : 1f, new Color(0.55f, 0.68f, 1f), scale);
+        }
+
+        private void DrawCooldownSlot(Rect rect, string label, float progress, Color color, float scale)
+        {
+            progress = Mathf.Clamp01(progress);
+            var ready = progress >= 0.999f;
+            var fill = ready ? new Color(color.r, color.g, color.b, 0.20f) : new Color(0.04f, 0.045f, 0.065f, 0.92f);
+            DrawPanel(rect, fill, ready ? new Color(color.r, color.g, color.b, 0.82f) : new Color(1f, 1f, 1f, 0.18f));
+
+            var bar = new Rect(rect.x + 6f * scale, rect.yMax - 8f * scale, rect.width - 12f * scale, 4f * scale);
+            GUI.color = new Color(1f, 1f, 1f, 0.12f);
+            GUI.DrawTexture(bar, Texture2D.whiteTexture);
+            GUI.color = new Color(color.r, color.g, color.b, ready ? 0.96f : 0.78f);
+            GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * progress, bar.height), Texture2D.whiteTexture);
+            GUI.color = ready ? Color.white : new Color(0.78f, 0.82f, 0.9f, 0.82f);
+            GUI.Label(new Rect(rect.x + 6f * scale, rect.y + 3f * scale, rect.width - 12f * scale, 18f * scale), ready ? $"{label} OK" : $"{label} {Mathf.RoundToInt(progress * 100f)}%", smallStyle);
+            GUI.color = Color.white;
+        }
+
+        private void DrawPerformanceControls(float scale)
+        {
+            EnsurePerformanceMonitorBound();
+
+            var width = Mathf.Clamp(270f * scale, 240f, 310f);
+            var height = Mathf.Clamp(82f * scale, 72f, 96f);
+            var rect = new Rect(
+                Screen.width - width - Mathf.Clamp(18f * scale, 12f, 26f),
+                Mathf.Clamp(Screen.height * 0.46f, 122f * scale, Screen.height - height - 24f * scale),
+                width,
+                height);
+            if (performanceMonitor == null)
+            {
+                DrawPanel(rect, new Color(0.035f, 0.04f, 0.06f, 0.88f), new Color(0.9f, 0.22f, 0.22f, 0.82f));
+                GUI.Label(new Rect(rect.x + 8f * scale, rect.y + 8f * scale, rect.width - 16f * scale, 20f * scale), "\u6027\u80fd\u91c7\u96c6\u5668\u672a\u521d\u59cb\u5316", smallStyle);
+                return;
+            }
+
+            var summary = performanceMonitor.CurrentSummary;
+            var border = performanceMonitor.IsRecording ? new Color(1f, 0.68f, 0.22f, 0.9f) : new Color(0.42f, 0.52f, 0.66f, 0.72f);
+            DrawPanel(rect, new Color(0.035f, 0.04f, 0.06f, 0.88f), border);
+
+            var padding = 8f * scale;
+            var status = performanceMonitor.IsRecording ? "\u6027\u80fd\u91c7\u96c6\u4e2d" : "\u6027\u80fd\u672a\u91c7\u96c6";
+            GUI.Label(new Rect(rect.x + padding, rect.y + 5f * scale, rect.width - padding * 2f, 18f * scale), $"{status}  FPS {summary.AverageFps:0}", smallStyle);
+            var feed = FindObjectOfType<WebcamFeedController>();
+            var cameraLabel = feed != null ? feed.RequestedFormatLabel : "No camera";
+            GUI.Label(new Rect(rect.x + padding, rect.y + 24f * scale, rect.width - padding * 2f, 18f * scale), $"Cam {summary.CameraFps:0}  MP {summary.NativeResultFps:0}  Hand {summary.AverageHandUpdateIntervalMs:0}ms", smallStyle);
+            GUI.Label(new Rect(rect.x + padding, rect.y + 42f * scale, rect.width - padding * 2f, 18f * scale), cameraLabel, smallStyle);
+
+            var buttonY = rect.yMax - 28f * scale;
+            var gap = 6f * scale;
+            var buttonWidth = (rect.width - padding * 2f - gap * 3f) / 4f;
+            if (GUI.Button(new Rect(rect.x + padding, buttonY, buttonWidth, 22f * scale), performanceMonitor.IsRecording ? "\u505c\u6b62\u91c7\u96c6" : "\u5f00\u59cb\u91c7\u96c6"))
+            {
+                if (performanceMonitor.IsRecording)
+                {
+                    performanceMonitor.StopRecording();
+                }
+                else
+                {
+                    performanceMonitor.StartRecording();
+                }
+            }
+
+            if (GUI.Button(new Rect(rect.x + padding + buttonWidth + gap, buttonY, buttonWidth, 22f * scale), "\u5bfc\u51faCSV"))
+            {
+                performanceMonitor.ExportCsv();
+            }
+
+            if (GUI.Button(new Rect(rect.x + padding + (buttonWidth + gap) * 2f, buttonY, buttonWidth, 22f * scale), "\u91cd\u542f\u6444\u50cf"))
+            {
+                feed?.RestartCamera();
+            }
+
+            if (GUI.Button(new Rect(rect.x + padding + (buttonWidth + gap) * 3f, buttonY, buttonWidth, 22f * scale), "\u5207\u6863"))
+            {
+                feed?.CyclePerformanceFormat();
+            }
+        }
+
+        private void EnsurePerformanceMonitorBound()
+        {
+            if (performanceMonitor != null)
+            {
+                return;
+            }
+
+            performanceMonitor = FindObjectOfType<GesturePerformanceMonitor>();
+            if (performanceMonitor != null)
+            {
+                TryConfigurePerformanceMonitor(performanceMonitor);
+                return;
+            }
+
+            var owner = gameObject != null ? gameObject : FindObjectOfType<SpellGuardSceneContext>()?.gameObject;
+            if (owner == null)
+            {
+                return;
+            }
+
+            performanceMonitor = owner.AddComponent<GesturePerformanceMonitor>();
+            TryConfigurePerformanceMonitor(performanceMonitor);
+        }
+
+        private void TryConfigurePerformanceMonitor(GesturePerformanceMonitor monitor)
+        {
+            if (monitor == null)
+            {
+                return;
+            }
+
+            var router = inputProvider as GestureInputRouter ?? FindObjectOfType<GestureInputRouter>();
+            var bridge = FindObjectOfType<ExternalGestureBridgeProvider>();
+            var feed = FindObjectOfType<WebcamFeedController>();
+            var runner = FindObjectOfType<NativeMediapipeGestureRunner>();
+            monitor.Configure(router, bridge, feed, runner);
         }
 
         private void DrawPulseOverlays(float scale)

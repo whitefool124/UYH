@@ -30,9 +30,9 @@ namespace SpellGuard.Tests.PlayMode
         [UnityTest]
         public IEnumerator DetectsSwipeFromExternalFrames()
         {
-            yield return PushHandFrame(new Vector2(0.18f, 0.42f), 0.02f);
-            yield return PushHandFrame(new Vector2(0.31f, 0.44f), 0.02f);
-            yield return PushHandFrame(new Vector2(0.48f, 0.45f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.24f, 0.42f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.43f, 0.44f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.62f, 0.45f), 0.02f);
 
             Assert.That(bridgeProvider.CurrentMotionGesture.IsValid, Is.True);
             Assert.That(bridgeProvider.CurrentMotionGesture.Gesture, Is.EqualTo(MotionGestureType.SwipeLeftToRight));
@@ -41,9 +41,9 @@ namespace SpellGuard.Tests.PlayMode
         [UnityTest]
         public IEnumerator DetectsVerticalSwipeUpFromExternalFrames()
         {
-            yield return PushHandFrame(new Vector2(0.42f, 0.18f), 0.02f);
-            yield return PushHandFrame(new Vector2(0.43f, 0.32f), 0.02f);
-            yield return PushHandFrame(new Vector2(0.44f, 0.50f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.42f, 0.24f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.43f, 0.43f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.44f, 0.62f), 0.02f);
 
             Assert.That(bridgeProvider.CurrentMotionGesture.IsValid, Is.True);
             Assert.That(bridgeProvider.CurrentMotionGesture.Gesture, Is.EqualTo(MotionGestureType.SwipeBottomToTop));
@@ -52,9 +52,9 @@ namespace SpellGuard.Tests.PlayMode
         [UnityTest]
         public IEnumerator DetectsVerticalSwipeDownFromExternalFrames()
         {
-            yield return PushHandFrame(new Vector2(0.42f, 0.52f), 0.02f);
-            yield return PushHandFrame(new Vector2(0.43f, 0.36f), 0.02f);
-            yield return PushHandFrame(new Vector2(0.44f, 0.19f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.42f, 0.70f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.43f, 0.57f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.44f, 0.42f), 0.02f);
 
             Assert.That(bridgeProvider.CurrentMotionGesture.IsValid, Is.True);
             Assert.That(bridgeProvider.CurrentMotionGesture.Gesture, Is.EqualTo(MotionGestureType.SwipeTopToBottom));
@@ -74,9 +74,9 @@ namespace SpellGuard.Tests.PlayMode
         public IEnumerator DetectsSwipeFromBufferedFramesPushedInSameUnityFrame()
         {
             var baseTime = Time.time;
-            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.18f, 0.42f), 0.18f, baseTime + 0.00f));
-            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.31f, 0.44f), 0.18f, baseTime + 0.02f));
-            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.48f, 0.45f), 0.18f, baseTime + 0.04f));
+            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.24f, 0.42f), 0.18f, baseTime + 0.00f));
+            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.43f, 0.44f), 0.18f, baseTime + 0.02f));
+            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.62f, 0.45f), 0.18f, baseTime + 0.04f));
 
             yield return null;
 
@@ -90,7 +90,7 @@ namespace SpellGuard.Tests.PlayMode
             var baseTime = 100f;
             bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.20f, 0.40f), 0.18f, baseTime + 0.00f));
             bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.34f, 0.41f), 0.18f, baseTime + 0.03f));
-            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.50f, 0.42f), 0.18f, baseTime + 0.06f));
+            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.62f, 0.42f), 0.18f, baseTime + 0.06f));
 
             yield return null;
 
@@ -106,9 +106,9 @@ namespace SpellGuard.Tests.PlayMode
             profile.swipeMinSpeed = 0.2f;
             recognizer.Configure(bridgeProvider, profile);
 
-            yield return PushHandFrame(new Vector2(0.18f, 0.42f), 0.02f);
-            yield return PushHandFrame(new Vector2(0.31f, 0.44f), 0.02f);
-            yield return PushHandFrame(new Vector2(0.48f, 0.45f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.24f, 0.42f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.43f, 0.44f), 0.02f);
+            yield return PushHandFrame(new Vector2(0.62f, 0.45f), 0.02f);
 
             Assert.That(bridgeProvider.CurrentMotionGesture.IsValid, Is.False);
             Object.DestroyImmediate(profile);
