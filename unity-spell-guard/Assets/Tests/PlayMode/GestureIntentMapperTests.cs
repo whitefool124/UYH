@@ -11,9 +11,17 @@ namespace SpellGuard.Tests.PlayMode
         {
             Assert.That(GestureIntentMapper.ToMenuAction(Motion(MotionGestureType.SwipeLeftToRight), true).Intent, Is.EqualTo(GestureIntent.MenuPrevious));
             Assert.That(GestureIntentMapper.ToMenuAction(Motion(MotionGestureType.SwipeRightToLeft), true).Intent, Is.EqualTo(GestureIntent.MenuNext));
-            Assert.That(GestureIntentMapper.ToMenuAction(Motion(MotionGestureType.Snap), true).Intent, Is.EqualTo(GestureIntent.MenuConfirm));
             Assert.That(GestureIntentMapper.ToMenuAction(Static(GestureType.Fist), true).Intent, Is.EqualTo(GestureIntent.MenuConfirm));
             Assert.That(GestureIntentMapper.ToMenuAction(Static(GestureType.OpenPalm), true).Intent, Is.EqualTo(GestureIntent.MenuBack));
+        }
+
+        [Test]
+        public void MenuDoesNotUseEmergencyMotionAsConfirm()
+        {
+            Assert.That(GestureIntentMapper.ToMenuAction(Motion(MotionGestureType.Snap), true).IsValid, Is.False);
+            Assert.That(GestureIntentMapper.ToMenuAction(Motion(MotionGestureType.PointToFist), true).IsValid, Is.False);
+            Assert.That(GestureIntentMapper.ToMenuAction(Motion(MotionGestureType.OpenPalmSlapLeftToRight), true).IsValid, Is.False);
+            Assert.That(GestureIntentMapper.ToMenuAction(Motion(MotionGestureType.OpenPalmSlapRightToLeft), true).IsValid, Is.False);
         }
 
         [Test]
@@ -21,6 +29,7 @@ namespace SpellGuard.Tests.PlayMode
         {
             Assert.That(GestureIntentMapper.ToMovementAction(Frame(GestureType.Point, MotionGestureType.None)).IsValid, Is.False);
             Assert.That(GestureIntentMapper.ToMovementAction(Frame(GestureType.None, MotionGestureType.BodyShiftLeft)).IsValid, Is.False);
+            Assert.That(GestureIntentMapper.ToMovementAction(Frame(GestureType.None, MotionGestureType.OpenPalmSlapLeftToRight)).IsValid, Is.False);
             Assert.That(GestureIntentMapper.ToMovementAction(Frame(GestureType.OpenPalm, MotionGestureType.None)).Intent, Is.EqualTo(GestureIntent.MoveBackward));
             Assert.That(GestureIntentMapper.ToMovementAction(Frame(GestureType.None, MotionGestureType.SwipeBottomToTop)).Intent, Is.EqualTo(GestureIntent.MoveForward));
         }
@@ -43,6 +52,8 @@ namespace SpellGuard.Tests.PlayMode
             Assert.That(GestureIntentMapper.ToSpellAction(Static(GestureType.VSign)).Intent, Is.EqualTo(GestureIntent.CastIce));
             Assert.That(GestureIntentMapper.ToSpellAction(Static(GestureType.OpenPalm)).Intent, Is.EqualTo(GestureIntent.CastShield));
             Assert.That(snapAction.Intent, Is.EqualTo(GestureIntent.CastFire));
+            Assert.That(GestureIntentMapper.ToSpellAction(Motion(MotionGestureType.PointToFist)).Intent, Is.EqualTo(GestureIntent.CastFire));
+            Assert.That(GestureIntentMapper.ToSpellAction(Motion(MotionGestureType.OpenPalmSlapLeftToRight)).Intent, Is.EqualTo(GestureIntent.CastShield));
             Assert.That(swipeTraining.Intent, Is.EqualTo(GestureIntent.TrainingSwipe));
             Assert.That(GestureIntentMapper.ToTrainingAction(snapAction).Intent, Is.EqualTo(GestureIntent.TrainingSpecialConfirm));
         }

@@ -6,12 +6,12 @@ namespace SpellGuard.InputSystem
         {
             return gesture switch
             {
-                GestureType.Point => "指向",
-                GestureType.Fist => "握拳",
-                GestureType.VSign => "V 手势",
-                GestureType.OpenPalm => "张掌",
-                GestureType.Unknown => "未知手势",
-                _ => "无"
+                GestureType.Point => "\u6307\u5411",
+                GestureType.Fist => "\u63e1\u62f3",
+                GestureType.VSign => "V \u624b\u52bf",
+                GestureType.OpenPalm => "\u5f20\u638c",
+                GestureType.Unknown => "\u672a\u77e5\u624b\u52bf",
+                _ => "\u65e0"
             };
         }
     }

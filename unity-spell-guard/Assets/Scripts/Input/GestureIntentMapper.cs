@@ -133,16 +133,11 @@ namespace SpellGuard.InputSystem
             switch (gesture)
             {
                 case MotionGestureType.SwipeLeftToRight:
-                case MotionGestureType.OpenPalmSlapLeftToRight:
                 case MotionGestureType.SwipeBottomToTop:
                     return GestureIntent.MenuPrevious;
                 case MotionGestureType.SwipeRightToLeft:
-                case MotionGestureType.OpenPalmSlapRightToLeft:
                 case MotionGestureType.SwipeTopToBottom:
                     return GestureIntent.MenuNext;
-                case MotionGestureType.Snap:
-                case MotionGestureType.PointToFist:
-                    return GestureIntent.MenuConfirm;
                 default:
                     return GestureIntent.None;
             }
@@ -170,6 +165,9 @@ namespace SpellGuard.InputSystem
                 case MotionGestureType.Snap:
                 case MotionGestureType.PointToFist:
                     return GestureIntent.CastFire;
+                case MotionGestureType.OpenPalmSlapLeftToRight:
+                case MotionGestureType.OpenPalmSlapRightToLeft:
+                    return GestureIntent.CastShield;
                 default:
                     return GestureIntent.None;
             }
@@ -185,10 +183,8 @@ namespace SpellGuard.InputSystem
             switch (gesture)
             {
                 case MotionGestureType.SwipeRightToLeft:
-                case MotionGestureType.OpenPalmSlapRightToLeft:
                     return GestureIntent.MoveLeft;
                 case MotionGestureType.SwipeLeftToRight:
-                case MotionGestureType.OpenPalmSlapLeftToRight:
                     return GestureIntent.MoveRight;
                 case MotionGestureType.SwipeBottomToTop:
                     return GestureIntent.MoveForward;

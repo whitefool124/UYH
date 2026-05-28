@@ -46,7 +46,7 @@ namespace SpellGuard.Tests.PlayMode
                 SpawnRadius = 11f,
                 Enemy = new EnemyConfig
                 {
-                    Speed = 3.4f,
+                    Speed = 0f,
                     HitPoints = 5,
                     AttackDistance = 1.8f
                 }
@@ -84,7 +84,9 @@ namespace SpellGuard.Tests.PlayMode
             Assert.That(spawner.SpawnInterval, Is.EqualTo(1.25f));
             Assert.That(spawner.MaxAliveEnemies, Is.EqualTo(3));
             Assert.That(spawner.SpawnRadius, Is.EqualTo(11f));
+            Assert.That(spawner.EnemyConfig.Speed, Is.EqualTo(0f));
             Assert.That(spawner.EnemyConfig.HitPoints, Is.EqualTo(5));
+            Assert.That(GetPrivateField<bool>(spawner, "spawnOnceAtStart"), Is.False);
         }
 
         [Test]
@@ -113,11 +115,42 @@ namespace SpellGuard.Tests.PlayMode
             Object.DestroyImmediate(invalidLevel);
         }
 
+        [Test]
+        public void LevelConfigAllowsStaticTargetRangeEnemies()
+        {
+            var targetRangeLevel = ScriptableObject.CreateInstance<LevelConfig>();
+            SetPrivateField(targetRangeLevel, "wave", new WaveConfig
+            {
+                SpawnInterval = 3.5f,
+                MaxAliveEnemies = 4,
+                SpawnRadius = 12f,
+                Enemy = new EnemyConfig
+                {
+                    Speed = 0f,
+                    HitPoints = 2,
+                    AttackDistance = 1.15f
+                }
+            });
+
+            var wave = targetRangeLevel.Wave;
+
+            Assert.That(wave.Enemy.Speed, Is.EqualTo(0f));
+            Assert.That(wave.Enemy.HitPoints, Is.EqualTo(2));
+            Object.DestroyImmediate(targetRangeLevel);
+        }
+
         private static void SetPrivateField(object target, string fieldName, object value)
         {
             var field = target.GetType().GetField(fieldName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             Assert.That(field, Is.Not.Null, fieldName);
             field.SetValue(target, value);
+        }
+
+        private static T GetPrivateField<T>(object target, string fieldName)
+        {
+            var field = target.GetType().GetField(fieldName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null, fieldName);
+            return (T)field.GetValue(target);
         }
 
         private sealed class TrackingInputProvider : GestureInputProviderBase

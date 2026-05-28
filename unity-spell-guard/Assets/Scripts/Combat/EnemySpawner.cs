@@ -15,9 +15,10 @@ namespace SpellGuard.Combat
         [SerializeField] private bool spawnOnceAtStart = true;
         [SerializeField] private Vector3[] spawnPoints =
         {
-            new Vector3(-4f, 1f, 6f),
-            new Vector3(0f, 1f, 7f),
-            new Vector3(4f, 1f, 6f)
+            new Vector3(0f, 1f, 3f),
+            new Vector3(-4f, 1f, 7f),
+            new Vector3(0f, 1f, 9f),
+            new Vector3(4f, 1f, 7f)
         };
 
         private readonly List<SimpleEnemyController> aliveEnemies = new List<SimpleEnemyController>();
@@ -83,6 +84,7 @@ namespace SpellGuard.Combat
             aliveEnemies.Clear();
             defeatedEnemies = 0;
             initialSpawnDone = false;
+            nextSpawnTime = 0f;
         }
 
         public void SetSpawningEnabled(bool value)
@@ -111,6 +113,9 @@ namespace SpellGuard.Combat
             spawnRadius = config.SpawnRadius > 0f ? config.SpawnRadius : fallback.SpawnRadius;
             maxAliveEnemies = config.MaxAliveEnemies > 0 ? config.MaxAliveEnemies : fallback.MaxAliveEnemies;
             enemyConfig = IsValidEnemyConfig(config.Enemy) ? config.Enemy : fallback.Enemy;
+            spawnOnceAtStart = spawnInterval <= 0f;
+            initialSpawnDone = false;
+            nextSpawnTime = 0f;
         }
 
         private void SpawnEnemy()
@@ -153,7 +158,7 @@ namespace SpellGuard.Combat
 
         private static bool IsValidEnemyConfig(EnemyConfig config)
         {
-            return config.Speed > 0f && config.HitPoints > 0 && config.AttackDistance > 0f;
+            return config.Speed >= 0f && config.HitPoints > 0 && config.AttackDistance > 0f;
         }
     }
 }

@@ -332,6 +332,7 @@ namespace SpellGuard.EditorTools
             var spawner = flow.AddComponent<EnemySpawner>();
             var gameFlow = flow.AddComponent<GameFlowManager>();
             var hud = developerToolsMode ? flow.AddComponent<DebugHud>() : null;
+            var gestureFeedbackHud = flow.AddComponent<GestureFeedbackHud>();
             var menuOverlay = flow.AddComponent<SpellGuardMenuOverlay>();
 
             SetField(inputRouter, "mockProvider", mockProvider);
@@ -392,6 +393,12 @@ namespace SpellGuard.EditorTools
             SetField(menuOverlay, "inputProvider", inputRouter);
             SetField(menuOverlay, "settings", settings);
             SetField(menuOverlay, "flowController", flowController);
+
+            SetField(gestureFeedbackHud, "inputProvider", inputRouter);
+            SetField(gestureFeedbackHud, "spellCaster", spellCaster);
+            SetField(gestureFeedbackHud, "playerHealth", health);
+            SetField(gestureFeedbackHud, "enemySpawner", spawner);
+            SetField(gestureFeedbackHud, "flowController", flowController);
 
             SetField(udpReceiver, "bridgeProvider", externalBridge);
             SetField(udpReceiver, "webcamFeed", webcamFeed);

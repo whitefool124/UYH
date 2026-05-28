@@ -12,21 +12,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1f0c2d3bfe624e6ab7c4a8ecba6b56c2, type: 3}
   m_Name: LevelConfig_Combat
   m_EditorClassIdentifier: 
-  levelId: tutorial_grid_fire
-  displayName: "\u7F51\u683C\u706B\u7130\u6559\u5B66\u5173"
-  durationSeconds: 240
-  targetScore: 3
-  playerHealth: 5
+  levelId: gesture_target_range
+  displayName: "\u624B\u52BF\u6F14\u793A\u9776\u573A"
+  durationSeconds: 900
+  targetScore: 30
+  playerHealth: 10
   spawnEnemies: 1
   wave:
-    SpawnInterval: 2.2
-    MaxAliveEnemies: 2
-    SpawnRadius: 10
+    SpawnInterval: 3.5
+    MaxAliveEnemies: 4
+    SpawnRadius: 12
     Enemy:
-      Speed: 1.35
-      HitPoints: 1
-      AttackDistance: 1.25
-  allowedSpells: 01000000
-  tutorialHint: "\u6559\u5B66\u5173\uFF1AWASD \u7F51\u683C\u6B65\u8FDB\uFF0C\u9F20\u6807\u8C03\u6574\u89C6\u89D2\uFF0C\u5DE6\u952E/1
-    \u91CA\u653E\u4E03\u8272\u706B\u7130\uFF1B\u51FB\u8D25 3 \u4E2A\u654C\u4EBA\u540E\u5230\u84DD\u8272\u51FA\u53E3\u6309
-    E \u901A\u5173\u3002"
+      Speed: 0
+      HitPoints: 2
+      AttackDistance: 1.15
+  allowedSpells: 010000000200000003000000
+  tutorialHint: "\u624B\u52BF\u6F14\u793A\u9776\u573A\uFF1A\u76EE\u6807\u4E0D\u4E3B\u52A8\u8FFD\u51FB\uFF0C\u4F1A\u6301\u7EED\u8865\u9776\uFF1B\u5148\u7528 Snap/PointToFist \u6D4B\u5FEB\u901F\u706B\u7130\uFF0C\u518D\u9760\u8FD1\u76EE\u6807\u7528 OpenPalmSlap \u6D4B\u62A4\u76FE\u53CD\u51FB\uFF0C\u6700\u540E\u5C55\u793A Swipe \u79FB\u52A8\u548C\u51B0\u971C\u63A7\u573A\u3002"

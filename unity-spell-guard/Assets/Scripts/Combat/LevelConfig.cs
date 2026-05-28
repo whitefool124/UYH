@@ -43,7 +43,7 @@ namespace SpellGuard.Combat
                 value.SpawnRadius = fallback.SpawnRadius;
             }
 
-            if (value.Enemy.Speed <= 0f || value.Enemy.HitPoints <= 0 || value.Enemy.AttackDistance <= 0f)
+            if (value.Enemy.Speed < 0f || value.Enemy.HitPoints <= 0 || value.Enemy.AttackDistance <= 0f)
             {
                 value.Enemy = fallback.Enemy;
             }

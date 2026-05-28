@@ -19,10 +19,10 @@
 | `FpsGestureMotorTests` | `DisablingInputStopsMovementState` | PASS | 禁用输入会清空移动状态。 |
 | `FpsGestureMotorTests` | `SwipeBottomToTopStartsForwardStep` | PASS | 上滑/向前动态动作触发前进一步。 |
 | `FpsGestureMotorTests` | `SwipeTopToBottomStartsBackwardStep` | PASS | 下滑/向后动态动作触发后退一步。 |
-| `FpsGestureMotorTests` | `PointHoldStartsForwardStep` | PASS | `Point` 持续确认触发前进一步。 |
+| `FpsGestureMotorTests` | `PointHoldDoesNotStartForwardStep` | PASS | `Point` 不再作为主移动输入，避免回到空中鼠标式控制。 |
 | `FpsGestureMotorTests` | `OpenPalmHoldStartsBackwardStep` | PASS | `OpenPalm` 持续确认触发后退一步，且不误报前进。 |
 | `FpsGestureMotorTests` | `StaticMoveHoldDoesNotRepeatBeforeGestureChanges` | PASS | 静态移动在手势未变化前不会连续重复触发。 |
-| `FpsGestureMotorTests` | `BodyShiftLeftStartsLeftStep` | PASS | 左移动态动作触发左移一步。 |
+| `FpsGestureMotorTests` | `BodyShiftLeftDoesNotStartStep` | PASS | BodyShift 保留为实验/外部桥接证据，不进入主线移动。 |
 | `DemoRunRecorderTests` | `BuildCsvIncludesThesisEvidenceFields` | PASS | CSV 表头包含 P1 计划要求的流程、时间、命令与施法字段。 |
 | `DemoRunRecorderTests` | `TracksFlowTransitionsAndSpellCounts` | PASS | 记录训练、战斗转场和火/冰/盾施法次数。 |
 | `DemoRunRecorderTests` | `ExportsDemoRunCsvToConfiguredDirectory` | PASS | 可导出 `demo_run_<timestamp>.csv`。 |

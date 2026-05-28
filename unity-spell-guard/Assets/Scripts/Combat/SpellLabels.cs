@@ -6,10 +6,10 @@ namespace SpellGuard.Combat
         {
             return spell switch
             {
-                SpellType.Fire => "火焰术",
-                SpellType.Ice => "冰霜术",
-                SpellType.Shield => "护盾术",
-                _ => "无"
+                SpellType.Fire => "\u706b\u7130\u672f",
+                SpellType.Ice => "\u51b0\u971c\u672f",
+                SpellType.Shield => "\u62a4\u76fe\u672f",
+                _ => "\u65e0"
             };
         }
     }

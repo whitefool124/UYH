@@ -75,6 +75,8 @@ namespace SpellGuard.InputSystem
             if (Input.GetKeyDown(KeyCode.UpArrow)) PushMotionGesture(MotionGestureType.SwipeBottomToTop);
             if (Input.GetKeyDown(KeyCode.DownArrow)) PushMotionGesture(MotionGestureType.SwipeTopToBottom);
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) PushMotionGesture(MotionGestureType.PointToFist);
+            if (Input.GetKeyDown(KeyCode.LeftBracket)) PushMotionGesture(MotionGestureType.OpenPalmSlapRightToLeft);
+            if (Input.GetKeyDown(KeyCode.RightBracket)) PushMotionGesture(MotionGestureType.OpenPalmSlapLeftToRight);
 
             var speed = moveSpeed * (Input.GetKey(KeyCode.LeftShift) ? 2f : 1f);
             var delta = Vector2.zero;

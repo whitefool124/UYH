@@ -99,6 +99,9 @@ namespace SpellGuard.Core
                 case StartMenuScreen.Calibration:
                     DrawCalibration(layout);
                     break;
+                case StartMenuScreen.Settings:
+                    DrawSettings(layout);
+                    break;
                 default:
                     DrawMain(layout);
                     break;

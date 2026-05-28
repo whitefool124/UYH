@@ -1,5 +1,5 @@
-using SpellGuard.Combat;
 using SpellGuard.Audio;
+using SpellGuard.Combat;
 using SpellGuard.InputSystem;
 using System;
 using UnityEngine;
@@ -16,6 +16,9 @@ namespace SpellGuard.Player
         [SerializeField] private float castStatusHoldSeconds = 0.75f;
         [SerializeField] private float projectileSpeed = 18f;
         [SerializeField] private float projectileLifetime = 2.5f;
+        [SerializeField] private float shieldCounterRadius = 4.2f;
+        [SerializeField] private int shieldCounterDamage = 1;
+        [SerializeField] private float shieldCounterFreezeSeconds = 0.55f;
         [SerializeField] private int selectedFireVariantIndex;
         [SerializeField] private LayerMask hitMask = Physics.DefaultRaycastLayers;
         [SerializeField] private bool debugLogs = true;
@@ -34,9 +37,9 @@ namespace SpellGuard.Player
         public SpellType LastCastSpell => lastCastSpell;
         public string SelectedFireName => SpellConfigLibrary.GetFireVariant(selectedFireVariantIndex).DisplayName;
         public Color SelectedFireColor => SpellConfigLibrary.GetFireVariant(selectedFireVariantIndex).Color;
-        public string StatusText { get; private set; } = "等待手势";
+        public string StatusText { get; private set; } = "\u7b49\u5f85\u624b\u52bf";
         public string SpellPromptText => BuildSpellPromptText();
-        public string LastSpellFeedbackText { get; private set; } = "尚未施法";
+        public string LastSpellFeedbackText { get; private set; } = "\u5c1a\u672a\u65bd\u6cd5";
         public event Action<SpellType, int> SpellResolved;
 
         public SpellConfig GetSpellConfig(SpellType spellType)
@@ -58,7 +61,7 @@ namespace SpellGuard.Player
                 PendingProgress = 0f;
                 lastCastSpell = SpellType.None;
                 statusHoldUntil = 0f;
-                StatusText = "施法已暂停";
+                StatusText = "\u65bd\u6cd5\u5df2\u6682\u505c";
             }
         }
 
@@ -102,7 +105,7 @@ namespace SpellGuard.Player
                 pendingSpell = SpellType.None;
                 PendingProgress = 0f;
                 lastCastSpell = SpellType.None;
-                StatusText = snapshot.HandPresent ? "当前手势无施法" : "未检测到手";
+                StatusText = snapshot.HandPresent ? "\u5f53\u524d\u624b\u52bf\u65e0\u65bd\u6cd5" : "\u672a\u68c0\u6d4b\u5230\u624b";
                 return;
             }
 
@@ -110,7 +113,7 @@ namespace SpellGuard.Player
             {
                 pendingSpell = SpellType.None;
                 PendingProgress = 0f;
-                StatusText = $"{spell.ToChinese()}保持中，切换手势可继续";
+                StatusText = $"{spell.ToChinese()}\u4fdd\u6301\u4e2d\uff0c\u5207\u6362\u624b\u52bf\u53ef\u7ee7\u7eed";
                 return;
             }
 
@@ -119,14 +122,13 @@ namespace SpellGuard.Player
                 pendingSpell = spell;
                 pendingStartTime = Time.time;
                 PendingProgress = 0f;
-
             }
             else
             {
                 PendingProgress = Mathf.Clamp01((Time.time - pendingStartTime) / confirmSeconds);
             }
 
-            StatusText = $"{spell.ToChinese()}确认中 {Mathf.RoundToInt(PendingProgress * 100f)}%";
+            StatusText = $"{spell.ToChinese()}\u786e\u8ba4\u4e2d {Mathf.RoundToInt(PendingProgress * 100f)}%";
 
             if (PendingProgress >= 1f)
             {
@@ -146,21 +148,21 @@ namespace SpellGuard.Player
             {
                 case SpellType.Fire:
                     LaunchFireProjectile(spellConfig);
-                    StatusText = $"{spellConfig.DisplayName}已发射";
-                    LastSpellFeedbackText = $"{spellConfig.DisplayName}火焰弹飞出";
+                    StatusText = $"{spellConfig.DisplayName}\u5df2\u53d1\u5c04";
+                    LastSpellFeedbackText = $"{spellConfig.DisplayName}\u706b\u7130\u5f39\u98de\u51fa";
                     break;
                 case SpellType.Ice:
                     hitCount = TryHitEnemy(enemy => enemy.ApplyFreeze(spellConfig.FreezeDuration));
-                    StatusText = "冰霜术已释放";
-                    LastSpellFeedbackText = hitCount > 0 ? "冰霜命中：敌人进入冻结反馈" : "冰霜未命中：请对准敌人";
+                    StatusText = "\u51b0\u971c\u672f\u5df2\u91ca\u653e";
+                    LastSpellFeedbackText = hitCount > 0 ? "\u51b0\u971c\u547d\u4e2d\uff1a\u654c\u4eba\u8fdb\u5165\u51bb\u7ed3\u53cd\u9988" : "\u51b0\u971c\u672a\u547d\u4e2d\uff1a\u8bf7\u5bf9\u51c6\u654c\u4eba";
                     break;
                 case SpellType.Shield:
                     if (playerHealth != null)
                     {
                         playerHealth.ActivateShield(spellConfig.ShieldDuration);
                     }
-                    StatusText = "护盾术已释放";
-                    LastSpellFeedbackText = $"护盾启动：持续 {spellConfig.ShieldDuration:F1}s";
+                    StatusText = "\u62a4\u76fe\u672f\u5df2\u91ca\u653e";
+                    LastSpellFeedbackText = $"\u62a4\u76fe\u542f\u52a8\uff1a\u6301\u7eed {spellConfig.ShieldDuration:F1}s";
                     break;
             }
 
@@ -185,7 +187,7 @@ namespace SpellGuard.Player
             if (Input.GetKeyDown(KeyCode.Q))
             {
                 selectedFireVariantIndex = (selectedFireVariantIndex + SpellConfigLibrary.GetFireVariantCount() - 1) % SpellConfigLibrary.GetFireVariantCount();
-                StatusText = $"已切换火焰：{SelectedFireName}";
+                StatusText = $"\u5df2\u5207\u6362\u706b\u7130\uff1a{SelectedFireName}";
                 statusHoldUntil = Time.time + castStatusHoldSeconds;
                 return true;
             }
@@ -193,7 +195,7 @@ namespace SpellGuard.Player
             if (Input.GetKeyDown(KeyCode.R))
             {
                 selectedFireVariantIndex = (selectedFireVariantIndex + 1) % SpellConfigLibrary.GetFireVariantCount();
-                StatusText = $"已切换火焰：{SelectedFireName}";
+                StatusText = $"\u5df2\u5207\u6362\u706b\u7130\uff1a{SelectedFireName}";
                 statusHoldUntil = Time.time + castStatusHoldSeconds;
                 return true;
             }
@@ -219,13 +221,87 @@ namespace SpellGuard.Player
             {
                 Debug.Log($"[Gesture][SpellInput] intent={action.Intent} mappedSpell={spell} confidence={action.Confidence:F2}", this);
             }
+
             pendingSpell = SpellType.None;
             PendingProgress = 0f;
             lastCastSpell = spell;
-            Cast(spell);
-            StatusText = $"{spell.ToChinese()}已通过动态手势释放";
+            if (IsShieldCounterMotion(action))
+            {
+                CastShieldCounter();
+            }
+            else
+            {
+                Cast(spell);
+                StatusText = BuildDynamicCastStatus(action, spell);
+            }
+
             statusHoldUntil = Time.time + castStatusHoldSeconds;
             return true;
+        }
+
+        private bool IsShieldCounterMotion(GestureAction action)
+        {
+            return action.Intent == GestureIntent.CastShield
+                   && action.SourceKind == GestureCommandKind.Motion
+                   && inputProvider != null
+                   && IsOpenPalmSlap(inputProvider.CurrentMotionGesture.Gesture);
+        }
+
+        private static bool IsOpenPalmSlap(MotionGestureType gesture)
+        {
+            return gesture == MotionGestureType.OpenPalmSlapLeftToRight || gesture == MotionGestureType.OpenPalmSlapRightToLeft;
+        }
+
+        private static string BuildDynamicCastStatus(GestureAction action, SpellType spell)
+        {
+            if (action.Intent == GestureIntent.CastFire && spell == SpellType.Fire)
+            {
+                return "\u5feb\u901f\u706b\u7130\u5df2\u91ca\u653e";
+            }
+
+            return $"{spell.ToChinese()}\u5df2\u901a\u8fc7\u52a8\u6001\u624b\u52bf\u91ca\u653e";
+        }
+
+        private void CastShieldCounter()
+        {
+            var spellConfig = GetSpellConfig(SpellType.Shield);
+            SpellGuardAudioController.Instance?.PlaySpellCastSfx(SpellType.Shield);
+            if (playerHealth != null)
+            {
+                playerHealth.ActivateShield(Mathf.Max(spellConfig.ShieldDuration, shieldCounterFreezeSeconds));
+            }
+
+            var hitCount = ApplyShieldCounterToNearbyEnemies();
+            StatusText = "\u62a4\u76fe\u53cd\u51fb\u5df2\u89e6\u53d1";
+            LastSpellFeedbackText = hitCount > 0
+                ? $"\u62a4\u76fe\u53cd\u51fb\u547d\u4e2d {hitCount} \u4e2a\u654c\u4eba"
+                : "\u62a4\u76fe\u53cd\u51fb\u5c55\u5f00\uff1a\u8fd1\u8eab\u654c\u4eba\u4f1a\u88ab\u9707\u9000";
+            SpellResolved?.Invoke(SpellType.Shield, hitCount);
+            statusHoldUntil = Time.time + castStatusHoldSeconds;
+
+            if (debugLogs)
+            {
+                Debug.Log($"[Gesture][GameplayReaction] shieldCounter hitCount={hitCount} radius={shieldCounterRadius:F1}", this);
+            }
+        }
+
+        private int ApplyShieldCounterToNearbyEnemies()
+        {
+            var colliders = Physics.OverlapSphere(transform.position, Mathf.Max(0.1f, shieldCounterRadius), hitMask, QueryTriggerInteraction.Ignore);
+            var hitEnemies = new System.Collections.Generic.HashSet<SimpleEnemyController>();
+            for (var index = 0; index < colliders.Length; index++)
+            {
+                var enemy = colliders[index] != null ? colliders[index].GetComponentInParent<SimpleEnemyController>() : null;
+                if (enemy == null || !hitEnemies.Add(enemy))
+                {
+                    continue;
+                }
+
+                enemy.ApplyFreeze(shieldCounterFreezeSeconds);
+                enemy.ApplyDamage(shieldCounterDamage);
+            }
+
+            return hitEnemies.Count;
         }
 
         private void LaunchFireProjectile(SpellConfig spellConfig)
@@ -294,20 +370,20 @@ namespace SpellGuard.Player
         {
             if (!castingEnabled)
             {
-                return "法术暂停：菜单或结算状态";
+                return "\u6cd5\u672f\u6682\u505c\uff1a\u83dc\u5355\u6216\u7ed3\u7b97\u72b6\u6001";
             }
 
             if (pendingSpell != SpellType.None)
             {
-                return $"确认中：{pendingSpell.ToChinese()} {Mathf.RoundToInt(PendingProgress * 100f)}%";
+                return $"\u786e\u8ba4\u4e2d\uff1a{pendingSpell.ToChinese()} {Mathf.RoundToInt(PendingProgress * 100f)}%";
             }
 
             if (lastCastSpell != SpellType.None)
             {
-                return $"最近释放：{lastCastSpell.ToChinese()} · {LastSpellFeedbackText}";
+                return $"\u6700\u8fd1\u91ca\u653e\uff1a{lastCastSpell.ToChinese()} - {LastSpellFeedbackText}";
             }
 
-            return $"火焰占位：{SelectedFireName} · 左键/1 发射火焰弹 · Q/R 切换七色火焰";
+            return $"\u706b\u7130\u5360\u4f4d\uff1a{SelectedFireName} - \u5de6\u952e/1 \u53d1\u5c04\u706b\u7130\u5f39 - Q/R \u5207\u6362\u4e03\u8272\u706b\u7130";
         }
     }
 }

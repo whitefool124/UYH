@@ -1,5 +1,6 @@
 using SpellGuard.InputSystem;
 using SpellGuard.Audio;
+using SpellGuard.UI;
 using UnityEngine;
 
 namespace SpellGuard.Core
@@ -75,6 +76,7 @@ namespace SpellGuard.Core
                 sceneContext.AudioController.ApplySettings(sceneContext.GameSettings);
                 sceneContext.AudioController.PlayMenuMusic();
             }
+            EnsureGestureFeedbackHud();
 
             if (sceneContext.InputRouter != null && sceneContext.GameSettings != null)
             {
@@ -103,6 +105,27 @@ namespace SpellGuard.Core
 
             var created = sceneContext.gameObject.AddComponent<SpellGuardAudioController>();
             SetPrivateField(sceneContext, "audioController", created);
+        }
+
+        private void EnsureGestureFeedbackHud()
+        {
+            if (sceneContext == null)
+            {
+                return;
+            }
+
+            var feedbackHud = sceneContext.GetComponent<GestureFeedbackHud>();
+            if (feedbackHud == null)
+            {
+                feedbackHud = sceneContext.gameObject.AddComponent<GestureFeedbackHud>();
+            }
+
+            feedbackHud.Configure(
+                sceneContext.InputProvider,
+                sceneContext.SpellCaster,
+                sceneContext.PlayerHealth,
+                sceneContext.EnemySpawner,
+                sceneContext.FlowController);
         }
 
         private static void SetPrivateField(Object target, string fieldName, Object value)

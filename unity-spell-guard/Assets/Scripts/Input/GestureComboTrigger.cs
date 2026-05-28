@@ -27,13 +27,6 @@ namespace SpellGuard.InputSystem
                     GestureCommandPattern.Static(GestureType.Fist),
                     GestureCommandPattern.Motion(MotionGestureType.Snap)
                 }),
-            new GestureComboRule(
-                GestureIntent.CastShield,
-                new[]
-                {
-                    GestureCommandPattern.Static(GestureType.OpenPalm),
-                    GestureCommandPattern.Motion(MotionGestureType.SwipeLeftToRight)
-                })
         };
 
         public static GestureAction ResolveDefault(IReadOnlyList<GestureCommand> history)

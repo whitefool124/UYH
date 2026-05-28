@@ -42,5 +42,13 @@ namespace SpellGuard.Tests.PlayMode
 
             Assert.That(action.IsValid, Is.False);
         }
+
+        [Test]
+        public void RejectsOpenPalmSwipeSequenceByDefault()
+        {
+            var action = GestureComboTrigger.ResolveDefault(GestureTestSamples.OpenPalmSwipeSequence());
+
+            Assert.That(action.IsValid, Is.False);
+        }
     }
 }
