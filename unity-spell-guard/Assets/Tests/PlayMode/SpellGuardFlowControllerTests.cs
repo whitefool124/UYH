@@ -134,12 +134,12 @@ namespace SpellGuard.Tests.PlayMode
         [Test]
         public void CycleInputModeSettingUpdatesRouterMode()
         {
-            Assert.That(inputRouter.Mode, Is.EqualTo(GestureInputRouter.InputMode.Mock));
+            Assert.That(inputRouter.Mode, Is.EqualTo(GestureInputRouter.InputMode.ExternalBridge));
 
             flowController.CycleInputModeSetting();
 
-            Assert.That(inputRouter.Mode, Is.EqualTo(GestureInputRouter.InputMode.NativeMediapipe));
-            Assert.That(flowController.InputModeLabel, Is.EqualTo("Native MediaPipe"));
+            Assert.That(inputRouter.Mode, Is.EqualTo(GestureInputRouter.InputMode.Mock));
+            Assert.That(flowController.InputModeLabel, Is.EqualTo("Mock"));
         }
 
         [Test]

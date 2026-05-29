@@ -9,6 +9,8 @@ namespace SpellGuard.Core
         private const string MusicVolumeIndexKey = "SpellGuard.Settings.MusicVolumeIndex";
         private const string SfxVolumeIndexKey = "SpellGuard.Settings.SfxVolumeIndex";
         private const string InputModeIndexKey = "SpellGuard.Settings.InputModeIndex";
+        private const string InputModePreferenceVersionKey = "SpellGuard.Settings.InputModePreferenceVersion";
+        private const int CurrentInputModePreferenceVersion = 2;
         private const string WebcamDeviceNameKey = "SpellGuard.Settings.WebcamDeviceName";
         private const string IncludeVirtualCamerasKey = "SpellGuard.Settings.IncludeVirtualCameras";
         private const string BestScoreKey = "SpellGuard.Progress.BestScore";
@@ -60,12 +62,19 @@ namespace SpellGuard.Core
 
         public static int LoadInputModeIndex(int fallback)
         {
+            if (PlayerPrefs.GetInt(InputModePreferenceVersionKey, 0) != CurrentInputModePreferenceVersion)
+            {
+                SaveInputModeIndex(fallback);
+                return fallback;
+            }
+
             return PlayerPrefs.GetInt(InputModeIndexKey, fallback);
         }
 
         public static void SaveInputModeIndex(int value)
         {
             PlayerPrefs.SetInt(InputModeIndexKey, value);
+            PlayerPrefs.SetInt(InputModePreferenceVersionKey, CurrentInputModePreferenceVersion);
             PlayerPrefs.Save();
         }
 

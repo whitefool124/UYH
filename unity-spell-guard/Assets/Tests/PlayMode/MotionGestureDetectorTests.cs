@@ -140,6 +140,18 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         [Test]
+        public void DetectsHorizontalPointSwipeWhenPalmLagsBehindFinger()
+        {
+            var detector = CreateDetector();
+            AddHandSample(detector, 0.00f, new Vector2(0.48f, 0.50f), GestureType.Point, new Vector2(0.34f, 0.50f));
+            AddHandSample(detector, 0.04f, new Vector2(0.49f, 0.505f), GestureType.Point, new Vector2(0.46f, 0.505f));
+            AddHandSample(detector, 0.08f, new Vector2(0.50f, 0.51f), GestureType.Point, new Vector2(0.58f, 0.51f));
+
+            Assert.That(detector.TryDetectSwipe(out var gesture), Is.True);
+            Assert.That(gesture, Is.EqualTo(MotionGestureType.SwipeLeftToRight));
+        }
+
+        [Test]
         public void RejectsSwipeWhenHandIsNotPointing()
         {
             var detector = CreateDetector();
@@ -268,13 +280,13 @@ namespace SpellGuard.Tests.PlayMode
             return detector;
         }
 
-        private static void AddHandSample(MotionGestureDetector detector, float time, Vector2 palm, GestureType gesture = GestureType.Point)
+        private static void AddHandSample(MotionGestureDetector detector, float time, Vector2 palm, GestureType gesture = GestureType.Point, Vector2? swipePoint = null)
         {
             detector.AddHandSample(new MotionGestureDetector.HandSample
             {
                 Time = time,
                 Palm = palm,
-                SwipePoint = palm,
+                SwipePoint = swipePoint ?? palm,
                 ThumbTip = palm + Vector2.left * 0.08f,
                 MiddleTip = palm + Vector2.right * 0.08f,
                 StaticGesture = gesture,

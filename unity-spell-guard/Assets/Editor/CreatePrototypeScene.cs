@@ -74,6 +74,7 @@ namespace SpellGuard.EditorTools
             var nativeMotionGestureRecognizer = runtime.AddComponent<NativeMotionGestureRecognizer>();
             var externalBridge = runtime.AddComponent<ExternalGestureBridgeProvider>();
             var externalMotionGestureRecognizer = runtime.AddComponent<ExternalMotionGestureRecognizer>();
+            var externalBridgeProcessLauncher = runtime.AddComponent<ExternalBridgeProcessLauncher>();
             var udpReceiver = runtime.AddComponent<UdpGestureReceiver>();
             var inputRouter = runtime.AddComponent<GestureInputRouter>();
             var settings = runtime.AddComponent<SpellGuardGameSettings>();
@@ -84,7 +85,8 @@ namespace SpellGuard.EditorTools
             SetField(inputRouter, "mockProvider", mockProvider);
             SetField(inputRouter, "nativeMediapipeProvider", nativeMediapipeProvider);
             SetField(inputRouter, "externalBridgeProvider", externalBridge);
-            SetEnumField(inputRouter, "mode", (int)GestureInputRouter.InputMode.Mock);
+            SetEnumField(inputRouter, "mode", (int)GestureInputRouter.InputMode.ExternalBridge);
+            SetSerializedInt(settings, "inputModeIndex", (int)GestureInputRouter.InputMode.ExternalBridge);
 
             SetField(nativeMediapipeProvider, "webcamFeed", webcamFeed);
             SetField(nativeMediapipeRunner, "targetProvider", nativeMediapipeProvider);
@@ -93,6 +95,7 @@ namespace SpellGuard.EditorTools
             SetField(nativeMotionGestureRecognizer, "recognitionProfile", recognitionProfile);
             SetField(udpReceiver, "bridgeProvider", externalBridge);
             SetField(udpReceiver, "webcamFeed", webcamFeed);
+            SetField(udpReceiver, "processLauncher", externalBridgeProcessLauncher);
             SetField(externalMotionGestureRecognizer, "bridgeProvider", externalBridge);
             SetField(externalMotionGestureRecognizer, "recognitionProfile", recognitionProfile);
 
@@ -104,6 +107,7 @@ namespace SpellGuard.EditorTools
             SetField(bootstrap, "externalBridge", externalBridge);
             SetField(bootstrap, "externalMotionGestureRecognizer", externalMotionGestureRecognizer);
             SetField(bootstrap, "udpGestureReceiver", udpReceiver);
+            SetField(bootstrap, "externalBridgeProcessLauncher", externalBridgeProcessLauncher);
             SetField(bootstrap, "settings", settings);
             SetField(bootstrap, "audioController", audioController);
 
@@ -260,6 +264,7 @@ namespace SpellGuard.EditorTools
             var nativeMotionGestureRecognizer = player.AddComponent<NativeMotionGestureRecognizer>();
             var externalBridge = player.AddComponent<ExternalGestureBridgeProvider>();
             var externalMotionGestureRecognizer = player.AddComponent<ExternalMotionGestureRecognizer>();
+            var externalBridgeProcessLauncher = player.AddComponent<ExternalBridgeProcessLauncher>();
             var udpReceiver = player.AddComponent<UdpGestureReceiver>();
             var inputRouter = player.AddComponent<GestureInputRouter>();
             var health = player.AddComponent<PlayerHealth>();
@@ -338,7 +343,8 @@ namespace SpellGuard.EditorTools
             SetField(inputRouter, "mockProvider", mockProvider);
             SetField(inputRouter, "nativeMediapipeProvider", nativeMediapipeProvider);
             SetField(inputRouter, "externalBridgeProvider", externalBridge);
-            SetEnumField(inputRouter, "mode", (int)GestureInputRouter.InputMode.Mock);
+            SetEnumField(inputRouter, "mode", (int)GestureInputRouter.InputMode.ExternalBridge);
+            SetSerializedInt(settings, "inputModeIndex", (int)GestureInputRouter.InputMode.ExternalBridge);
 
             SetField(sceneContext, "inputProvider", inputRouter);
             SetField(sceneContext, "inputRouter", inputRouter);
@@ -349,6 +355,7 @@ namespace SpellGuard.EditorTools
             SetField(sceneContext, "externalBridge", externalBridge);
             SetField(sceneContext, "externalMotionGestureRecognizer", externalMotionGestureRecognizer);
             SetField(sceneContext, "udpGestureReceiver", udpReceiver);
+            SetField(sceneContext, "externalBridgeProcessLauncher", externalBridgeProcessLauncher);
             SetField(sceneContext, "webcamFeed", webcamFeed);
             SetField(sceneContext, "playerRoot", player.transform);
             SetField(sceneContext, "cameraPivot", cameraPivot);
@@ -402,6 +409,7 @@ namespace SpellGuard.EditorTools
 
             SetField(udpReceiver, "bridgeProvider", externalBridge);
             SetField(udpReceiver, "webcamFeed", webcamFeed);
+            SetField(udpReceiver, "processLauncher", externalBridgeProcessLauncher);
             SetField(externalMotionGestureRecognizer, "bridgeProvider", externalBridge);
             SetField(externalMotionGestureRecognizer, "recognitionProfile", recognitionProfile);
             SetField(nativeMediapipeProvider, "webcamFeed", webcamFeed);

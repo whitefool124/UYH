@@ -32,6 +32,7 @@ namespace SpellGuard.Tests.EditMode
             var mockProvider = runtime != null ? runtime.GetComponent<MockGestureInputProvider>() : null;
             var nativeProvider = runtime != null ? runtime.GetComponent<NativeMediapipeGestureProvider>() : null;
             var bridgeProvider = runtime != null ? runtime.GetComponent<ExternalGestureBridgeProvider>() : null;
+            var externalBridgeProcessLauncher = runtime != null ? runtime.GetComponent<ExternalBridgeProcessLauncher>() : null;
             var webcamFeed = runtime != null ? runtime.GetComponent<WebcamFeedController>() : null;
             var udpReceiver = runtime != null ? runtime.GetComponent<UdpGestureReceiver>() : null;
             var settings = runtime != null ? runtime.GetComponent<SpellGuardGameSettings>() : null;
@@ -49,11 +50,16 @@ namespace SpellGuard.Tests.EditMode
             Assert.That(inputRouterObject.FindProperty("mockProvider")?.objectReferenceValue, Is.SameAs(mockProvider));
             Assert.That(inputRouterObject.FindProperty("nativeMediapipeProvider")?.objectReferenceValue, Is.SameAs(nativeProvider));
             Assert.That(inputRouterObject.FindProperty("externalBridgeProvider")?.objectReferenceValue, Is.SameAs(bridgeProvider));
+            Assert.That(inputRouterObject.FindProperty("mode")?.enumValueIndex, Is.EqualTo((int)GestureInputRouter.InputMode.ExternalBridge));
+
+            var settingsObject = new SerializedObject(settings);
+            Assert.That(settingsObject.FindProperty("inputModeIndex")?.intValue, Is.EqualTo((int)GestureInputRouter.InputMode.ExternalBridge));
 
             var bootstrapObject = new SerializedObject(bootstrap);
             Assert.That(bootstrapObject.FindProperty("inputRouter")?.objectReferenceValue, Is.SameAs(inputRouter));
             Assert.That(bootstrapObject.FindProperty("webcamFeed")?.objectReferenceValue, Is.SameAs(webcamFeed));
             Assert.That(bootstrapObject.FindProperty("udpGestureReceiver")?.objectReferenceValue, Is.SameAs(udpReceiver));
+            Assert.That(bootstrapObject.FindProperty("externalBridgeProcessLauncher")?.objectReferenceValue, Is.SameAs(externalBridgeProcessLauncher));
             Assert.That(bootstrapObject.FindProperty("settings")?.objectReferenceValue, Is.SameAs(settings));
             Assert.That(bootstrapObject.FindProperty("audioController")?.objectReferenceValue, Is.SameAs(audioController));
 
@@ -82,6 +88,7 @@ namespace SpellGuard.Tests.EditMode
             var ritualGate = GameObject.Find("RitualGate");
             var nativeRecognizer = playerRoot != null ? playerRoot.GetComponent<NativeMotionGestureRecognizer>() : null;
             var recognizer = playerRoot != null ? playerRoot.GetComponent<ExternalMotionGestureRecognizer>() : null;
+            var externalBridgeProcessLauncher = playerRoot != null ? playerRoot.GetComponent<ExternalBridgeProcessLauncher>() : null;
             var nativeProvider = playerRoot != null ? playerRoot.GetComponent<NativeMediapipeGestureProvider>() : null;
             var bridgeProvider = playerRoot != null ? playerRoot.GetComponent<ExternalGestureBridgeProvider>() : null;
             var inputRouter = playerRoot != null ? playerRoot.GetComponent<GestureInputRouter>() : null;
@@ -109,6 +116,7 @@ namespace SpellGuard.Tests.EditMode
             Assert.That(sceneContext, Is.Not.Null, "SceneContext should exist in the generated prototype scene.");
             Assert.That(sceneContext.NativeMotionGestureRecognizer, Is.SameAs(nativeRecognizer));
             Assert.That(sceneContext.ExternalMotionGestureRecognizer, Is.SameAs(recognizer));
+            Assert.That(sceneContext.ExternalBridgeProcessLauncher, Is.SameAs(externalBridgeProcessLauncher));
             Assert.That(feedbackBoard, Is.Not.Null, "Generated scene should include a world-space motion feedback board.");
             Assert.That(menuOverlay, Is.Not.Null, "Generated scene should include a menu overlay for non-playing screens.");
             Assert.That(sceneContext.MenuOverlay, Is.SameAs(menuOverlay));
@@ -162,6 +170,9 @@ namespace SpellGuard.Tests.EditMode
             var motorObject = new SerializedObject(motor);
             Assert.That(motorObject.FindProperty("inputProvider")?.objectReferenceValue, Is.SameAs(inputRouter));
             Assert.That(motorObject.FindProperty("cameraPivot"), Is.Null, "FpsGestureMotor should no longer expose camera-guidance wiring.");
+
+            var inputRouterObject = new SerializedObject(inputRouter);
+            Assert.That(inputRouterObject.FindProperty("mode")?.enumValueIndex, Is.EqualTo((int)GestureInputRouter.InputMode.ExternalBridge));
 
             var spellCasterObject = new SerializedObject(spellCaster);
             Assert.That(spellCasterObject.FindProperty("inputProvider")?.objectReferenceValue, Is.SameAs(inputRouter));

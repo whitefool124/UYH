@@ -14,6 +14,7 @@ namespace SpellGuard.Core
         [SerializeField] private ExternalGestureBridgeProvider externalBridge;
         [SerializeField] private ExternalMotionGestureRecognizer externalMotionGestureRecognizer;
         [SerializeField] private UdpGestureReceiver udpGestureReceiver;
+        [SerializeField] private ExternalBridgeProcessLauncher externalBridgeProcessLauncher;
         [SerializeField] private SpellGuardGameSettings settings;
         [SerializeField] private SpellGuardAudioController audioController;
         [SerializeField] private bool bootstrapOnAwake = true;
@@ -54,7 +55,8 @@ namespace SpellGuard.Core
 
             if (externalBridge != null && udpGestureReceiver != null)
             {
-                udpGestureReceiver.Configure(externalBridge, webcamFeed);
+                EnsureExternalBridgeProcessLauncher();
+                udpGestureReceiver.Configure(externalBridge, webcamFeed, externalBridgeProcessLauncher);
             }
 
             if (externalMotionGestureRecognizer != null)
@@ -87,6 +89,20 @@ namespace SpellGuard.Core
 
             subscribedInputRouter = inputRouter;
             subscribedInputRouter.ModeChanged += HandleInputModeChanged;
+        }
+
+        private void EnsureExternalBridgeProcessLauncher()
+        {
+            if (externalBridgeProcessLauncher != null)
+            {
+                return;
+            }
+
+            externalBridgeProcessLauncher = GetComponent<ExternalBridgeProcessLauncher>();
+            if (externalBridgeProcessLauncher == null)
+            {
+                externalBridgeProcessLauncher = gameObject.AddComponent<ExternalBridgeProcessLauncher>();
+            }
         }
 
         private void UnsubscribeFromInputRouter()

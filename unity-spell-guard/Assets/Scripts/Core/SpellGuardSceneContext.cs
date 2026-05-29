@@ -20,6 +20,7 @@ namespace SpellGuard.Core
         [SerializeField] private ExternalGestureBridgeProvider externalBridge;
         [SerializeField] private ExternalMotionGestureRecognizer externalMotionGestureRecognizer;
         [SerializeField] private UdpGestureReceiver udpGestureReceiver;
+        [SerializeField] private ExternalBridgeProcessLauncher externalBridgeProcessLauncher;
         [SerializeField] private WebcamFeedController webcamFeed;
 
         [Header("Player")]
@@ -48,6 +49,7 @@ namespace SpellGuard.Core
 
         [Header("Diagnostics")]
         [SerializeField] private GesturePerformanceMonitor performanceMonitor;
+        [SerializeField] private WebcamHealthProbe webcamHealthProbe;
 
         public GestureInputProviderBase InputProvider => inputProvider;
         public GestureInputRouter InputRouter => inputRouter;
@@ -58,6 +60,7 @@ namespace SpellGuard.Core
         public ExternalGestureBridgeProvider ExternalBridge => externalBridge;
         public ExternalMotionGestureRecognizer ExternalMotionGestureRecognizer => externalMotionGestureRecognizer;
         public UdpGestureReceiver UdpGestureReceiver => udpGestureReceiver;
+        public ExternalBridgeProcessLauncher ExternalBridgeProcessLauncher => externalBridgeProcessLauncher;
         public WebcamFeedController WebcamFeed => webcamFeed;
         public Transform PlayerRoot => playerRoot;
         public Transform CameraPivot => cameraPivot;
@@ -74,6 +77,7 @@ namespace SpellGuard.Core
         public SpellGuardAudioController AudioController => audioController;
         public MotionGestureFeedbackBoard MotionGestureFeedbackBoard => motionGestureFeedbackBoard;
         public GesturePerformanceMonitor PerformanceMonitor => performanceMonitor;
+        public WebcamHealthProbe WebcamHealthProbe => webcamHealthProbe;
 
         public void ValidateSerializedReferences()
         {

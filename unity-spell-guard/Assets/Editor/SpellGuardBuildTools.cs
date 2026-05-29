@@ -103,8 +103,8 @@ namespace SpellGuard.EditorTools
             AppendCheck(builder, AssetDatabase.LoadAssetAtPath<SceneAsset>(StartScenePath) != null, "Start Scene 资产存在。", ref isValid);
             AppendCheck(builder, AssetDatabase.LoadAssetAtPath<SceneAsset>(PrototypeScenePath) != null, "Prototype Scene 资产存在。", ref isValid);
             AppendCheck(builder, ManifestContainsMediapipePackage(), "Packages/manifest.json 包含 MediaPipe Unity 包。", ref isValid);
-            AppendCheck(builder, DefaultInputModeIsMock(StartScenePath), "Start Scene 默认输入模式为 Mock。", ref isValid);
-            AppendCheck(builder, DefaultInputModeIsMock(PrototypeScenePath), "Prototype Scene 默认输入模式为 Mock。", ref isValid);
+            AppendCheck(builder, DefaultInputModeIsExternalBridge(StartScenePath), "Start Scene 默认输入模式为 ExternalBridge。", ref isValid);
+            AppendCheck(builder, DefaultInputModeIsExternalBridge(PrototypeScenePath), "Prototype Scene 默认输入模式为 ExternalBridge。", ref isValid);
             AppendCheck(builder, !BuildSettingsContainsScene(scenes, DeveloperToolsScenePath), "Developer Tools Scene 不进入正式构建。", ref isValid);
 
             return new SpellGuardBuildValidationReport(isValid, builder.ToString().TrimEnd());
@@ -139,7 +139,7 @@ namespace SpellGuard.EditorTools
             return manifest.Contains(MediapipePackageKey) && manifest.Contains(".tgz");
         }
 
-        private static bool DefaultInputModeIsMock(string scenePath)
+        private static bool DefaultInputModeIsExternalBridge(string scenePath)
         {
             if (AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath) == null)
             {
@@ -166,7 +166,7 @@ namespace SpellGuard.EditorTools
                     {
                         var serializedRouter = new SerializedObject(router);
                         var modeProperty = serializedRouter.FindProperty("mode");
-                        if (modeProperty != null && modeProperty.enumValueIndex == (int)GestureInputRouter.InputMode.Mock)
+                        if (modeProperty != null && modeProperty.enumValueIndex == (int)GestureInputRouter.InputMode.ExternalBridge)
                         {
                             return true;
                         }

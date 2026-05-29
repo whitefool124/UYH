@@ -11,6 +11,7 @@ namespace SpellGuard.InputSystem
     {
         [SerializeField] private ExternalGestureBridgeProvider bridgeProvider;
         [SerializeField] private WebcamFeedController webcamFeed;
+        [SerializeField] private ExternalBridgeProcessLauncher processLauncher;
         [SerializeField] private bool autoStart = false;
         [SerializeField] private bool externalBridgeOwnsCamera = true;
         [SerializeField] private int listenPort = 5053;
@@ -69,8 +70,14 @@ namespace SpellGuard.InputSystem
 
         public void Configure(ExternalGestureBridgeProvider bridge, WebcamFeedController feed)
         {
+            Configure(bridge, feed, processLauncher);
+        }
+
+        public void Configure(ExternalGestureBridgeProvider bridge, WebcamFeedController feed, ExternalBridgeProcessLauncher launcher)
+        {
             bridgeProvider = bridge;
             webcamFeed = feed;
+            processLauncher = launcher;
         }
 
         [ContextMenu("Start Receiver")]
@@ -82,6 +89,8 @@ namespace SpellGuard.InputSystem
             {
                 webcamFeed.StopCamera();
             }
+
+            processLauncher?.StartBridge();
 
             try
             {
@@ -134,6 +143,7 @@ namespace SpellGuard.InputSystem
             }
 
             bridgeProvider?.ClearSnapshot();
+            processLauncher?.StopBridge();
 
             if (StatusText.StartsWith("UDP桥运行中") || StatusText.StartsWith("UDP已接收"))
             {

@@ -165,8 +165,8 @@ namespace SpellGuard.InputSystem
         public void ApplyRequestedFormat(bool useFormat, int width, int height, int fps)
         {
             useRequestedFormat = useFormat;
-            requestedWidth = Mathf.Max(1, width);
-            requestedHeight = Mathf.Max(1, height);
+            requestedWidth = useFormat ? Mathf.Max(1, width) : Mathf.Max(0, width);
+            requestedHeight = useFormat ? Mathf.Max(1, height) : Mathf.Max(0, height);
             requestedFps = Mathf.Max(1, fps);
             formatAppliedAt = Time.unscaledTime;
             fallbackPending = useRequestedFormat && (requestedWidth != 320 || requestedHeight != 240);

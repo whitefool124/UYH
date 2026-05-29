@@ -58,8 +58,9 @@ namespace SpellGuard.Core
             }
             if (sceneContext.UdpGestureReceiver != null)
             {
-                sceneContext.UdpGestureReceiver.Configure(sceneContext.ExternalBridge, sceneContext.WebcamFeed);
+                sceneContext.UdpGestureReceiver.Configure(sceneContext.ExternalBridge, sceneContext.WebcamFeed, sceneContext.ExternalBridgeProcessLauncher);
             }
+            EnsureExternalBridgeProcessLauncher();
             if (sceneContext.ExternalMotionGestureRecognizer != null)
             {
                 sceneContext.ExternalMotionGestureRecognizer.Configure(sceneContext.ExternalBridge);
@@ -73,6 +74,11 @@ namespace SpellGuard.Core
                 sceneContext.PerformanceMonitor.Configure(sceneContext.InputRouter, sceneContext.ExternalBridge, sceneContext.WebcamFeed, sceneContext.NativeMediapipeRunner);
             }
             EnsurePerformanceMonitor();
+            if (sceneContext.WebcamHealthProbe != null)
+            {
+                sceneContext.WebcamHealthProbe.Configure(sceneContext.WebcamFeed, sceneContext.NativeMediapipeRunner);
+            }
+            EnsureWebcamHealthProbe();
             if (sceneContext.AudioController != null)
             {
                 sceneContext.AudioController.ApplySettings(sceneContext.GameSettings);
@@ -129,7 +135,8 @@ namespace SpellGuard.Core
                 sceneContext.PlayerHealth,
                 sceneContext.EnemySpawner,
                 sceneContext.FlowController,
-                sceneContext.PerformanceMonitor);
+                sceneContext.PerformanceMonitor,
+                sceneContext.WebcamHealthProbe);
         }
 
         private void EnsurePerformanceMonitor()
@@ -147,6 +154,40 @@ namespace SpellGuard.Core
 
             performanceMonitor.Configure(sceneContext.InputRouter, sceneContext.ExternalBridge, sceneContext.WebcamFeed, sceneContext.NativeMediapipeRunner);
             SetPrivateField(sceneContext, "performanceMonitor", performanceMonitor);
+        }
+
+        private void EnsureWebcamHealthProbe()
+        {
+            if (sceneContext == null || sceneContext.WebcamHealthProbe != null)
+            {
+                return;
+            }
+
+            var probe = sceneContext.GetComponent<WebcamHealthProbe>();
+            if (probe == null)
+            {
+                probe = sceneContext.gameObject.AddComponent<WebcamHealthProbe>();
+            }
+
+            probe.Configure(sceneContext.WebcamFeed, sceneContext.NativeMediapipeRunner);
+            SetPrivateField(sceneContext, "webcamHealthProbe", probe);
+        }
+
+        private void EnsureExternalBridgeProcessLauncher()
+        {
+            if (sceneContext == null || sceneContext.ExternalBridgeProcessLauncher != null)
+            {
+                return;
+            }
+
+            var launcher = sceneContext.GetComponent<ExternalBridgeProcessLauncher>();
+            if (launcher == null)
+            {
+                launcher = sceneContext.gameObject.AddComponent<ExternalBridgeProcessLauncher>();
+            }
+
+            SetPrivateField(sceneContext, "externalBridgeProcessLauncher", launcher);
+            sceneContext.UdpGestureReceiver?.Configure(sceneContext.ExternalBridge, sceneContext.WebcamFeed, launcher);
         }
 
         private static void SetPrivateField(Object target, string fieldName, Object value)

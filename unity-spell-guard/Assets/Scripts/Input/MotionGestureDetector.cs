@@ -259,7 +259,7 @@ namespace SpellGuard.InputSystem
                 }
 
                 var horizontalDirection = Mathf.Sign(GetSwipePosition(last, true).x - GetSwipePosition(start, true).x);
-                var verticalDirection = Mathf.Sign(last.Palm.y - start.Palm.y);
+                var verticalDirection = Mathf.Sign(GetSwipePosition(last, false).y - GetSwipePosition(start, false).y);
                 if (!HasRequiredPointGesture(samples, startIndex, true)
                     && !HasRequiredPointGesture(samples, startIndex, false))
                 {
@@ -273,7 +273,8 @@ namespace SpellGuard.InputSystem
                 }
 
                 var horizontalDelta = GetSwipePosition(last, true) - GetSwipePosition(start, true);
-                var delta = last.Palm - start.Palm;
+                var verticalDelta = GetSwipePosition(last, false) - GetSwipePosition(start, false);
+                var delta = verticalDelta;
                 delta.x = horizontalDelta.x;
                 var horizontalDistance = Mathf.Abs(delta.x);
                 var verticalDistance = Mathf.Abs(delta.y);
@@ -382,7 +383,7 @@ namespace SpellGuard.InputSystem
             var stepDeadZone = Mathf.Max(sampleJitterDeadZone * 0.5f, 0.003f);
             for (var index = startIndex + 1; index < samples.Length; index++)
             {
-                var delta = samples[index].Palm - samples[index - 1].Palm;
+                var delta = GetSwipePosition(samples[index], horizontalAxis) - GetSwipePosition(samples[index - 1], horizontalAxis);
                 var axisDelta = horizontalAxis ? delta.x : delta.y;
                 var directedDelta = axisDelta * direction;
                 var absAxisDelta = Mathf.Abs(axisDelta);

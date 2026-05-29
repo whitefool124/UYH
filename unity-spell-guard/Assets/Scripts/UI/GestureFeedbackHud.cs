@@ -16,6 +16,7 @@ namespace SpellGuard.UI
         [SerializeField] private EnemySpawner enemySpawner;
         [SerializeField] private SpellGuardFlowController flowController;
         [SerializeField] private GesturePerformanceMonitor performanceMonitor;
+        [SerializeField] private WebcamHealthProbe webcamHealthProbe;
         [SerializeField] private bool visible = true;
 
         private GUIStyle titleStyle;
@@ -31,8 +32,8 @@ namespace SpellGuard.UI
         private float lastSpellStatusAt = -999f;
         private Vector2 smoothedHandViewport = new Vector2(0.5f, 0.5f);
         private Vector2 previousRawHandViewport = new Vector2(0.5f, 0.5f);
-        private Vector2 handViewportVelocity;
         private float lastRawHandViewportAt = -999f;
+        private float lastIndicatorUpdateAt = -999f;
         private bool hasSmoothedHandViewport;
 
         public void Configure(
@@ -42,7 +43,8 @@ namespace SpellGuard.UI
             PlayerHealth health,
             EnemySpawner spawner,
             SpellGuardFlowController controller,
-            GesturePerformanceMonitor monitor)
+            GesturePerformanceMonitor monitor,
+            WebcamHealthProbe probe = null)
         {
             inputProvider = provider;
             spellCaster = caster;
@@ -51,6 +53,7 @@ namespace SpellGuard.UI
             enemySpawner = spawner;
             flowController = controller;
             performanceMonitor = monitor;
+            webcamHealthProbe = probe;
         }
 
         private void Update()
@@ -129,13 +132,14 @@ namespace SpellGuard.UI
             }
             else
             {
-                var smoothing = isTracked ? 0.34f : 0.12f;
-                smoothedHandViewport = Vector2.Lerp(smoothedHandViewport, target, smoothing);
+                var deltaTime = lastIndicatorUpdateAt > 0f ? Mathf.Clamp(Time.unscaledTime - lastIndicatorUpdateAt, 0.001f, 0.05f) : Time.unscaledDeltaTime;
+                smoothedHandViewport = SmoothCaptureIndicator(smoothedHandViewport, target, isTracked, deltaTime);
             }
+            lastIndicatorUpdateAt = Time.unscaledTime;
 
             var point = new Vector2(
-                Mathf.Lerp(0f, Screen.width, 1f - smoothedHandViewport.x),
-                Mathf.Lerp(0f, Screen.height, 1f - smoothedHandViewport.y));
+                Mathf.Lerp(0f, Screen.width, smoothedHandViewport.x),
+                Mathf.Lerp(0f, Screen.height, smoothedHandViewport.y));
             DrawCaptureGuides(point, scale, isTracked);
             DrawCapturePoint(point, scale, isTracked);
 
@@ -159,24 +163,56 @@ namespace SpellGuard.UI
         {
             if (!isTracked)
             {
-                handViewportVelocity = Vector2.zero;
                 lastRawHandViewportAt = -999f;
-                return new Vector2(0.5f, 0.5f);
+                return hasSmoothedHandViewport ? smoothedHandViewport : new Vector2(0.5f, 0.5f);
             }
 
             var raw = ClampViewport(ResolveTrackedDisplayPoint(hand));
             var sampleTime = frameTimestamp > 0f ? frameTimestamp : Time.unscaledTime;
-            if (lastRawHandViewportAt > 0f && sampleTime > lastRawHandViewportAt + 0.0001f)
+            if (lastRawHandViewportAt > 0f)
             {
-                var dt = Mathf.Clamp(sampleTime - lastRawHandViewportAt, 0.001f, 0.25f);
-                var measuredVelocity = (raw - previousRawHandViewport) / dt;
-                handViewportVelocity = Vector2.Lerp(handViewportVelocity, measuredVelocity, 0.45f);
+                var jump = raw - previousRawHandViewport;
+                if (jump.magnitude > 0.34f)
+                {
+                    raw = previousRawHandViewport + Vector2.ClampMagnitude(jump, 0.18f);
+                }
+
+                if (Mathf.Abs(raw.y - previousRawHandViewport.y) < 0.018f)
+                {
+                    raw.y = previousRawHandViewport.y;
+                }
             }
 
             previousRawHandViewport = raw;
             lastRawHandViewportAt = sampleTime;
-            var extrapolation = Mathf.Clamp(Time.unscaledTime - sampleTime, 0f, 0.12f);
-            return ClampViewport(raw + handViewportVelocity * extrapolation);
+            return raw;
+        }
+
+        private static Vector2 SmoothCaptureIndicator(Vector2 current, Vector2 target, bool isTracked, float deltaTime)
+        {
+            if (!isTracked)
+            {
+                return current;
+            }
+
+            var delta = target - current;
+            if (Mathf.Abs(delta.y) < 0.012f)
+            {
+                target.y = current.y;
+                delta.y = 0f;
+            }
+
+            var response = delta.magnitude > 0.18f ? 9.5f : 6.5f;
+            var lerp = 1f - Mathf.Exp(-response * Mathf.Clamp(deltaTime, 0.001f, 0.05f));
+            var next = Vector2.Lerp(current, target, lerp);
+            var maxStep = Mathf.Lerp(0.045f, 0.14f, Mathf.Clamp01(delta.magnitude / 0.45f));
+            var step = next - current;
+            if (step.magnitude > maxStep)
+            {
+                next = current + Vector2.ClampMagnitude(step, maxStep);
+            }
+
+            return ClampViewport(next);
         }
 
         private static Vector2 ResolveTrackedDisplayPoint(TrackedHandState hand)
@@ -269,7 +305,7 @@ namespace SpellGuard.UI
             EnsurePerformanceMonitorBound();
 
             var width = Mathf.Clamp(270f * scale, 240f, 310f);
-            var height = Mathf.Clamp(82f * scale, 72f, 96f);
+            var height = Mathf.Clamp(106f * scale, 94f, 126f);
             var rect = new Rect(
                 Screen.width - width - Mathf.Clamp(18f * scale, 12f, 26f),
                 Mathf.Clamp(Screen.height * 0.46f, 122f * scale, Screen.height - height - 24f * scale),
@@ -293,10 +329,16 @@ namespace SpellGuard.UI
             var cameraLabel = feed != null ? feed.RequestedFormatLabel : "No camera";
             GUI.Label(new Rect(rect.x + padding, rect.y + 24f * scale, rect.width - padding * 2f, 18f * scale), $"Cam {summary.CameraFps:0}  MP {summary.NativeResultFps:0}  Hand {summary.AverageHandUpdateIntervalMs:0}ms", smallStyle);
             GUI.Label(new Rect(rect.x + padding, rect.y + 42f * scale, rect.width - padding * 2f, 18f * scale), cameraLabel, smallStyle);
+            var probeLabel = webcamHealthProbe != null && webcamHealthProbe.IsRunning
+                ? webcamHealthProbe.StatusText
+                : webcamHealthProbe != null && webcamHealthProbe.BestResult.IsValid
+                    ? $"Best {webcamHealthProbe.BestResult.FormatLabel} {webcamHealthProbe.BestResult.AverageFps:0}fps P95 {webcamHealthProbe.BestResult.P95IntervalMs:0}ms"
+                    : "Probe idle";
+            GUI.Label(new Rect(rect.x + padding, rect.y + 60f * scale, rect.width - padding * 2f, 18f * scale), probeLabel, smallStyle);
 
             var buttonY = rect.yMax - 28f * scale;
             var gap = 6f * scale;
-            var buttonWidth = (rect.width - padding * 2f - gap * 3f) / 4f;
+            var buttonWidth = (rect.width - padding * 2f - gap * 4f) / 5f;
             if (GUI.Button(new Rect(rect.x + padding, buttonY, buttonWidth, 22f * scale), performanceMonitor.IsRecording ? "\u505c\u6b62\u91c7\u96c6" : "\u5f00\u59cb\u91c7\u96c6"))
             {
                 if (performanceMonitor.IsRecording)
@@ -323,12 +365,19 @@ namespace SpellGuard.UI
             {
                 feed?.CyclePerformanceFormat();
             }
+
+            if (GUI.Button(new Rect(rect.x + padding + (buttonWidth + gap) * 4f, buttonY, buttonWidth, 22f * scale), webcamHealthProbe != null && webcamHealthProbe.IsRunning ? "\u4f53\u68c0\u4e2d" : "\u4f53\u68c0"))
+            {
+                EnsureWebcamHealthProbeBound();
+                webcamHealthProbe?.StartProbe();
+            }
         }
 
         private void EnsurePerformanceMonitorBound()
         {
             if (performanceMonitor != null)
             {
+                EnsureWebcamHealthProbeBound();
                 return;
             }
 
@@ -347,6 +396,7 @@ namespace SpellGuard.UI
 
             performanceMonitor = owner.AddComponent<GesturePerformanceMonitor>();
             TryConfigurePerformanceMonitor(performanceMonitor);
+            EnsureWebcamHealthProbeBound();
         }
 
         private void TryConfigurePerformanceMonitor(GesturePerformanceMonitor monitor)
@@ -361,6 +411,28 @@ namespace SpellGuard.UI
             var feed = FindObjectOfType<WebcamFeedController>();
             var runner = FindObjectOfType<NativeMediapipeGestureRunner>();
             monitor.Configure(router, bridge, feed, runner);
+        }
+
+        private void EnsureWebcamHealthProbeBound()
+        {
+            if (webcamHealthProbe != null)
+            {
+                return;
+            }
+
+            webcamHealthProbe = FindObjectOfType<WebcamHealthProbe>();
+            if (webcamHealthProbe == null)
+            {
+                var owner = gameObject != null ? gameObject : FindObjectOfType<SpellGuardSceneContext>()?.gameObject;
+                if (owner == null)
+                {
+                    return;
+                }
+
+                webcamHealthProbe = owner.AddComponent<WebcamHealthProbe>();
+            }
+
+            webcamHealthProbe.Configure(FindObjectOfType<WebcamFeedController>(), FindObjectOfType<NativeMediapipeGestureRunner>());
         }
 
         private void DrawPulseOverlays(float scale)

@@ -40,6 +40,11 @@ namespace SpellGuard.Tests.PlayMode
             StringAssert.Contains("native_result_fps", csv);
             StringAssert.Contains("timeseries", csv);
             StringAssert.Contains("body_shift_right", csv);
+            StringAssert.Contains("external_raw_point_packets", csv);
+            StringAssert.Contains("external_motion_packets", csv);
+            StringAssert.Contains("external_predicted_packets", csv);
+            StringAssert.Contains("last_external_performance", csv);
+            StringAssert.Contains("sparse_last_reason", csv);
         }
 
         [Test]
@@ -54,7 +59,7 @@ namespace SpellGuard.Tests.PlayMode
 
             var path = monitor.ExportCsv();
 
-            StringAssert.Contains("gesture_performance_mock_", System.IO.Path.GetFileName(path));
+            StringAssert.Contains("gesture_performance_external_", System.IO.Path.GetFileName(path));
             Assert.That(System.IO.File.Exists(path), Is.True);
             System.IO.File.Delete(path);
         }
@@ -71,8 +76,23 @@ namespace SpellGuard.Tests.PlayMode
 
             var summary = monitor.CurrentSummary;
 
-            Assert.That(summary.Mode, Is.EqualTo(GestureInputRouter.InputMode.Mock.ToString()));
+            Assert.That(summary.Mode, Is.EqualTo(GestureInputRouter.InputMode.ExternalBridge.ToString()));
             Assert.That(summary.Source, Is.EqualTo("无"));
+        }
+
+        [Test]
+        public void WebcamHealthProbeBuildCsvContainsCameraProbeHeader()
+        {
+            var probe = root.AddComponent<WebcamHealthProbe>();
+
+            var csv = probe.BuildCsv();
+
+            StringAssert.Contains("requested_width", csv);
+            StringAssert.Contains("actual_width", csv);
+            StringAssert.Contains("p95_interval_ms", csv);
+            StringAssert.Contains("stall_count", csv);
+            StringAssert.Contains("low_resolution_candidate", csv);
+            StringAssert.Contains("is_best", csv);
         }
 
         private static void SetPrivateField(object target, string fieldName, object value)

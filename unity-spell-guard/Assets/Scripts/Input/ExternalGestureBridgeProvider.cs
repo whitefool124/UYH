@@ -6,7 +6,7 @@ namespace SpellGuard.InputSystem
 {
     public class ExternalGestureBridgeProvider : GestureInputProviderBase
     {
-        [SerializeField] private float snapshotTimeout = 0.25f;
+        [SerializeField] private float snapshotTimeout = 0.45f;
         [SerializeField] private bool clearWhenTimedOut = true;
         [SerializeField] private float motionEventTimeout = 1.2f;
         [SerializeField] private bool debugLogs = true;
@@ -29,6 +29,7 @@ namespace SpellGuard.InputSystem
         private int packetIntervalSamples;
         private int frameVersion;
         private string lastLoggedMotionKey;
+        private float EffectiveSnapshotTimeout => Mathf.Max(snapshotTimeout, 0.45f);
 
         public override GestureSnapshot CurrentSnapshot
         {
@@ -79,7 +80,7 @@ namespace SpellGuard.InputSystem
                     return "Waiting";
                 }
 
-                if (Time.time - lastPacketTime > snapshotTimeout)
+                if (Time.time - lastPacketTime > EffectiveSnapshotTimeout)
                 {
                     return "Stale";
                 }
@@ -177,6 +178,12 @@ namespace SpellGuard.InputSystem
             var confidence = frame.trackingConfidence > 0f ? frame.trackingConfidence : frame.confidence;
             PushSnapshot(frame.handPresent, ParseGesture(frame.gesture), viewportPosition, confidence);
 
+            var packetMotion = ParseMotionGesture(frame.motionGesture);
+            if (packetMotion != MotionGestureType.None)
+            {
+                PushMotionGesture(packetMotion, viewportPosition, frame.motionConfidence > 0f ? frame.motionConfidence : confidence);
+            }
+
             if (!frame.handPresent)
             {
                 latestMotionGesture = MotionGestureEvent.None;
@@ -244,7 +251,7 @@ namespace SpellGuard.InputSystem
 
         private void RefreshTimeoutState()
         {
-            if (clearWhenTimedOut && Time.time - lastPushTime > snapshotTimeout)
+            if (clearWhenTimedOut && Time.time - lastPushTime > EffectiveSnapshotTimeout)
             {
                 snapshot = GestureSnapshot.Missing;
                 currentFrame = null;
@@ -352,6 +359,57 @@ namespace SpellGuard.InputSystem
                     return GestureType.None;
                 default:
                     return GestureType.Unknown;
+            }
+        }
+
+        public static MotionGestureType ParseMotionGesture(string gestureName)
+        {
+            if (string.IsNullOrWhiteSpace(gestureName))
+            {
+                return MotionGestureType.None;
+            }
+
+            switch (gestureName.Trim().ToLowerInvariant())
+            {
+                case "swipelefttoright":
+                case "swipe_left_to_right":
+                case "lefttoright":
+                case "lr":
+                    return MotionGestureType.SwipeLeftToRight;
+                case "swiperighttoleft":
+                case "swipe_right_to_left":
+                case "righttoleft":
+                case "rl":
+                    return MotionGestureType.SwipeRightToLeft;
+                case "swipebottomtotop":
+                case "swipe_bottom_to_top":
+                case "bottomtotop":
+                case "bt":
+                    return MotionGestureType.SwipeBottomToTop;
+                case "swipetoptobottom":
+                case "swipe_top_to_bottom":
+                case "toptobottom":
+                case "tb":
+                    return MotionGestureType.SwipeTopToBottom;
+                case "snap":
+                    return MotionGestureType.Snap;
+                case "pointtofist":
+                case "point_to_fist":
+                    return MotionGestureType.PointToFist;
+                case "openpalmslaplefttoright":
+                case "open_palm_slap_left_to_right":
+                    return MotionGestureType.OpenPalmSlapLeftToRight;
+                case "openpalmslaprighttoleft":
+                case "open_palm_slap_right_to_left":
+                    return MotionGestureType.OpenPalmSlapRightToLeft;
+                case "bodyshiftleft":
+                case "body_shift_left":
+                    return MotionGestureType.BodyShiftLeft;
+                case "bodyshiftright":
+                case "body_shift_right":
+                    return MotionGestureType.BodyShiftRight;
+                default:
+                    return MotionGestureType.None;
             }
         }
     }

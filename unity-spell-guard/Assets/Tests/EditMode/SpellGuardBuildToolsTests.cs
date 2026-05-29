@@ -48,7 +48,7 @@ namespace SpellGuard.Tests.EditMode
             Assert.That(report.Message, Does.Contain("[PASS] 第 1 个场景"));
             Assert.That(report.Message, Does.Contain("[PASS] 第 2 个场景"));
             Assert.That(report.Message, Does.Contain("MediaPipe"));
-            Assert.That(report.Message, Does.Contain("默认输入模式为 Mock"));
+            Assert.That(report.Message, Does.Contain("ExternalBridge"));
             Assert.That(report.Message, Does.Contain("Developer Tools Scene 不进入正式构建"));
         }
 

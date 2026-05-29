@@ -23,8 +23,39 @@ namespace SpellGuard.InputSystem
         [SerializeField] private float bodyShiftMinSpeed = 0.28f;
         [SerializeField] private float bodyShiftCooldownSeconds = 0.45f;
         [SerializeField] private float minPoseVisibility = 0.45f;
+        [SerializeField] private float missingHandGraceSeconds = 0.18f;
+        [SerializeField] private float sparseSwipeWindowSeconds = 0.48f;
+        [SerializeField] private float sparseSwipeMinDistance = 0.16f;
+        [SerializeField] private float sparseSwipeMinSpeed = 0.45f;
+        [SerializeField] private float sparseSwipeAxisDominanceRatio = 1.25f;
+        [SerializeField] private float sparseSwipeMaxDrift = 0.26f;
+        [SerializeField] private float sparseSwipePointGraceSeconds = 0.35f;
+        [SerializeField] private bool invertExternalHorizontalMotion;
+        [SerializeField] private bool invertExternalVerticalMotion;
 
         private readonly MotionGestureDetector detector = new MotionGestureDetector();
+        private readonly Queue<MotionGestureDetector.HandSample> sparseHandHistory = new Queue<MotionGestureDetector.HandSample>();
+        private float lastHandSampleTime = -999f;
+        private float lastSparsePointTime = -999f;
+        private float lastSparseSwipeTime = -999f;
+        private int sparseSwipeAcceptedCount;
+        private int sparseSwipeRejectedCooldownCount;
+        private int sparseSwipeRejectedNoPointCount;
+        private int sparseSwipeRejectedDistanceCount;
+        private int sparseSwipeRejectedAxisCount;
+        private string lastSparseSwipeReason = "idle";
+        private Vector2 lastSparseSwipeDelta;
+        private float lastSparseSwipeSpeed;
+
+        public int SparseSwipeAcceptedCount => sparseSwipeAcceptedCount;
+        public int SparseSwipeRejectedCooldownCount => sparseSwipeRejectedCooldownCount;
+        public int SparseSwipeRejectedNoPointCount => sparseSwipeRejectedNoPointCount;
+        public int SparseSwipeRejectedDistanceCount => sparseSwipeRejectedDistanceCount;
+        public int SparseSwipeRejectedAxisCount => sparseSwipeRejectedAxisCount;
+        public string LastSparseSwipeReason => lastSparseSwipeReason;
+        public Vector2 LastSparseSwipeDelta => lastSparseSwipeDelta;
+        public float LastSparseSwipeSpeed => lastSparseSwipeSpeed;
+        public int SparseHistoryCount => sparseHandHistory.Count;
 
         public void Configure(ExternalGestureBridgeProvider provider)
         {
@@ -116,6 +147,18 @@ namespace SpellGuard.InputSystem
                 return;
             }
 
+            if (frame.predicted)
+            {
+                ResetHandStateIfMissingTooLong(ResolveSampleTime(frame));
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(frame.motionGesture) &&
+                ExternalGestureBridgeProvider.ParseMotionGesture(frame.motionGesture) != MotionGestureType.None)
+            {
+                return;
+            }
+
             var sampleTime = ResolveSampleTime(frame);
             var processedAnyInput = false;
 
@@ -125,13 +168,26 @@ namespace SpellGuard.InputSystem
                 var landmarks = frame.handLandmarks != null && frame.handLandmarks.Length > 0
                     ? ConvertLandmarks(frame.handLandmarks)
                     : null;
-                var sample = BuildHandSample(landmarks, frame.ResolveViewportPosition(), frame, sampleTime);
+                var sample = BuildHandSample(landmarks, frame.ResolveViewportPosition(), frame, sampleTime, true);
+                lastHandSampleTime = sample.Time;
+                AddSparseHandSample(sample);
                 detector.AddHandSample(sample, false);
 
                 if (detector.TryDetectSwipe(out var swipe))
                 {
+                    swipe = CorrectExternalDirection(swipe);
                     PushMotion("hand-swipe", swipe, sample.Palm, 0.92f);
                     detector.ResetHandHistoryKeepingLatest(sample);
+                    ResetSparseHistoryKeepingLatest(sample);
+                    return;
+                }
+
+                if (TryDetectSparseSwipe(sample, out var sparseSwipe))
+                {
+                    sparseSwipe = CorrectExternalDirection(sparseSwipe);
+                    PushMotion("sparse-hand-swipe", sparseSwipe, sample.SwipePoint, 0.84f);
+                    detector.ResetHandHistoryKeepingLatest(sample);
+                    ResetSparseHistoryKeepingLatest(sample);
                     return;
                 }
 
@@ -143,7 +199,7 @@ namespace SpellGuard.InputSystem
             }
             else
             {
-                detector.ResetHandState();
+                ResetHandStateIfMissingTooLong(sampleTime);
             }
 
             var poseLandmarks = frame.poseLandmarks != null && frame.poseLandmarks.Length > 0
@@ -157,6 +213,7 @@ namespace SpellGuard.InputSystem
 
                 if (detector.TryDetectBodyShift(out var bodyShift))
                 {
+                    bodyShift = CorrectExternalDirection(bodyShift);
                     PushMotion("pose-shift", bodyShift, poseSample.ShoulderCenter, poseSample.ShoulderVisibility);
                     detector.ResetPoseHistoryKeepingLatest(poseSample);
                     return;
@@ -169,11 +226,152 @@ namespace SpellGuard.InputSystem
 
             if (!processedAnyInput)
             {
-                detector.ResetAll();
+                ResetHandStateIfMissingTooLong(sampleTime);
+                detector.ResetPoseState();
             }
         }
 
-        private static MotionGestureDetector.HandSample BuildHandSample(IReadOnlyList<Vector2> landmarks, Vector2 fallbackPalm, ExternalVisionFrame frame, float sampleTime)
+        private void ResetHandStateIfMissingTooLong(float sampleTime)
+        {
+            if (sampleTime - lastHandSampleTime < missingHandGraceSeconds)
+            {
+                return;
+            }
+
+            detector.ResetHandState();
+            sparseHandHistory.Clear();
+        }
+
+        private void AddSparseHandSample(MotionGestureDetector.HandSample sample)
+        {
+            sparseHandHistory.Enqueue(sample);
+            if (sample.StaticGesture == GestureType.Point)
+            {
+                lastSparsePointTime = sample.Time;
+            }
+
+            TrimSparseHandHistory(sample.Time);
+        }
+
+        private bool TryDetectSparseSwipe(MotionGestureDetector.HandSample latest, out MotionGestureType gesture)
+        {
+            gesture = MotionGestureType.None;
+            if (sparseHandHistory.Count < 2)
+            {
+                lastSparseSwipeReason = "history";
+                return false;
+            }
+
+            if (latest.Time - lastSparseSwipeTime < swipeCooldownSeconds)
+            {
+                sparseSwipeRejectedCooldownCount++;
+                lastSparseSwipeReason = "cooldown";
+                return false;
+            }
+
+            if (latest.Time - lastSparsePointTime > sparseSwipePointGraceSeconds)
+            {
+                sparseSwipeRejectedNoPointCount++;
+                lastSparseSwipeReason = "not-point";
+                return false;
+            }
+
+            var samples = sparseHandHistory.ToArray();
+            var bestGesture = MotionGestureType.None;
+            var bestScore = 0f;
+            var bestDelta = Vector2.zero;
+            var sawDistanceCandidate = false;
+            for (var index = 0; index < samples.Length - 1; index++)
+            {
+                var start = samples[index];
+                var duration = latest.Time - start.Time;
+                if (duration <= 0.0001f || duration > sparseSwipeWindowSeconds)
+                {
+                    continue;
+                }
+
+                if (start.StaticGesture != GestureType.Point && latest.StaticGesture != GestureType.Point)
+                {
+                    continue;
+                }
+
+                var delta = latest.SwipePoint - start.SwipePoint;
+                var horizontalDistance = Mathf.Abs(delta.x);
+                var verticalDistance = Mathf.Abs(delta.y);
+                var distance = Mathf.Max(horizontalDistance, verticalDistance);
+                var speed = distance / duration;
+                if (distance < sparseSwipeMinDistance || speed < sparseSwipeMinSpeed)
+                {
+                    continue;
+                }
+
+                sawDistanceCandidate = true;
+
+                MotionGestureType candidate;
+                if (horizontalDistance >= verticalDistance * sparseSwipeAxisDominanceRatio && verticalDistance <= sparseSwipeMaxDrift)
+                {
+                    candidate = delta.x > 0f ? MotionGestureType.SwipeLeftToRight : MotionGestureType.SwipeRightToLeft;
+                }
+                else if (verticalDistance >= horizontalDistance * sparseSwipeAxisDominanceRatio && horizontalDistance <= sparseSwipeMaxDrift)
+                {
+                    candidate = delta.y > 0f ? MotionGestureType.SwipeBottomToTop : MotionGestureType.SwipeTopToBottom;
+                }
+                else
+                {
+                    continue;
+                }
+
+                if (speed <= bestScore)
+                {
+                    continue;
+                }
+
+                bestScore = speed;
+                bestGesture = candidate;
+                bestDelta = delta;
+            }
+
+            if (bestGesture == MotionGestureType.None)
+            {
+                if (sawDistanceCandidate)
+                {
+                    sparseSwipeRejectedAxisCount++;
+                    lastSparseSwipeReason = "axis";
+                }
+                else
+                {
+                    sparseSwipeRejectedDistanceCount++;
+                    lastSparseSwipeReason = "distance";
+                }
+
+                return false;
+            }
+
+            lastSparseSwipeTime = latest.Time;
+            sparseSwipeAcceptedCount++;
+            lastSparseSwipeReason = $"accepted:{bestGesture}";
+            lastSparseSwipeDelta = bestDelta;
+            lastSparseSwipeSpeed = bestScore;
+            gesture = bestGesture;
+            return true;
+        }
+
+        private void TrimSparseHandHistory(float sampleTime)
+        {
+            var window = Mathf.Max(sparseSwipeWindowSeconds, historySeconds);
+            while (sparseHandHistory.Count > 0 && sampleTime - sparseHandHistory.Peek().Time > window)
+            {
+                sparseHandHistory.Dequeue();
+            }
+        }
+
+        private void ResetSparseHistoryKeepingLatest(MotionGestureDetector.HandSample latest)
+        {
+            sparseHandHistory.Clear();
+            sparseHandHistory.Enqueue(latest);
+        }
+
+        private static MotionGestureDetector.HandSample BuildHandSample(IReadOnlyList<Vector2> landmarks, Vector2 fallbackPalm, ExternalVisionFrame frame, float sampleTime, bool preferRawGesture = false)
         {
             var palm = fallbackPalm;
             if (landmarks != null && landmarks.Count > 17)
@@ -188,7 +386,7 @@ namespace SpellGuard.InputSystem
                 SwipePoint = landmarks != null && landmarks.Count > 8 ? landmarks[8] : palm,
                 ThumbTip = landmarks != null && landmarks.Count > 4 ? landmarks[4] : palm,
                 MiddleTip = landmarks != null && landmarks.Count > 12 ? landmarks[12] : palm,
-                StaticGesture = ExternalGestureBridgeProvider.ParseGesture(frame?.gesture),
+                StaticGesture = ExternalGestureBridgeProvider.ParseGesture(preferRawGesture && !string.IsNullOrWhiteSpace(frame?.rawGesture) ? frame.rawGesture : frame?.gesture),
                 HasSnapData = landmarks != null && landmarks.Count > 12
             };
         }
@@ -245,6 +443,57 @@ namespace SpellGuard.InputSystem
         {
             LogMotionDecision(source, gesture, position, confidence);
             bridgeProvider.PushMotionGesture(gesture, position, confidence);
+        }
+
+        private MotionGestureType CorrectExternalDirection(MotionGestureType gesture)
+        {
+            if (invertExternalHorizontalMotion)
+            {
+                if (gesture == MotionGestureType.SwipeLeftToRight)
+                {
+                    return MotionGestureType.SwipeRightToLeft;
+                }
+
+                if (gesture == MotionGestureType.SwipeRightToLeft)
+                {
+                    return MotionGestureType.SwipeLeftToRight;
+                }
+
+                if (gesture == MotionGestureType.OpenPalmSlapLeftToRight)
+                {
+                    return MotionGestureType.OpenPalmSlapRightToLeft;
+                }
+
+                if (gesture == MotionGestureType.OpenPalmSlapRightToLeft)
+                {
+                    return MotionGestureType.OpenPalmSlapLeftToRight;
+                }
+
+                if (gesture == MotionGestureType.BodyShiftLeft)
+                {
+                    return MotionGestureType.BodyShiftRight;
+                }
+
+                if (gesture == MotionGestureType.BodyShiftRight)
+                {
+                    return MotionGestureType.BodyShiftLeft;
+                }
+            }
+
+            if (invertExternalVerticalMotion)
+            {
+                if (gesture == MotionGestureType.SwipeBottomToTop)
+                {
+                    return MotionGestureType.SwipeTopToBottom;
+                }
+
+                if (gesture == MotionGestureType.SwipeTopToBottom)
+                {
+                    return MotionGestureType.SwipeBottomToTop;
+                }
+            }
+
+            return gesture;
         }
 
         private void LogMotionDecision(string source, MotionGestureType gesture, Vector2 position, float confidence)

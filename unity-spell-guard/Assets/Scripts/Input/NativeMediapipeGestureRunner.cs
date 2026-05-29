@@ -16,17 +16,17 @@ namespace SpellGuard.InputSystem
     {
         private const string GoogleLoggingSessionKey = "SpellGuard.NativeMediapipe.GoogleLoggingInitialized";
         private const string InputStreamName = "input_video";
-        private const string OutputVideoStreamName = "output_video";
         private const string LandmarksStreamName = "landmarks";
         private const string HandednessStreamName = "handedness";
 
         private const string GraphConfig = @"input_stream: ""input_video""
-output_stream: ""output_video""
+output_stream: ""landmarks""
+output_stream: ""handedness""
 
 node {
   calculator: ""FlowLimiterCalculator""
   input_stream: ""input_video""
-  input_stream: ""FINISHED:output_video""
+  input_stream: ""FINISHED:landmarks""
   input_stream_info: {
     tag_index: ""FINISHED""
     back_edge: true
@@ -52,29 +52,6 @@ node {
   output_stream: ""PALM_DETECTIONS:multi_palm_detections""
   output_stream: ""HAND_ROIS_FROM_LANDMARKS:multi_hand_rects""
   output_stream: ""HAND_ROIS_FROM_PALM_DETECTIONS:multi_palm_rects""
-}
-
-node {
-  calculator: ""HandRendererSubgraph""
-  input_stream: ""IMAGE:transformed_input_video""
-  input_stream: ""DETECTIONS:multi_palm_detections""
-  input_stream: ""LANDMARKS:landmarks""
-  input_stream: ""HANDEDNESS:handedness""
-  input_stream: ""NORM_RECTS:0:multi_palm_rects""
-  input_stream: ""NORM_RECTS:1:multi_hand_rects""
-  output_stream: ""IMAGE:output_video_raw""
-}
-
-node: {
-  calculator: ""ImageTransformationCalculator""
-  input_stream: ""IMAGE:output_video_raw""
-  input_side_packet: ""ROTATION_DEGREES:output_rotation""
-  output_stream: ""IMAGE:output_video""
-  node_options: {
-    [type.googleapis.com/mediapipe.ImageTransformationCalculatorOptions] {
-      flip_vertically: true
-    }
-  }
 }";
 
         [SerializeField] private NativeMediapipeGestureProvider targetProvider;
@@ -88,7 +65,6 @@ node: {
 
         private TextureFramePool textureFramePool;
         private CalculatorGraph calculatorGraph;
-        private OutputStream<ImageFrame> outputVideoStream;
         private OutputStream<List<NormalizedLandmarkList>> landmarksStream;
         private OutputStream<List<ClassificationList>> handednessStream;
         private Coroutine runCoroutine;
@@ -172,8 +148,6 @@ node: {
                 runCoroutine = null;
             }
 
-            outputVideoStream?.Dispose();
-            outputVideoStream = null;
             landmarksStream?.Dispose();
             landmarksStream = null;
             handednessStream?.Dispose();
@@ -190,7 +164,10 @@ node: {
                     }
                     catch (Exception exception)
                     {
-                        Debug.LogWarning($"[Gesture][NativeRunner] stop graph warning: {exception.Message}", this);
+                        if (!IsExpectedStopGraphException(exception))
+                        {
+                            Debug.LogWarning($"[Gesture][NativeRunner] stop graph warning: {exception.Message}", this);
+                        }
                     }
                 }
 
@@ -214,6 +191,14 @@ node: {
 
             StatusText = "原生识别已停止";
             targetProvider?.SetStatusText(StatusText);
+        }
+
+        private static bool IsExpectedStopGraphException(Exception exception)
+        {
+            var message = exception.Message;
+            return !string.IsNullOrEmpty(message)
+                && message.Contains("OutputStream with id", StringComparison.OrdinalIgnoreCase)
+                && message.Contains("not found", StringComparison.OrdinalIgnoreCase);
         }
 
         private void OnDisable()
@@ -325,14 +310,12 @@ node: {
             textureFramePool = new TextureFramePool(webcamFeed.Texture.width, webcamFeed.Texture.height, TextureFormat.RGBA32, poolSize);
             calculatorGraph = new CalculatorGraph();
 
-            outputVideoStream = new OutputStream<ImageFrame>(calculatorGraph, OutputVideoStreamName, true);
             landmarksStream = new OutputStream<List<NormalizedLandmarkList>>(calculatorGraph, LandmarksStreamName, true);
             handednessStream = new OutputStream<List<ClassificationList>>(calculatorGraph, HandednessStreamName, true);
 
             var config = CalculatorGraphConfig.Parser.ParseFromTextFormat(GraphConfig);
             calculatorGraph.Initialize(config);
-            outputVideoStream.StartPolling();
-            landmarksStream.AddListener(OnLandmarksOutput);
+            landmarksStream.StartPolling();
             handednessStream.AddListener(OnHandednessOutput);
             calculatorGraph.StartRun(BuildSidePacket());
             graphRunning = true;
@@ -369,7 +352,7 @@ node: {
 
                     yield return waitForEndOfFrame;
 
-                    if (stopping || calculatorGraph == null || outputVideoStream == null)
+                    if (stopping || calculatorGraph == null || landmarksStream == null)
                     {
                         textureFrame.Release();
                         break;
@@ -398,18 +381,17 @@ node: {
                     RecordInputFrame();
                     calculatorGraph.AddPacketToInputStream(InputStreamName, Packet.CreateImageFrameAt(imageFrame, latestTimestamp));
 
-                    var outputTask = outputVideoStream.WaitNextAsync();
-                    yield return new WaitUntil(() => stopping || outputTask.IsCompleted);
+                    var landmarkTask = landmarksStream.WaitNextAsync();
+                    yield return new WaitUntil(() => stopping || landmarkTask.IsCompleted);
 
-                    if (stopping || !outputTask.IsCompleted)
+                    if (stopping || !landmarkTask.IsCompleted)
                     {
                         break;
                     }
 
-                    if (outputTask.Result.ok && outputTask.Result.packet != null)
+                    if (landmarkTask.Result.ok && landmarkTask.Result.packet != null)
                     {
-                        var image = outputTask.Result.packet.Get();
-                        image?.Dispose();
+                        StoreLatestLandmarks(landmarkTask.Result.packet.Get(NormalizedLandmarkList.Parser));
                     }
                 }
             }
@@ -449,7 +431,11 @@ node: {
         private void OnLandmarksOutput(object stream, OutputStream<List<NormalizedLandmarkList>>.OutputEventArgs eventArgs)
         {
             var packet = eventArgs.packet;
-            var value = packet == null ? null : packet.Get(NormalizedLandmarkList.Parser);
+            StoreLatestLandmarks(packet == null ? null : packet.Get(NormalizedLandmarkList.Parser));
+        }
+
+        private void StoreLatestLandmarks(List<NormalizedLandmarkList> value)
+        {
             lock (resultLock)
             {
                 latestLandmarkLists = value;
@@ -488,7 +474,6 @@ node: {
             sidePacket.Emplace("input_rotation", Packet.CreateInt((int)inputRotation));
             sidePacket.Emplace("input_horizontally_flipped", Packet.CreateBool(inputHorizontallyFlipped));
             sidePacket.Emplace("input_vertically_flipped", Packet.CreateBool(inputVerticallyFlipped));
-            sidePacket.Emplace("output_rotation", Packet.CreateInt((int)rawRotation));
             sidePacket.Emplace("num_hands", Packet.CreateInt(maxNumHands));
 
             return sidePacket;

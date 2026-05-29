@@ -8,6 +8,7 @@ namespace SpellGuard.InputSystem
     {
         public bool handPresent;
         public string gesture;
+        public string rawGesture;
         public float x = 0.5f;
         public float y = 0.5f;
         public float confidence;
@@ -15,6 +16,11 @@ namespace SpellGuard.InputSystem
         public float timestamp;
         public string source;
         public string handedness;
+        public string motionGesture;
+        public float motionConfidence;
+        public string motionDebug;
+        public string performance;
+        public bool predicted;
         public ExternalVisionPoint pointer;
         public ExternalVisionPoint[] handLandmarks;
         public ExternalVisionPoint[] poseLandmarks;

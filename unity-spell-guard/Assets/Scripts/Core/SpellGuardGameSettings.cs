@@ -22,7 +22,7 @@ namespace SpellGuard.Core
             GestureInputRouter.InputMode.ExternalBridge,
         };
 
-        [SerializeField] private int inputModeIndex;
+        [SerializeField] private int inputModeIndex = 2;
         [SerializeField] private float[] volumeOptions = { 0.25f, 0.5f, 0.75f, 1f };
         [SerializeField] private int musicVolumeIndex = 2;
         [SerializeField] private int sfxVolumeIndex = 3;

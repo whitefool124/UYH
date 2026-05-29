@@ -85,6 +85,61 @@ namespace SpellGuard.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator KeepsSwipeHistoryAcrossBriefTrackingDrop()
+        {
+            var baseTime = 100f;
+            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.24f, 0.42f), 0.18f, baseTime + 0.00f));
+            bridgeProvider.PushFrame(CreateMissingHandFrame(baseTime + 0.03f));
+            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.43f, 0.44f), 0.18f, baseTime + 0.06f));
+            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.62f, 0.45f), 0.18f, baseTime + 0.09f));
+
+            yield return null;
+
+            Assert.That(bridgeProvider.CurrentMotionGesture.IsValid, Is.True);
+            Assert.That(bridgeProvider.CurrentMotionGesture.Gesture, Is.EqualTo(MotionGestureType.SwipeLeftToRight));
+        }
+
+        [UnityTest]
+        public IEnumerator DetectsSparseSwipeWhenOnlyTwoTrackedFramesSurvive()
+        {
+            var baseTime = 120f;
+            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.24f, 0.42f), 0.18f, baseTime + 0.00f));
+            bridgeProvider.PushFrame(CreateMissingHandFrame(baseTime + 0.08f));
+            bridgeProvider.PushFrame(CreateMissingHandFrame(baseTime + 0.16f));
+            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.62f, 0.45f), 0.18f, baseTime + 0.24f));
+
+            yield return null;
+
+            Assert.That(bridgeProvider.CurrentMotionGesture.IsValid, Is.True);
+            Assert.That(bridgeProvider.CurrentMotionGesture.Gesture, Is.EqualTo(MotionGestureType.SwipeLeftToRight));
+        }
+
+        [UnityTest]
+        public IEnumerator SparseSwipeCanUseRawPointBeforeStableGestureUpdates()
+        {
+            var baseTime = 140f;
+            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.24f, 0.42f), 0.18f, baseTime + 0.00f, "unknown", "point"));
+            bridgeProvider.PushFrame(CreateMissingHandFrame(baseTime + 0.08f));
+            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.62f, 0.45f), 0.18f, baseTime + 0.24f, "unknown", "point"));
+
+            yield return null;
+
+            Assert.That(bridgeProvider.CurrentMotionGesture.IsValid, Is.True);
+            Assert.That(bridgeProvider.CurrentMotionGesture.Gesture, Is.EqualTo(MotionGestureType.SwipeLeftToRight));
+        }
+
+        [UnityTest]
+        public IEnumerator ConsumesMotionGestureSentByExternalBridgePacket()
+        {
+            bridgeProvider.PushFrame(CreateHandFrame(new Vector2(0.55f, 0.45f), 0.18f, Time.time, "point", "point", "swipeRightToLeft"));
+
+            yield return null;
+
+            Assert.That(bridgeProvider.CurrentMotionGesture.IsValid, Is.True);
+            Assert.That(bridgeProvider.CurrentMotionGesture.Gesture, Is.EqualTo(MotionGestureType.SwipeRightToLeft));
+        }
+
+        [UnityTest]
         public IEnumerator UsesFrameTimestampInsteadOfSingleReceiptTimeForSwipeDetection()
         {
             var baseTime = 100f;
@@ -120,7 +175,7 @@ namespace SpellGuard.Tests.PlayMode
             yield return new WaitForSeconds(timeStep);
         }
 
-        private static ExternalVisionFrame CreateHandFrame(Vector2 palm, float thumbMiddleDistance, float timestamp)
+        private static ExternalVisionFrame CreateHandFrame(Vector2 palm, float thumbMiddleDistance, float timestamp, string gesture = "point", string rawGesture = "point", string motionGesture = "none")
         {
             var landmarks = new ExternalVisionPoint[21];
             for (var index = 0; index < landmarks.Length; index++)
@@ -152,12 +207,15 @@ namespace SpellGuard.Tests.PlayMode
             return new ExternalVisionFrame
             {
                 handPresent = true,
-                gesture = "point",
+                gesture = gesture,
+                rawGesture = rawGesture,
                 x = palm.x,
                 y = palm.y,
                 confidence = 0.95f,
                 trackingConfidence = 0.95f,
                 timestamp = timestamp,
+                motionGesture = motionGesture,
+                motionConfidence = motionGesture == "none" ? 0f : 0.9f,
                 pointer = new ExternalVisionPoint
                 {
                     x = palm.x,
@@ -166,6 +224,22 @@ namespace SpellGuard.Tests.PlayMode
                     visibility = 1f
                 },
                 handLandmarks = landmarks,
+                poseLandmarks = new ExternalVisionPoint[0]
+            };
+        }
+
+        private static ExternalVisionFrame CreateMissingHandFrame(float timestamp)
+        {
+            return new ExternalVisionFrame
+            {
+                handPresent = false,
+                gesture = "none",
+                x = 0.5f,
+                y = 0.5f,
+                confidence = 0f,
+                trackingConfidence = 0f,
+                timestamp = timestamp,
+                handLandmarks = new ExternalVisionPoint[0],
                 poseLandmarks = new ExternalVisionPoint[0]
             };
         }

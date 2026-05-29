@@ -13,6 +13,7 @@ namespace SpellGuard.Diagnostics
     {
         [SerializeField] private GestureInputRouter inputRouter;
         [SerializeField] private ExternalGestureBridgeProvider externalBridge;
+        [SerializeField] private ExternalMotionGestureRecognizer externalMotionRecognizer;
         [SerializeField] private WebcamFeedController webcamFeed;
         [SerializeField] private NativeMediapipeGestureRunner nativeRunner;
         [SerializeField] private bool recordOnStart;
@@ -38,6 +39,11 @@ namespace SpellGuard.Diagnostics
         private int externalPacketCount;
         private int staticCommandCount;
         private int motionCommandCount;
+        private int externalHandPresentPackets;
+        private int externalRawPointPackets;
+        private int externalStablePointPackets;
+        private int externalMotionPackets;
+        private int externalPredictedPackets;
         private int lastExternalFrameVersion = -1;
         private float lastExternalTimestamp = -1f;
         private double unityToExternalTimeOffset;
@@ -137,7 +143,7 @@ namespace SpellGuard.Diagnostics
         {
             var summary = BuildSummary();
             var builder = new StringBuilder();
-            builder.AppendLine("section,session_id,mode,source,elapsed_seconds,total_frames,average_fps,min_fps,average_frame_ms,p95_frame_ms,camera_device,camera_fps,camera_width,camera_height,camera_requested_width,camera_requested_height,camera_requested_fps,camera_uses_requested_format,native_fresh_frame_only,native_input_fps,native_result_fps,native_processing_latency_ms,external_packets,avg_packet_interval_ms,avg_estimated_latency_ms,p95_estimated_latency_ms,avg_hand_update_interval_ms,p95_hand_update_interval_ms,static_commands,motion_commands,swipe_lr,swipe_rl,swipe_bt,swipe_tb,snap,point_to_fist,body_shift_left,body_shift_right");
+            builder.AppendLine("section,session_id,mode,source,elapsed_seconds,total_frames,average_fps,min_fps,average_frame_ms,p95_frame_ms,camera_device,camera_fps,camera_width,camera_height,camera_requested_width,camera_requested_height,camera_requested_fps,camera_uses_requested_format,native_fresh_frame_only,native_input_fps,native_result_fps,native_processing_latency_ms,external_packets,external_hand_packets,external_raw_point_packets,external_stable_point_packets,external_motion_packets,external_predicted_packets,avg_packet_interval_ms,avg_estimated_latency_ms,p95_estimated_latency_ms,avg_hand_update_interval_ms,p95_hand_update_interval_ms,static_commands,motion_commands,swipe_lr,swipe_rl,swipe_bt,swipe_tb,snap,point_to_fist,body_shift_left,body_shift_right,sparse_history,sparse_accepted,sparse_reject_cooldown,sparse_reject_no_point,sparse_reject_distance,sparse_reject_axis,sparse_last_reason,sparse_last_dx,sparse_last_dy,sparse_last_speed,last_external_gesture,last_external_raw_gesture,last_external_motion,last_external_predicted,last_external_motion_debug,last_external_performance");
             builder.Append("summary,")
                 .Append(sessionId).Append(',')
                 .Append(summary.Mode).Append(',')
@@ -161,6 +167,11 @@ namespace SpellGuard.Diagnostics
                 .Append(Format(summary.NativeResultFps)).Append(',')
                 .Append(Format(summary.NativeProcessingLatencyMs)).Append(',')
                 .Append(summary.ExternalPackets).Append(',')
+                .Append(summary.ExternalHandPresentPackets).Append(',')
+                .Append(summary.ExternalRawPointPackets).Append(',')
+                .Append(summary.ExternalStablePointPackets).Append(',')
+                .Append(summary.ExternalMotionPackets).Append(',')
+                .Append(summary.ExternalPredictedPackets).Append(',')
                 .Append(Format(summary.AveragePacketIntervalMs)).Append(',')
                 .Append(Format(summary.AverageEstimatedLatencyMs)).Append(',')
                 .Append(Format(summary.P95EstimatedLatencyMs)).Append(',')
@@ -175,10 +186,26 @@ namespace SpellGuard.Diagnostics
                 .Append(GetMotionCount(MotionGestureType.Snap)).Append(',')
                 .Append(GetMotionCount(MotionGestureType.PointToFist)).Append(',')
                 .Append(GetMotionCount(MotionGestureType.BodyShiftLeft)).Append(',')
-                .Append(GetMotionCount(MotionGestureType.BodyShiftRight)).AppendLine();
+                .Append(GetMotionCount(MotionGestureType.BodyShiftRight)).Append(',')
+                .Append(summary.SparseHistoryCount).Append(',')
+                .Append(summary.SparseSwipeAcceptedCount).Append(',')
+                .Append(summary.SparseSwipeRejectedCooldownCount).Append(',')
+                .Append(summary.SparseSwipeRejectedNoPointCount).Append(',')
+                .Append(summary.SparseSwipeRejectedDistanceCount).Append(',')
+                .Append(summary.SparseSwipeRejectedAxisCount).Append(',')
+                .Append(EscapeCsv(summary.LastSparseSwipeReason)).Append(',')
+                .Append(Format(summary.LastSparseSwipeDeltaX)).Append(',')
+                .Append(Format(summary.LastSparseSwipeDeltaY)).Append(',')
+                .Append(Format(summary.LastSparseSwipeSpeed)).Append(',')
+                .Append(EscapeCsv(summary.LastExternalGesture)).Append(',')
+                .Append(EscapeCsv(summary.LastExternalRawGesture)).Append(',')
+                .Append(EscapeCsv(summary.LastExternalMotionGesture)).Append(',')
+                .Append(summary.LastExternalPredicted ? "1" : "0").Append(',')
+                .Append(EscapeCsv(summary.LastExternalMotionDebug)).Append(',')
+                .Append(EscapeCsv(summary.LastExternalPerformance)).AppendLine();
 
             builder.AppendLine();
-            builder.AppendLine("section,elapsed_seconds,average_fps,p95_frame_ms,camera_fps,native_input_fps,native_result_fps,native_processing_latency_ms,external_packets,avg_packet_interval_ms,avg_estimated_latency_ms,avg_hand_update_interval_ms,static_commands,motion_commands,hand_present,hand_x,hand_y");
+            builder.AppendLine("section,elapsed_seconds,average_fps,p95_frame_ms,camera_fps,native_input_fps,native_result_fps,native_processing_latency_ms,external_packets,external_hand_packets,external_raw_point_packets,external_stable_point_packets,external_motion_packets,external_predicted_packets,avg_packet_interval_ms,avg_estimated_latency_ms,avg_hand_update_interval_ms,static_commands,motion_commands,hand_present,hand_x,hand_y,external_gesture,external_raw_gesture,external_motion,external_predicted,external_motion_debug,external_performance,sparse_history,sparse_accepted,sparse_reject_cooldown,sparse_reject_no_point,sparse_reject_distance,sparse_reject_axis,sparse_last_reason,sparse_last_dx,sparse_last_dy,sparse_last_speed");
             for (var index = 0; index < timelineSamples.Count; index++)
             {
                 var sample = timelineSamples[index];
@@ -191,6 +218,11 @@ namespace SpellGuard.Diagnostics
                     .Append(Format(sample.NativeResultFps)).Append(',')
                     .Append(Format(sample.NativeProcessingLatencyMs)).Append(',')
                     .Append(sample.ExternalPackets).Append(',')
+                    .Append(sample.ExternalHandPresentPackets).Append(',')
+                    .Append(sample.ExternalRawPointPackets).Append(',')
+                    .Append(sample.ExternalStablePointPackets).Append(',')
+                    .Append(sample.ExternalMotionPackets).Append(',')
+                    .Append(sample.ExternalPredictedPackets).Append(',')
                     .Append(Format(sample.AveragePacketIntervalMs)).Append(',')
                     .Append(Format(sample.AverageEstimatedLatencyMs)).Append(',')
                     .Append(Format(sample.AverageHandUpdateIntervalMs)).Append(',')
@@ -198,7 +230,23 @@ namespace SpellGuard.Diagnostics
                     .Append(sample.MotionCommands).Append(',')
                     .Append(sample.HandPresent ? "1" : "0").Append(',')
                     .Append(Format(sample.HandX)).Append(',')
-                    .Append(Format(sample.HandY)).AppendLine();
+                    .Append(Format(sample.HandY)).Append(',')
+                    .Append(EscapeCsv(sample.ExternalGesture)).Append(',')
+                    .Append(EscapeCsv(sample.ExternalRawGesture)).Append(',')
+                    .Append(EscapeCsv(sample.ExternalMotionGesture)).Append(',')
+                    .Append(sample.ExternalPredicted ? "1" : "0").Append(',')
+                    .Append(EscapeCsv(sample.ExternalMotionDebug)).Append(',')
+                    .Append(EscapeCsv(sample.ExternalPerformance)).Append(',')
+                    .Append(sample.SparseHistoryCount).Append(',')
+                    .Append(sample.SparseSwipeAcceptedCount).Append(',')
+                    .Append(sample.SparseSwipeRejectedCooldownCount).Append(',')
+                    .Append(sample.SparseSwipeRejectedNoPointCount).Append(',')
+                    .Append(sample.SparseSwipeRejectedDistanceCount).Append(',')
+                    .Append(sample.SparseSwipeRejectedAxisCount).Append(',')
+                    .Append(EscapeCsv(sample.LastSparseSwipeReason)).Append(',')
+                    .Append(Format(sample.LastSparseSwipeDeltaX)).Append(',')
+                    .Append(Format(sample.LastSparseSwipeDeltaY)).Append(',')
+                    .Append(Format(sample.LastSparseSwipeSpeed)).AppendLine();
             }
 
             return builder.ToString();
@@ -220,6 +268,30 @@ namespace SpellGuard.Diagnostics
             var frame = externalBridge.CurrentFrame;
             lastExternalFrameVersion = externalBridge.FrameVersion;
             externalPacketCount++;
+            if (frame.handPresent)
+            {
+                externalHandPresentPackets++;
+            }
+
+            if (ExternalGestureBridgeProvider.ParseGesture(frame.rawGesture) == GestureType.Point)
+            {
+                externalRawPointPackets++;
+            }
+
+            if (ExternalGestureBridgeProvider.ParseGesture(frame.gesture) == GestureType.Point)
+            {
+                externalStablePointPackets++;
+            }
+
+            if (ExternalGestureBridgeProvider.ParseMotionGesture(frame.motionGesture) != MotionGestureType.None)
+            {
+                externalMotionPackets++;
+            }
+
+            if (frame.predicted)
+            {
+                externalPredictedPackets++;
+            }
 
             if (lastExternalTimestamp > 0f && frame.timestamp > 0f)
             {
@@ -229,13 +301,18 @@ namespace SpellGuard.Diagnostics
             if (frame.timestamp > 0f)
             {
                 var unityNow = Time.realtimeSinceStartupAsDouble;
+                var observedOffset = unityNow - frame.timestamp;
                 if (!hasUnityToExternalTimeOffset)
                 {
-                    unityToExternalTimeOffset = unityNow - frame.timestamp;
+                    unityToExternalTimeOffset = observedOffset;
                     hasUnityToExternalTimeOffset = true;
                 }
+                else if (observedOffset < unityToExternalTimeOffset)
+                {
+                    unityToExternalTimeOffset = observedOffset;
+                }
 
-                var estimatedLatencyMs = (float)Math.Max(0.0, (unityNow - frame.timestamp - unityToExternalTimeOffset) * 1000.0);
+                var estimatedLatencyMs = (float)Math.Max(0.0, (observedOffset - unityToExternalTimeOffset) * 1000.0);
                 estimatedLatencyMsSamples.Add(estimatedLatencyMs);
                 lastExternalTimestamp = frame.timestamp;
             }
@@ -332,6 +409,11 @@ namespace SpellGuard.Diagnostics
                 NativeResultFps = summary.NativeResultFps,
                 NativeProcessingLatencyMs = summary.NativeProcessingLatencyMs,
                 ExternalPackets = summary.ExternalPackets,
+                ExternalHandPresentPackets = summary.ExternalHandPresentPackets,
+                ExternalRawPointPackets = summary.ExternalRawPointPackets,
+                ExternalStablePointPackets = summary.ExternalStablePointPackets,
+                ExternalMotionPackets = summary.ExternalMotionPackets,
+                ExternalPredictedPackets = summary.ExternalPredictedPackets,
                 AveragePacketIntervalMs = summary.AveragePacketIntervalMs,
                 AverageEstimatedLatencyMs = summary.AverageEstimatedLatencyMs,
                 AverageHandUpdateIntervalMs = summary.AverageHandUpdateIntervalMs,
@@ -339,7 +421,23 @@ namespace SpellGuard.Diagnostics
                 MotionCommands = summary.MotionCommands,
                 HandPresent = hand.IsTracked,
                 HandX = hand.IsTracked ? hand.PalmCenter.x : 0f,
-                HandY = hand.IsTracked ? hand.PalmCenter.y : 0f
+                HandY = hand.IsTracked ? hand.PalmCenter.y : 0f,
+                ExternalGesture = summary.LastExternalGesture,
+                ExternalRawGesture = summary.LastExternalRawGesture,
+                ExternalMotionGesture = summary.LastExternalMotionGesture,
+                ExternalPredicted = summary.LastExternalPredicted,
+                ExternalMotionDebug = summary.LastExternalMotionDebug,
+                ExternalPerformance = summary.LastExternalPerformance,
+                SparseHistoryCount = summary.SparseHistoryCount,
+                SparseSwipeAcceptedCount = summary.SparseSwipeAcceptedCount,
+                SparseSwipeRejectedCooldownCount = summary.SparseSwipeRejectedCooldownCount,
+                SparseSwipeRejectedNoPointCount = summary.SparseSwipeRejectedNoPointCount,
+                SparseSwipeRejectedDistanceCount = summary.SparseSwipeRejectedDistanceCount,
+                SparseSwipeRejectedAxisCount = summary.SparseSwipeRejectedAxisCount,
+                LastSparseSwipeReason = summary.LastSparseSwipeReason,
+                LastSparseSwipeDeltaX = summary.LastSparseSwipeDeltaX,
+                LastSparseSwipeDeltaY = summary.LastSparseSwipeDeltaY,
+                LastSparseSwipeSpeed = summary.LastSparseSwipeSpeed
             });
         }
 
@@ -349,6 +447,8 @@ namespace SpellGuard.Diagnostics
             var averageFrameMs = Average(frameMsSamples);
             var p95FrameMs = Percentile(frameMsSamples, 0.95f);
             var maxFrameMs = frameMsSamples.Count > 0 ? frameMsSamples.Max() : 0f;
+            var externalFrame = externalBridge != null ? externalBridge.CurrentFrame : null;
+            ResolveExternalMotionRecognizer();
             return new GesturePerformanceSummary
             {
                 Mode = inputRouter != null ? inputRouter.Mode.ToString() : "Unbound",
@@ -372,6 +472,11 @@ namespace SpellGuard.Diagnostics
                 NativeProcessingLatencyMs = nativeRunner != null ? nativeRunner.AverageProcessingLatencyMs : 0f,
                 NativeFreshFrameOnly = nativeRunner != null && nativeRunner.ProcessOnlyFreshCameraFrames,
                 ExternalPackets = externalPacketCount,
+                ExternalHandPresentPackets = externalHandPresentPackets,
+                ExternalRawPointPackets = externalRawPointPackets,
+                ExternalStablePointPackets = externalStablePointPackets,
+                ExternalMotionPackets = externalMotionPackets,
+                ExternalPredictedPackets = externalPredictedPackets,
                 AveragePacketIntervalMs = Average(packetIntervalMsSamples),
                 AverageEstimatedLatencyMs = Average(estimatedLatencyMsSamples),
                 P95EstimatedLatencyMs = Percentile(estimatedLatencyMsSamples, 0.95f),
@@ -379,6 +484,22 @@ namespace SpellGuard.Diagnostics
                 P95HandUpdateIntervalMs = Percentile(handUpdateIntervalMsSamples, 0.95f),
                 StaticCommands = staticCommandCount,
                 MotionCommands = motionCommandCount,
+                SparseHistoryCount = externalMotionRecognizer != null ? externalMotionRecognizer.SparseHistoryCount : 0,
+                SparseSwipeAcceptedCount = externalMotionRecognizer != null ? externalMotionRecognizer.SparseSwipeAcceptedCount : 0,
+                SparseSwipeRejectedCooldownCount = externalMotionRecognizer != null ? externalMotionRecognizer.SparseSwipeRejectedCooldownCount : 0,
+                SparseSwipeRejectedNoPointCount = externalMotionRecognizer != null ? externalMotionRecognizer.SparseSwipeRejectedNoPointCount : 0,
+                SparseSwipeRejectedDistanceCount = externalMotionRecognizer != null ? externalMotionRecognizer.SparseSwipeRejectedDistanceCount : 0,
+                SparseSwipeRejectedAxisCount = externalMotionRecognizer != null ? externalMotionRecognizer.SparseSwipeRejectedAxisCount : 0,
+                LastSparseSwipeReason = externalMotionRecognizer != null ? externalMotionRecognizer.LastSparseSwipeReason : string.Empty,
+                LastSparseSwipeDeltaX = externalMotionRecognizer != null ? externalMotionRecognizer.LastSparseSwipeDelta.x : 0f,
+                LastSparseSwipeDeltaY = externalMotionRecognizer != null ? externalMotionRecognizer.LastSparseSwipeDelta.y : 0f,
+                LastSparseSwipeSpeed = externalMotionRecognizer != null ? externalMotionRecognizer.LastSparseSwipeSpeed : 0f,
+                LastExternalGesture = externalFrame != null ? externalFrame.gesture : string.Empty,
+                LastExternalRawGesture = externalFrame != null ? externalFrame.rawGesture : string.Empty,
+                LastExternalMotionGesture = externalFrame != null ? externalFrame.motionGesture : string.Empty,
+                LastExternalPredicted = externalFrame != null && externalFrame.predicted,
+                LastExternalMotionDebug = externalFrame != null ? externalFrame.motionDebug : string.Empty,
+                LastExternalPerformance = externalFrame != null ? externalFrame.performance : string.Empty,
                 IsRecording = IsRecording,
                 LastExportPath = LastExportPath
             };
@@ -394,6 +515,11 @@ namespace SpellGuard.Diagnostics
             motionCounts.Clear();
             totalFrames = 0;
             externalPacketCount = 0;
+            externalHandPresentPackets = 0;
+            externalRawPointPackets = 0;
+            externalStablePointPackets = 0;
+            externalMotionPackets = 0;
+            externalPredictedPackets = 0;
             staticCommandCount = 0;
             motionCommandCount = 0;
             lastExternalFrameVersion = -1;
@@ -429,6 +555,16 @@ namespace SpellGuard.Diagnostics
                 GestureInputRouter.InputMode.ExternalBridge => "external",
                 _ => inputRouter.Mode.ToString().ToLowerInvariant()
             };
+        }
+
+        private void ResolveExternalMotionRecognizer()
+        {
+            if (externalMotionRecognizer != null)
+            {
+                return;
+            }
+
+            externalMotionRecognizer = FindObjectOfType<ExternalMotionGestureRecognizer>();
         }
 
         private static void EnsureResultsReadme(string directory)
@@ -528,6 +664,11 @@ namespace SpellGuard.Diagnostics
         public float NativeProcessingLatencyMs;
         public bool NativeFreshFrameOnly;
         public int ExternalPackets;
+        public int ExternalHandPresentPackets;
+        public int ExternalRawPointPackets;
+        public int ExternalStablePointPackets;
+        public int ExternalMotionPackets;
+        public int ExternalPredictedPackets;
         public float AveragePacketIntervalMs;
         public float AverageEstimatedLatencyMs;
         public float P95EstimatedLatencyMs;
@@ -535,6 +676,22 @@ namespace SpellGuard.Diagnostics
         public float P95HandUpdateIntervalMs;
         public int StaticCommands;
         public int MotionCommands;
+        public int SparseHistoryCount;
+        public int SparseSwipeAcceptedCount;
+        public int SparseSwipeRejectedCooldownCount;
+        public int SparseSwipeRejectedNoPointCount;
+        public int SparseSwipeRejectedDistanceCount;
+        public int SparseSwipeRejectedAxisCount;
+        public string LastSparseSwipeReason;
+        public float LastSparseSwipeDeltaX;
+        public float LastSparseSwipeDeltaY;
+        public float LastSparseSwipeSpeed;
+        public string LastExternalGesture;
+        public string LastExternalRawGesture;
+        public string LastExternalMotionGesture;
+        public bool LastExternalPredicted;
+        public string LastExternalMotionDebug;
+        public string LastExternalPerformance;
         public bool IsRecording;
         public string LastExportPath;
     }
@@ -549,6 +706,11 @@ namespace SpellGuard.Diagnostics
         public float NativeResultFps;
         public float NativeProcessingLatencyMs;
         public int ExternalPackets;
+        public int ExternalHandPresentPackets;
+        public int ExternalRawPointPackets;
+        public int ExternalStablePointPackets;
+        public int ExternalMotionPackets;
+        public int ExternalPredictedPackets;
         public float AveragePacketIntervalMs;
         public float AverageEstimatedLatencyMs;
         public float AverageHandUpdateIntervalMs;
@@ -557,5 +719,21 @@ namespace SpellGuard.Diagnostics
         public bool HandPresent;
         public float HandX;
         public float HandY;
+        public string ExternalGesture;
+        public string ExternalRawGesture;
+        public string ExternalMotionGesture;
+        public bool ExternalPredicted;
+        public string ExternalMotionDebug;
+        public string ExternalPerformance;
+        public int SparseHistoryCount;
+        public int SparseSwipeAcceptedCount;
+        public int SparseSwipeRejectedCooldownCount;
+        public int SparseSwipeRejectedNoPointCount;
+        public int SparseSwipeRejectedDistanceCount;
+        public int SparseSwipeRejectedAxisCount;
+        public string LastSparseSwipeReason;
+        public float LastSparseSwipeDeltaX;
+        public float LastSparseSwipeDeltaY;
+        public float LastSparseSwipeSpeed;
     }
 }

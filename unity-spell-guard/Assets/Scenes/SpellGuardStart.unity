@@ -227,7 +227,7 @@ MonoBehaviour:
   confirmIndex: 1
   difficultyIndex: 1
   inputModeOptions: 000000000100000002000000
-  inputModeIndex: 0
+  inputModeIndex: 2
   volumeOptions:
   - 0.25
   - 0.5
@@ -249,7 +249,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fe434f322493142429e0e2ad01e0f8ef, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mode: 0
+  mode: 2
   toggleModeKey: 282
   mockProvider: {fileID: 572744981}
   nativeMediapipeProvider: {fileID: 572744980}

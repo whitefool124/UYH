@@ -12,7 +12,7 @@ namespace SpellGuard.InputSystem
             ExternalBridge
         }
 
-        [SerializeField] private InputMode mode = InputMode.Mock;
+        [SerializeField] private InputMode mode = InputMode.ExternalBridge;
         [SerializeField] private MockGestureInputProvider mockProvider;
         [SerializeField] private NativeMediapipeGestureProvider nativeMediapipeProvider;
         [SerializeField] private ExternalGestureBridgeProvider externalBridgeProvider;
