@@ -1281,6 +1281,7 @@ MonoBehaviour:
   healthColor: {r: 0.35, g: 0.85, b: 0.45, a: 1}
   healthLowColor: {r: 0.9, g: 0.3, b: 0.2, a: 1}
   hintColor: {r: 1, g: 0.82, b: 0.42, a: 0.95}
+  topBar: {fileID: 1599203341}
 --- !u!224 &233593461
 RectTransform:
   m_ObjectHideFlags: 0

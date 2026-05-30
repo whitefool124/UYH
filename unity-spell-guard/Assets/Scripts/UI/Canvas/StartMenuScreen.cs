@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -50,6 +51,52 @@ namespace SpellGuard.UI.Canvas
             cameraPreview?.gameObject.SetActive(mode == Mode.Calibration);
             BuildScreen();
             UpdateSelection();
+        }
+
+        public override IEnumerator Open()
+        {
+            IsTransitioning = true;
+            gameObject.SetActive(true);
+            canvasGroup.alpha = 0f;
+            canvasGroup.interactable = false;
+            canvasGroup.blocksRaycasts = false;
+
+            // Slide panels in from sides
+            Vector2 heroFrom = new Vector2(-80f, 0f);
+            Vector2 navFrom = new Vector2(80f, 0f);
+            Vector2 heroTo = heroPanel != null ? heroPanel.anchoredPosition : Vector2.zero;
+            Vector2 navTo = navPanel != null ? navPanel.anchoredPosition : Vector2.zero;
+
+            if (heroPanel != null) heroPanel.anchoredPosition = heroFrom;
+            if (navPanel != null) navPanel.anchoredPosition = navFrom;
+
+            StartCoroutine(UITransitions.FadeIn(canvasGroup, openDuration));
+            if (heroPanel != null) StartCoroutine(UITransitions.SlideIn(heroPanel, heroFrom, heroTo, openDuration * 0.9f));
+            if (navPanel != null) StartCoroutine(UITransitions.SlideIn(navPanel, navFrom, navTo, openDuration * 0.9f));
+
+            yield return new WaitForSecondsRealtime(openDuration);
+
+            canvasGroup.interactable = true;
+            canvasGroup.blocksRaycasts = true;
+            IsOpen = true;
+            IsTransitioning = false;
+            InvokeOpened();
+        }
+
+        public override IEnumerator Close()
+        {
+            IsTransitioning = true;
+            canvasGroup.interactable = false;
+            canvasGroup.blocksRaycasts = false;
+
+            StartCoroutine(UITransitions.FadeOut(canvasGroup, closeDuration));
+
+            yield return new WaitForSecondsRealtime(closeDuration);
+
+            gameObject.SetActive(false);
+            IsOpen = false;
+            IsTransitioning = false;
+            InvokeClosed();
         }
 
         public void MoveSelection(int delta)
@@ -151,6 +198,13 @@ namespace SpellGuard.UI.Canvas
                 var btn = go.GetComponent<Button>();
                 if (btn == null) btn = go.AddComponent<Button>();
                 btn.targetGraphic = bgImage;
+                var cb = btn.colors;
+                cb.normalColor = buttonNormalColor;
+                cb.highlightedColor = new Color(0.35f, 0.42f, 0.58f, 0.96f);
+                cb.pressedColor = new Color(0.18f, 0.22f, 0.38f, 1f);
+                cb.selectedColor = buttonSelectedColor;
+                cb.fadeDuration = 0.12f;
+                btn.colors = cb;
                 var key = items[i].key;
                 btn.onClick.RemoveAllListeners();
                 btn.onClick.AddListener(() => ButtonClicked?.Invoke(key));
@@ -176,6 +230,12 @@ namespace SpellGuard.UI.Canvas
                 {
                     if (b.Go != null) Destroy(b.Go);
                 }
+            }
+            // Also destroy any orphaned children (e.g. from Edit Mode Configure)
+            if (navPanel != null)
+            {
+                for (int i = navPanel.childCount - 1; i >= 0; i--)
+                    Destroy(navPanel.GetChild(i).gameObject);
             }
             buttons = null;
             selectedIndex = 0;

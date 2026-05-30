@@ -105,5 +105,19 @@ namespace SpellGuard.UI.Canvas
             const float c3 = c1 + 1f;
             return 1f + c3 * Mathf.Pow(t - 1f, 3f) + c1 * Mathf.Pow(t - 1f, 2f);
         }
+
+        public static IEnumerator ScaleIn(RectTransform rect, float duration)
+        {
+            if (duration <= 0f) { rect.localScale = Vector3.one; yield break; }
+            var elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                var s = Mathf.Lerp(0.92f, 1f, EaseOutBack(elapsed / duration));
+                rect.localScale = new Vector3(s, s, 1f);
+                yield return null;
+            }
+            rect.localScale = Vector3.one;
+        }
     }
 }

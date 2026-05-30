@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -44,6 +45,45 @@ namespace SpellGuard.UI.Canvas
             base.Awake();
             panelBg = panel?.GetComponent<Image>();
             if (panelBg != null) panelBg.color = panelBgColor;
+        }
+
+        public override IEnumerator Open()
+        {
+            IsTransitioning = true;
+            gameObject.SetActive(true);
+            canvasGroup.alpha = 0f;
+            canvasGroup.interactable = false;
+            canvasGroup.blocksRaycasts = false;
+
+            // Scale panel in from slightly smaller
+            if (panel != null) panel.localScale = new Vector3(0.92f, 0.92f, 1f);
+
+            StartCoroutine(UITransitions.FadeIn(canvasGroup, openDuration));
+            if (panel != null) StartCoroutine(UITransitions.ScaleIn(panel, openDuration));
+
+            yield return new WaitForSecondsRealtime(openDuration);
+
+            canvasGroup.interactable = true;
+            canvasGroup.blocksRaycasts = true;
+            IsOpen = true;
+            IsTransitioning = false;
+            InvokeOpened();
+        }
+
+        public override IEnumerator Close()
+        {
+            IsTransitioning = true;
+            canvasGroup.interactable = false;
+            canvasGroup.blocksRaycasts = false;
+
+            StartCoroutine(UITransitions.FadeOut(canvasGroup, closeDuration));
+
+            yield return new WaitForSecondsRealtime(closeDuration);
+
+            gameObject.SetActive(false);
+            IsOpen = false;
+            IsTransitioning = false;
+            InvokeClosed();
         }
 
         public void Configure(Mode mode, string title, string subtitle, string body, string hint,
@@ -122,6 +162,13 @@ namespace SpellGuard.UI.Canvas
                 var btn = go.GetComponent<Button>();
                 if (btn == null) btn = go.AddComponent<Button>();
                 btn.targetGraphic = bgImage;
+                var cb = btn.colors;
+                cb.normalColor = btnNormalColor;
+                cb.highlightedColor = new Color(0.35f, 0.42f, 0.58f, 0.96f);
+                cb.pressedColor = new Color(0.18f, 0.22f, 0.38f, 1f);
+                cb.selectedColor = btnSelectedColor;
+                cb.fadeDuration = 0.12f;
+                btn.colors = cb;
                 var key = items[i].key;
                 btn.onClick.RemoveAllListeners();
                 btn.onClick.AddListener(() => ButtonClicked?.Invoke(key));
@@ -143,6 +190,12 @@ namespace SpellGuard.UI.Canvas
             {
                 foreach (var b in buttons)
                     if (b.Go != null) Destroy(b.Go);
+            }
+            // Destroy orphaned children from Edit Mode
+            if (buttonContainer != null)
+            {
+                for (int i = buttonContainer.childCount - 1; i >= 0; i--)
+                    Destroy(buttonContainer.GetChild(i).gameObject);
             }
             buttons = null;
             selectedIndex = 0;

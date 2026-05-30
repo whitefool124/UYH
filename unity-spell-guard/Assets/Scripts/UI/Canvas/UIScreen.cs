@@ -10,12 +10,15 @@ namespace SpellGuard.UI.Canvas
         [SerializeField] protected float openDuration = 0.35f;
         [SerializeField] protected float closeDuration = 0.2f;
 
-        public bool IsOpen { get; private set; }
-        public bool IsTransitioning { get; private set; }
+        public bool IsOpen { get; protected set; }
+        public bool IsTransitioning { get; protected set; }
         public string ScreenId => gameObject.name;
 
         public event Action<UIScreen> Opened;
         public event Action<UIScreen> Closed;
+
+        protected void InvokeOpened() => Opened?.Invoke(this);
+        protected void InvokeClosed() => Closed?.Invoke(this);
 
         protected virtual void Awake()
         {
@@ -39,7 +42,7 @@ namespace SpellGuard.UI.Canvas
             canvasGroup.blocksRaycasts = true;
             IsOpen = true;
             IsTransitioning = false;
-            Opened?.Invoke(this);
+            InvokeOpened();
         }
 
         public virtual IEnumerator Close()
@@ -53,7 +56,7 @@ namespace SpellGuard.UI.Canvas
             gameObject.SetActive(false);
             IsOpen = false;
             IsTransitioning = false;
-            Closed?.Invoke(this);
+            InvokeClosed();
         }
 
         public void SetVisibleImmediate(bool visible)
