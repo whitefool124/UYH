@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -47,43 +46,23 @@ namespace SpellGuard.UI.Canvas
             if (panelBg != null) panelBg.color = panelBgColor;
         }
 
-        public override IEnumerator Open()
+        protected override void OnOpenStart()
         {
-            IsTransitioning = true;
-            gameObject.SetActive(true);
-            canvasGroup.alpha = 0f;
-            canvasGroup.interactable = false;
-            canvasGroup.blocksRaycasts = false;
-
-            // Scale panel in from slightly smaller
             if (panel != null) panel.localScale = new Vector3(0.92f, 0.92f, 1f);
-
-            StartCoroutine(UITransitions.FadeIn(canvasGroup, openDuration));
-            if (panel != null) StartCoroutine(UITransitions.ScaleIn(panel, openDuration));
-
-            yield return new WaitForSecondsRealtime(openDuration);
-
-            canvasGroup.interactable = true;
-            canvasGroup.blocksRaycasts = true;
-            IsOpen = true;
-            IsTransitioning = false;
-            InvokeOpened();
         }
 
-        public override IEnumerator Close()
+        protected override void OnOpenUpdate(float t)
         {
-            IsTransitioning = true;
-            canvasGroup.interactable = false;
-            canvasGroup.blocksRaycasts = false;
+            if (panel != null)
+            {
+                float s = Mathf.Lerp(0.92f, 1f, UITransitions.EaseOutBack(t));
+                panel.localScale = new Vector3(s, s, 1f);
+            }
+        }
 
-            StartCoroutine(UITransitions.FadeOut(canvasGroup, closeDuration));
-
-            yield return new WaitForSecondsRealtime(closeDuration);
-
-            gameObject.SetActive(false);
-            IsOpen = false;
-            IsTransitioning = false;
-            InvokeClosed();
+        protected override void OnOpenComplete()
+        {
+            if (panel != null) panel.localScale = Vector3.one;
         }
 
         public void Configure(Mode mode, string title, string subtitle, string body, string hint,
@@ -191,7 +170,6 @@ namespace SpellGuard.UI.Canvas
                 foreach (var b in buttons)
                     if (b.Go != null) Destroy(b.Go);
             }
-            // Destroy orphaned children from Edit Mode
             if (buttonContainer != null)
             {
                 for (int i = buttonContainer.childCount - 1; i >= 0; i--)

@@ -19,7 +19,6 @@ namespace SpellGuard.UI.Canvas
 
         private void Start()
         {
-            // Disable old IMGUI HUDs that may have been created at runtime
             var oldGestureHud = GetComponent<SpellGuard.UI.GestureFeedbackHud>();
             if (oldGestureHud != null) oldGestureHud.enabled = false;
             var oldDebugHud = GetComponent<SpellGuard.UI.DebugHud>();
@@ -38,18 +37,18 @@ namespace SpellGuard.UI.Canvas
             if (overlayScreen != null)
                 overlayScreen.ButtonClicked += HandleOverlayButton;
 
-            // Defer RefreshUI to first Update to let FlowController.Start run first
             lastScreen = SpellGuardScreen.Menu;
             initialized = false;
+
+            uiManager.RegisterBridge(this);
         }
 
-        private void Update()
+        public void Tick()
         {
             if (flowController == null) return;
 
             var currentScreen = flowController.Screen;
 
-            // First Update after Start — always refresh to sync with FlowController state
             if (!initialized || currentScreen != lastScreen)
             {
                 initialized = true;
@@ -57,10 +56,8 @@ namespace SpellGuard.UI.Canvas
                 lastScreen = currentScreen;
             }
 
-            // Update HUD data every frame
             UpdateHUD();
 
-            // Keyboard shortcuts
             if (Input.GetKeyDown(KeyCode.Escape))
             {
                 if (currentScreen == SpellGuardScreen.Playing)

@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -22,41 +20,21 @@ namespace SpellGuard.UI.Canvas
         [SerializeField] private Color hintColor = new Color(1f, 0.82f, 0.42f, 0.95f);
         [SerializeField] private RectTransform topBar;
 
-        public override IEnumerator Open()
+        private Vector2 _topPos;
+        private Vector2 _topFrom;
+
+        protected override void OnOpenStart()
         {
-            IsTransitioning = true;
-            gameObject.SetActive(true);
-            canvasGroup.alpha = 0f;
-            canvasGroup.interactable = false;
-            canvasGroup.blocksRaycasts = false;
-
-            // Slide top bar down
-            Vector2 topPos = topBar != null ? topBar.anchoredPosition : Vector2.zero;
-            Vector2 topFrom = topPos + new Vector2(0f, 60f);
-            if (topBar != null) topBar.anchoredPosition = topFrom;
-
-            StartCoroutine(UITransitions.FadeIn(canvasGroup, openDuration));
-            if (topBar != null) StartCoroutine(UITransitions.SlideIn(topBar, topFrom, topPos, openDuration));
-
-            yield return new WaitForSecondsRealtime(openDuration);
-
-            canvasGroup.interactable = true;
-            canvasGroup.blocksRaycasts = true;
-            IsOpen = true;
-            IsTransitioning = false;
-            InvokeOpened();
+            if (topBar == null) return;
+            _topPos = topBar.anchoredPosition;
+            _topFrom = _topPos + new Vector2(0f, 60f);
+            topBar.anchoredPosition = _topFrom;
         }
 
-        public override IEnumerator Close()
+        protected override void OnOpenUpdate(float t)
         {
-            IsTransitioning = true;
-            canvasGroup.interactable = false;
-            canvasGroup.blocksRaycasts = false;
-            yield return StartCoroutine(UITransitions.FadeOut(canvasGroup, closeDuration));
-            gameObject.SetActive(false);
-            IsOpen = false;
-            IsTransitioning = false;
-            InvokeClosed();
+            if (topBar != null)
+                topBar.anchoredPosition = Vector2.Lerp(_topFrom, _topPos, UITransitions.EaseOutBack(t));
         }
 
         public void SetScreenLabel(string label) { if (screenLabelText) screenLabelText.text = label; }

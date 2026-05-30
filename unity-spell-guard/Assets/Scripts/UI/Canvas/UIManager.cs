@@ -1,13 +1,13 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace SpellGuard.UI.Canvas
 {
     public class UIManager : MonoBehaviour
     {
+        private enum TransState { None, ClosingCurrent, OpeningTarget }
+
         [SerializeField] private UIScreen[] screens;
         [SerializeField] private UIScreen defaultScreen;
         [SerializeField] private float transitionOutDuration = 0.2f;
@@ -15,11 +15,13 @@ namespace SpellGuard.UI.Canvas
 
         private readonly Dictionary<Type, UIScreen> screenMap = new Dictionary<Type, UIScreen>();
         private readonly Dictionary<string, UIScreen> screenNameMap = new Dictionary<string, UIScreen>();
+        private readonly List<GameCanvasBridge> bridges = new List<GameCanvasBridge>();
         private UIScreen currentScreen;
-        private bool isTransitioning;
+        private TransState transState;
+        private UIScreen pendingTarget;
 
         public UIScreen CurrentScreen => currentScreen;
-        public bool IsTransitioning => isTransitioning;
+        public bool IsTransitioning => transState != TransState.None;
 
         public static UIManager Instance { get; private set; }
 
@@ -53,6 +55,33 @@ namespace SpellGuard.UI.Canvas
                 Instance = null;
         }
 
+        private void Update()
+        {
+            // Tick all registered bridges
+            for (int i = 0; i < bridges.Count; i++)
+                bridges[i].Tick();
+
+            // Handle screen transitions
+            if (transState == TransState.None) return;
+
+            if (transState == TransState.ClosingCurrent)
+            {
+                if (!currentScreen.IsTransitioning)
+                {
+                    currentScreen = pendingTarget;
+                    currentScreen.Open();
+                    transState = TransState.OpeningTarget;
+                }
+            }
+            else if (transState == TransState.OpeningTarget)
+            {
+                if (!currentScreen.IsTransitioning)
+                {
+                    transState = TransState.None;
+                }
+            }
+        }
+
         public T GetScreen<T>() where T : UIScreen
         {
             screenMap.TryGetValue(typeof(T), out var screen);
@@ -74,29 +103,23 @@ namespace SpellGuard.UI.Canvas
 
         public void ShowScreen(UIScreen target)
         {
-            if (isTransitioning || target == null || target == currentScreen)
+            if (transState != TransState.None || target == null || target == currentScreen)
                 return;
 
-            StartCoroutine(TransitionRoutine(target));
+            pendingTarget = target;
+            transState = TransState.ClosingCurrent;
+            currentScreen.Close();
         }
 
-        private IEnumerator TransitionRoutine(UIScreen target)
+        public void RegisterBridge(GameCanvasBridge bridge)
         {
-            isTransitioning = true;
-
-            if (currentScreen != null && currentScreen.IsOpen)
-                yield return StartCoroutine(currentScreen.Close());
-
-            currentScreen = target;
-            yield return StartCoroutine(target.Open());
-
-            isTransitioning = false;
+            if (bridge != null && !bridges.Contains(bridge))
+                bridges.Add(bridge);
         }
 
-        public Coroutine ShowScreenDirect(UIScreen target)
+        public void UnregisterBridge(GameCanvasBridge bridge)
         {
-            if (target == null) return null;
-            return StartCoroutine(TransitionRoutine(target));
+            bridges.Remove(bridge);
         }
 
         public void RebuildScreenMap()
@@ -123,8 +146,8 @@ namespace SpellGuard.UI.Canvas
 
         public void HideAll()
         {
+            transState = TransState.None;
             StopAllCoroutines();
-            isTransitioning = false;
             foreach (var screen in screens)
             {
                 if (screen != null)

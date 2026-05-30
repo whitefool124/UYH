@@ -131,7 +131,15 @@ namespace SpellGuard.UI.Canvas
             canvas.enabled = true;
             loadingFillBar.rectTransform.anchorMax = new Vector2(0.05f, 0.35f);
 
-            yield return StartCoroutine(UITransitions.FadeIn(fadeGroup, fadeDuration));
+            // Fade in
+            float elapsed = 0f;
+            while (elapsed < fadeDuration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                fadeGroup.alpha = Mathf.Lerp(0f, 1f, UITransitions.EaseOutCubic(elapsed / fadeDuration));
+                yield return null;
+            }
+            fadeGroup.alpha = 1f;
 
             loadingGroup.alpha = 1f;
             loadingGroup.blocksRaycasts = true;
@@ -141,7 +149,15 @@ namespace SpellGuard.UI.Canvas
             if (asyncOp == null)
             {
                 loadingGroup.alpha = 0f;
-                yield return StartCoroutine(UITransitions.FadeOut(fadeGroup, fadeDuration));
+                // Fade out
+                elapsed = 0f;
+                while (elapsed < fadeDuration)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    fadeGroup.alpha = Mathf.Lerp(1f, 0f, UITransitions.EaseOutCubic(elapsed / fadeDuration));
+                    yield return null;
+                }
+                fadeGroup.alpha = 0f;
                 canvas.enabled = false;
                 IsLoading = false;
                 yield break;
@@ -158,9 +174,9 @@ namespace SpellGuard.UI.Canvas
 
             loadingFillBar.rectTransform.anchorMax = new Vector2(0.95f, 0.35f);
 
-            var elapsed = Time.unscaledTime - loadStart;
-            if (elapsed < minLoadDisplaySeconds)
-                yield return new WaitForSecondsRealtime(minLoadDisplaySeconds - elapsed);
+            var loadElapsed = Time.unscaledTime - loadStart;
+            if (loadElapsed < minLoadDisplaySeconds)
+                yield return new WaitForSecondsRealtime(minLoadDisplaySeconds - loadElapsed);
 
             asyncOp.allowSceneActivation = true;
             while (!asyncOp.isDone)
@@ -169,7 +185,15 @@ namespace SpellGuard.UI.Canvas
             loadingGroup.alpha = 0f;
             loadingGroup.blocksRaycasts = false;
 
-            yield return StartCoroutine(UITransitions.FadeOut(fadeGroup, fadeDuration));
+            // Fade out
+            elapsed = 0f;
+            while (elapsed < fadeDuration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                fadeGroup.alpha = Mathf.Lerp(1f, 0f, UITransitions.EaseOutCubic(elapsed / fadeDuration));
+                yield return null;
+            }
+            fadeGroup.alpha = 0f;
 
             canvas.enabled = false;
             IsLoading = false;

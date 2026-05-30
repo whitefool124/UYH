@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -53,50 +52,31 @@ namespace SpellGuard.UI.Canvas
             UpdateSelection();
         }
 
-        public override IEnumerator Open()
+        private Vector2 _heroFrom, _heroTo, _navFrom, _navTo;
+
+        protected override void OnOpenStart()
         {
-            IsTransitioning = true;
-            gameObject.SetActive(true);
-            canvasGroup.alpha = 0f;
-            canvasGroup.interactable = false;
-            canvasGroup.blocksRaycasts = false;
+            _heroFrom = new Vector2(-80f, 0f);
+            _navFrom = new Vector2(80f, 0f);
+            _heroTo = heroPanel != null ? heroPanel.anchoredPosition : Vector2.zero;
+            _navTo = navPanel != null ? navPanel.anchoredPosition : Vector2.zero;
 
-            // Slide panels in from sides
-            Vector2 heroFrom = new Vector2(-80f, 0f);
-            Vector2 navFrom = new Vector2(80f, 0f);
-            Vector2 heroTo = heroPanel != null ? heroPanel.anchoredPosition : Vector2.zero;
-            Vector2 navTo = navPanel != null ? navPanel.anchoredPosition : Vector2.zero;
-
-            if (heroPanel != null) heroPanel.anchoredPosition = heroFrom;
-            if (navPanel != null) navPanel.anchoredPosition = navFrom;
-
-            StartCoroutine(UITransitions.FadeIn(canvasGroup, openDuration));
-            if (heroPanel != null) StartCoroutine(UITransitions.SlideIn(heroPanel, heroFrom, heroTo, openDuration * 0.9f));
-            if (navPanel != null) StartCoroutine(UITransitions.SlideIn(navPanel, navFrom, navTo, openDuration * 0.9f));
-
-            yield return new WaitForSecondsRealtime(openDuration);
-
-            canvasGroup.interactable = true;
-            canvasGroup.blocksRaycasts = true;
-            IsOpen = true;
-            IsTransitioning = false;
-            InvokeOpened();
+            if (heroPanel != null) heroPanel.anchoredPosition = _heroFrom;
+            if (navPanel != null) navPanel.anchoredPosition = _navFrom;
         }
 
-        public override IEnumerator Close()
+        protected override void OnOpenUpdate(float t)
         {
-            IsTransitioning = true;
-            canvasGroup.interactable = false;
-            canvasGroup.blocksRaycasts = false;
+            if (heroPanel != null)
+                heroPanel.anchoredPosition = Vector2.Lerp(_heroFrom, _heroTo, UITransitions.EaseOutBack(t));
+            if (navPanel != null)
+                navPanel.anchoredPosition = Vector2.Lerp(_navFrom, _navTo, UITransitions.EaseOutBack(t));
+        }
 
-            StartCoroutine(UITransitions.FadeOut(canvasGroup, closeDuration));
-
-            yield return new WaitForSecondsRealtime(closeDuration);
-
-            gameObject.SetActive(false);
-            IsOpen = false;
-            IsTransitioning = false;
-            InvokeClosed();
+        protected override void OnOpenComplete()
+        {
+            if (heroPanel != null) heroPanel.anchoredPosition = _heroTo;
+            if (navPanel != null) navPanel.anchoredPosition = _navTo;
         }
 
         public void MoveSelection(int delta)
