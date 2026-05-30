@@ -46,6 +46,7 @@ namespace SpellGuard.UI.Canvas
         {
             currentMode = mode;
             selectedIndex = 0;
+            ApplyVisualStyle();
             cameraPreviewRect?.gameObject.SetActive(mode == Mode.Calibration);
             cameraPreview?.gameObject.SetActive(mode == Mode.Calibration);
             BuildScreen();
@@ -183,6 +184,54 @@ namespace SpellGuard.UI.Canvas
             if (hintText != null) hintText.text = hint;
         }
 
+        private void ApplyVisualStyle()
+        {
+            ApplyPanel(heroPanel, ref heroBgImage, new Color(0.025f, 0.035f, 0.058f, 0.96f));
+            ApplyPanel(navPanel, ref navBgImage, new Color(0f, 0f, 0f, 0f));
+            ApplyText(titleText, 42, FontStyle.Bold, new Color(1f, 0.72f, 0.26f, 1f), TextAnchor.UpperLeft);
+            ApplyText(subtitleText, 22, FontStyle.Bold, new Color(0.76f, 0.9f, 1f, 1f), TextAnchor.UpperLeft);
+            ApplyText(bodyText, 18, FontStyle.Normal, new Color(0.88f, 0.94f, 1f, 1f), TextAnchor.UpperLeft);
+            ApplyText(hintText, 15, FontStyle.Bold, new Color(0.55f, 0.72f, 1f, 1f), TextAnchor.MiddleCenter);
+
+            if (heroPanel != null)
+            {
+                heroPanel.anchorMin = new Vector2(0.06f, 0.12f);
+                heroPanel.anchorMax = new Vector2(0.45f, 0.9f);
+                heroPanel.offsetMin = Vector2.zero;
+                heroPanel.offsetMax = Vector2.zero;
+            }
+
+            if (navPanel != null)
+            {
+                navPanel.anchorMin = new Vector2(0.49f, 0.28f);
+                navPanel.anchorMax = new Vector2(0.94f, 0.66f);
+                navPanel.offsetMin = Vector2.zero;
+                navPanel.offsetMax = Vector2.zero;
+            }
+        }
+
+        private static void ApplyPanel(RectTransform panel, ref Image image, Color color)
+        {
+            if (panel == null) return;
+            if (image == null) image = panel.GetComponent<Image>();
+            if (image == null) image = panel.gameObject.AddComponent<Image>();
+            image.color = color;
+            image.raycastTarget = false;
+        }
+
+        private static void ApplyText(Text text, int size, FontStyle style, Color color, TextAnchor alignment)
+        {
+            if (text == null) return;
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.fontSize = size;
+            text.fontStyle = style;
+            text.color = color;
+            text.alignment = alignment;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.resizeTextForBestFit = false;
+        }
+
         private void AddButtons(params (string key, string label)[] items)
         {
             buttons = new NavButton[items.Length];
@@ -199,7 +248,7 @@ namespace SpellGuard.UI.Canvas
                     labelGo.transform.SetParent(go.transform, false);
                     labelText = labelGo.AddComponent<Text>();
                     labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                    labelText.fontSize = 18;
+                    labelText.fontSize = 20;
                     labelText.alignment = TextAnchor.MiddleLeft;
                     labelText.color = new Color(0.9f, 0.92f, 0.98f, 1f);
                     labelText.rectTransform.anchorMin = Vector2.zero;
@@ -207,9 +256,20 @@ namespace SpellGuard.UI.Canvas
                     labelText.rectTransform.sizeDelta = new Vector2(-32f, 0f);
                     labelText.rectTransform.anchoredPosition = new Vector2(16f, 0f);
                 }
+                else
+                {
+                    ApplyText(labelText, 20, FontStyle.Bold, Color.white, TextAnchor.MiddleLeft);
+                }
 
                 var bgImage = go.GetComponent<Image>();
                 if (bgImage == null) bgImage = go.AddComponent<Image>();
+                bgImage.color = buttonNormalColor;
+
+                var rect = go.GetComponent<RectTransform>();
+                if (rect != null)
+                {
+                    rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 48f);
+                }
 
                 labelText.text = items[i].label;
 
@@ -218,8 +278,8 @@ namespace SpellGuard.UI.Canvas
                 btn.targetGraphic = bgImage;
                 var cb = btn.colors;
                 cb.normalColor = buttonNormalColor;
-                cb.highlightedColor = new Color(0.35f, 0.42f, 0.58f, 0.96f);
-                cb.pressedColor = new Color(0.18f, 0.22f, 0.38f, 1f);
+                cb.highlightedColor = new Color(0.18f, 0.28f, 0.42f, 0.98f);
+                cb.pressedColor = new Color(0.24f, 0.42f, 0.58f, 1f);
                 cb.selectedColor = buttonSelectedColor;
                 cb.fadeDuration = 0.12f;
                 btn.colors = cb;
@@ -265,7 +325,8 @@ namespace SpellGuard.UI.Canvas
             for (int i = 0; i < buttons.Length; i++)
             {
                 var selected = i == selectedIndex;
-                buttons[i].BgImage.color = selected ? buttonSelectedColor : buttonNormalColor;
+                buttons[i].BgImage.color = selected ? new Color(0.22f, 0.36f, 0.54f, 0.98f) : buttonNormalColor;
+                buttons[i].LabelText.color = selected ? Color.white : new Color(0.78f, 0.86f, 0.96f, 1f);
                 buttons[i].LabelText.text = selected
                     ? $"▶ {buttons[i].Label}"
                     : $"   {buttons[i].Label}";

@@ -983,18 +983,8 @@ namespace SpellGuard.UI
         private void DrawCinematicBackdrop()
         {
             var full = new Rect(0f, 0f, Screen.width, Screen.height);
-            var texture = flowController.Screen == SpellGuardScreen.Results
-                ? SpellGuardRuntimeSkin.ScreenResultsPanel
-                : SpellGuardRuntimeSkin.ScreenMenuGateway ?? SpellGuardRuntimeSkin.ScreenMainMenuBg;
-            if (texture != null)
-            {
-                GUI.color = new Color(1f, 1f, 1f, 0.32f);
-                GUI.DrawTexture(full, texture, ScaleMode.ScaleAndCrop, true);
-            }
-
-            GUI.color = new Color(0.01f, 0.015f, 0.025f, 0.56f);
+            GUI.color = new Color(0.005f, 0.008f, 0.016f, 0.88f);
             GUI.DrawTexture(full, Texture2D.whiteTexture);
-            SpellGuardRuntimeSkin.DrawScanLines(full, Mathf.Clamp(Screen.height / 720f, 0.85f, 1.25f), new Color(0.35f, 0.88f, 1f, 0.16f));
             GUI.color = Color.white;
         }
 
@@ -1015,11 +1005,7 @@ namespace SpellGuard.UI
 
             var isHolding = focusedKey == key && dwellKey == key;
             var accent = isHolding ? SpellGuardRuntimeSkin.Amber : isFocused ? SpellGuardRuntimeSkin.Cyan : new Color(0.42f, 0.52f, 0.66f, 0.76f);
-            var texture = isHolding ? SpellGuardRuntimeSkin.ButtonActive : isFocused ? SpellGuardRuntimeSkin.ButtonHover : SpellGuardRuntimeSkin.ButtonNormal;
-            if (texture == null)
-            {
-                texture = isFocused ? SpellGuardRuntimeSkin.ButtonPrimary : SpellGuardRuntimeSkin.ButtonSecondary;
-            }
+            Texture2D texture = null;
 
             var drawRect = rect;
             if (isFocused)
@@ -1028,13 +1014,13 @@ namespace SpellGuard.UI
                 drawRect = new Rect(rect.x - 2f, rect.y + lift, rect.width + 4f, rect.height);
             }
 
-            SpellGuardRuntimeSkin.DrawImagePanel(drawRect, texture, isFocused ? SpellGuardRuntimeSkin.GlassBright : SpellGuardRuntimeSkin.Glass, accent, isFocused ? 2f : 1f);
+            SpellGuardRuntimeSkin.DrawImagePanel(drawRect, texture, isFocused ? new Color(0.14f, 0.22f, 0.34f, 0.96f) : new Color(0.055f, 0.075f, 0.12f, 0.96f), accent, isFocused ? 2f : 1f);
             if (isHolding)
             {
                 SpellGuardRuntimeSkin.DrawProgress(new Rect(drawRect.x + 12f, drawRect.yMax - 7f, drawRect.width - 24f, 3f), progress, SpellGuardRuntimeSkin.Amber);
             }
 
-            GUI.Label(new Rect(rect.x + 14f, rect.y + 9f, rect.width - 28f, rect.height - 18f), text, overlayButtonStyle);
+            GUI.Label(new Rect(rect.x + 18f, rect.y + 7f, rect.width - 36f, rect.height - 14f), text, overlayButtonStyle);
 
             if (GUI.Button(rect, GUIContent.none, GUIStyle.none))
             {
@@ -1102,28 +1088,30 @@ namespace SpellGuard.UI
 
             overlayTitleStyle = new GUIStyle(GUI.skin.label)
             {
-                fontSize = Mathf.RoundToInt(24f * scale),
+                fontSize = Mathf.RoundToInt(34f * scale),
                 fontStyle = FontStyle.Bold,
-                normal = { textColor = new Color(0.98f, 0.97f, 1f, 1f) }
+                normal = { textColor = new Color(1f, 0.76f, 0.28f, 1f) }
             };
 
             overlayBodyStyle = new GUIStyle(GUI.skin.label)
             {
-                fontSize = Mathf.RoundToInt(16f * scale),
+                fontSize = Mathf.RoundToInt(18f * scale),
                 wordWrap = true,
-                normal = { textColor = new Color(0.82f, 0.88f, 0.96f, 0.96f) }
+                normal = { textColor = new Color(0.9f, 0.94f, 1f, 1f) }
             };
 
             overlayHintStyle = new GUIStyle(overlayBodyStyle)
             {
-                fontSize = Mathf.RoundToInt(14f * scale),
-                normal = { textColor = new Color(1f, 0.84f, 0.46f, 0.98f) }
+                fontSize = Mathf.RoundToInt(15f * scale),
+                normal = { textColor = new Color(0.62f, 0.78f, 1f, 1f) }
             };
 
             overlayButtonStyle = new GUIStyle(overlayBodyStyle)
             {
                 alignment = TextAnchor.MiddleLeft,
-                fontStyle = FontStyle.Bold
+                fontStyle = FontStyle.Bold,
+                fontSize = Mathf.RoundToInt(17f * scale),
+                normal = { textColor = Color.white }
             };
 
             overlayPanelStyle = new GUIStyle(GUI.skin.box);
@@ -1131,9 +1119,7 @@ namespace SpellGuard.UI
 
         private void DrawPanel(Rect rect, Color fillColor, Color accentColor)
         {
-            var texture = flowController != null && flowController.Screen == SpellGuardScreen.Training && flowController.DeveloperToolsEnabled
-                ? SpellGuardRuntimeSkin.PanelLarge
-                : SpellGuardRuntimeSkin.GeneratedPanel ?? SpellGuardRuntimeSkin.PanelLarge;
+            Texture2D texture = null;
             SpellGuardRuntimeSkin.DrawImagePanel(rect, texture, fillColor, accentColor, 2f);
             var pulse = SpellGuardRuntimeSkin.Breathe(1.1f, 0.16f, 0.28f);
             SpellGuardRuntimeSkin.DrawDivider(new Rect(rect.x + 22f, rect.y + 52f, rect.width - 44f, 2f), new Color(accentColor.r, accentColor.g, accentColor.b, pulse));

@@ -99,22 +99,21 @@ namespace SpellGuard.UI
         private void DrawTopGestureBanner(GestureSnapshot snapshot, float scale)
         {
             var width = Mathf.Clamp(Screen.width * 0.48f, 520f, 760f);
-            var height = Mathf.Clamp(92f * scale, 82f, 110f);
+            var height = Mathf.Clamp(78f * scale, 70f, 92f);
             var rect = new Rect((Screen.width - width) * 0.5f, Mathf.Clamp(16f * scale, 12f, 24f), width, height);
             var pulse = GetRecentMotionPulse();
             var border = Color.Lerp(SpellGuardRuntimeSkin.Cyan, GetMotionColor(lastMotion), pulse);
             DrawPanel(rect, new Color(0.035f, 0.045f, 0.07f, 0.82f), border);
-            SpellGuardRuntimeSkin.DrawScanLines(rect, scale, border);
 
             var left = new Rect(rect.x + 16f * scale, rect.y + 12f * scale, rect.width * 0.42f, rect.height - 24f * scale);
             var right = new Rect(rect.x + rect.width * 0.46f, rect.y + 12f * scale, rect.width * 0.5f, rect.height - 24f * scale);
 
             GUI.Label(new Rect(left.x, left.y, left.width, 22f * scale), "\u5f53\u524d\u624b\u52bf", smallStyle);
-            GUI.Label(new Rect(left.x, left.y + 24f * scale, left.width, 42f * scale), snapshot.HandPresent ? snapshot.Gesture.ToChinese() : "\u672a\u68c0\u6d4b\u5230\u624b", bigSignalStyle);
+            GUI.Label(new Rect(left.x, left.y + 24f * scale, left.width, 34f * scale), snapshot.HandPresent ? snapshot.Gesture.ToChinese() : "\u672a\u68c0\u6d4b\u5230\u624b", bigSignalStyle);
             var handTexture = SpellGuardRuntimeSkin.GetHandTexture(snapshot.HandPresent ? snapshot.Gesture.ToChinese() : string.Empty);
             if (handTexture != null)
             {
-                var iconSize = 50f * scale;
+                var iconSize = 34f * scale;
                 var iconRect = new Rect(left.xMax - iconSize - 8f * scale, left.y + 8f * scale, iconSize, iconSize);
                 GUI.color = new Color(1f, 1f, 1f, 0.86f);
                 GUI.DrawTexture(iconRect, handTexture, ScaleMode.ScaleToFit, true);
@@ -124,7 +123,7 @@ namespace SpellGuard.UI
             GUI.Label(new Rect(right.x, right.y, right.width, 22f * scale), "\u52a8\u6001\u8f68\u8ff9", smallStyle);
             var motionLabel = Time.time - lastMotionAt <= 1.1f ? FormatMotion(lastMotion) : "\u7b49\u5f85\u52a8\u4f5c";
             GUI.color = Color.Lerp(Color.white, GetMotionColor(lastMotion), pulse);
-            GUI.Label(new Rect(right.x, right.y + 24f * scale, right.width, 42f * scale), motionLabel, bigSignalStyle);
+            GUI.Label(new Rect(right.x, right.y + 24f * scale, right.width, 34f * scale), motionLabel, bigSignalStyle);
             GUI.color = Color.white;
 
             DrawConfidenceBar(new Rect(left.x, rect.yMax - 14f * scale, rect.width - 32f * scale, 5f * scale), snapshot.HandPresent ? snapshot.Confidence : 0f, scale);
@@ -262,10 +261,10 @@ namespace SpellGuard.UI
 
         private void DrawBottomFeedbackStrip(GestureSnapshot snapshot, float scale)
         {
-            var width = Mathf.Clamp(Screen.width * 0.68f, 720f, 980f);
-            var height = Mathf.Clamp(132f * scale, 118f, 150f);
+            var width = Mathf.Clamp(Screen.width * 0.62f, 680f, 900f);
+            var height = Mathf.Clamp(120f * scale, 106f, 132f);
             var rect = new Rect((Screen.width - width) * 0.5f, Screen.height - height - Mathf.Clamp(18f * scale, 12f, 26f), width, height);
-            DrawPanel(rect, new Color(0.04f, 0.045f, 0.065f, 0.86f), new Color(0.95f, 0.68f, 0.25f, 0.82f));
+            DrawPanel(rect, new Color(0.025f, 0.03f, 0.045f, 0.92f), new Color(0.35f, 0.88f, 1f, 0.82f));
 
             var padding = 14f * scale;
             SpellGuardRuntimeSkin.DrawDivider(new Rect(rect.x + padding, rect.y + 60f * scale, rect.width - padding * 2f, 2f * scale), new Color(0.35f, 0.88f, 1f, 0.34f));
@@ -279,7 +278,6 @@ namespace SpellGuard.UI
             DrawChip(new Rect(rect.x + padding + 160f * scale, chipY, 150f * scale, 22f * scale), "\u51b0\u971c", IsRecentIce() ? new Color(0.36f, 0.82f, 1f) : new Color(0.22f, 0.24f, 0.28f));
             DrawChip(new Rect(rect.x + padding + 320f * scale, chipY, 170f * scale, 22f * scale), "\u62a4\u76fe\u53cd\u51fb", IsRecentShieldCounter() ? new Color(0.45f, 0.72f, 1f) : new Color(0.22f, 0.24f, 0.28f));
 
-            DrawStatusIcon(new Rect(rect.xMax - 306f * scale, chipY - 2f * scale, 24f * scale, 24f * scale), SpellGuardRuntimeSkin.IconHealth, playerHealth != null && playerHealth.CurrentHealth > 0 ? SpellGuardRuntimeSkin.Mint : SpellGuardRuntimeSkin.Red);
             var rightText = BuildRuntimeText(snapshot);
             GUI.Label(new Rect(rect.xMax - 260f * scale, chipY - 1f * scale, 250f * scale, 24f * scale), rightText, smallStyle);
             DrawCooldownStrip(new Rect(rect.x + padding, rect.yMax - 38f * scale, rect.width - padding * 2f, 30f * scale), scale);
@@ -592,20 +590,20 @@ namespace SpellGuard.UI
             cachedScale = scale;
             titleStyle = new GUIStyle(GUI.skin.label)
             {
-                fontSize = Mathf.RoundToInt(18f * scale),
+                fontSize = Mathf.RoundToInt(19f * scale),
                 fontStyle = FontStyle.Bold,
                 normal = { textColor = SpellGuardRuntimeSkin.Text },
                 clipping = TextClipping.Clip
             };
             labelStyle = new GUIStyle(GUI.skin.label)
             {
-                fontSize = Mathf.RoundToInt(13f * scale),
+                fontSize = Mathf.RoundToInt(14f * scale),
                 normal = { textColor = SpellGuardRuntimeSkin.Text },
                 clipping = TextClipping.Clip
             };
             smallStyle = new GUIStyle(GUI.skin.label)
             {
-                fontSize = Mathf.RoundToInt(11f * scale),
+                fontSize = Mathf.RoundToInt(12f * scale),
                 normal = { textColor = SpellGuardRuntimeSkin.MutedText },
                 clipping = TextClipping.Clip
             };
@@ -619,7 +617,7 @@ namespace SpellGuard.UI
             };
             bigSignalStyle = new GUIStyle(GUI.skin.label)
             {
-                fontSize = Mathf.RoundToInt(28f * scale),
+                fontSize = Mathf.RoundToInt(24f * scale),
                 fontStyle = FontStyle.Bold,
                 normal = { textColor = Color.white },
                 clipping = TextClipping.Clip

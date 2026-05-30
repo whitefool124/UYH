@@ -139,7 +139,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &31950663
 Transform:
   m_ObjectHideFlags: 0
@@ -4860,12 +4860,12 @@ TextMesh:
   m_GameObject: {fileID: 1392043491}
   m_Text: "\u6559\u5B66\u5173\uFF1AWASD\u7F51\u683C\u79FB\u52A8\uFF0C\u5DE6\u952E/1\u91CA\u653E\u706B\u7130\uFF0C\u6E05\u9664\u654C\u4EBA\u540E\u5230\u84DD\u8272\u51FA\u53E3\u6309E"
   m_OffsetZ: 0
-  m_CharacterSize: 0.24
+  m_CharacterSize: 0.08
   m_LineSpacing: 1
   m_Anchor: 4
   m_Alignment: 1
   m_TabSize: 4
-  m_FontSize: 72
+  m_FontSize: 32
   m_FontStyle: 0
   m_RichText: 1
   m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}

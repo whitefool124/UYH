@@ -136,24 +136,16 @@ namespace SpellGuard.UI
         public static void DrawImagePanel(Rect rect, Texture2D texture, Color fallbackFill, Color accent, float border = 1.5f)
         {
             var previous = GUI.color;
-            if (texture != null)
-            {
-                GUI.color = new Color(1f, 1f, 1f, fallbackFill.a);
-                GUI.DrawTexture(rect, texture, ScaleMode.StretchToFill, true);
-                GUI.color = new Color(0f, 0f, 0f, 0.18f);
-                GUI.DrawTexture(rect, Texture2D.whiteTexture);
-            }
-            else
-            {
-                GUI.color = fallbackFill;
-                GUI.DrawTexture(rect, Texture2D.whiteTexture);
-            }
+            GUI.color = fallbackFill;
+            GUI.DrawTexture(rect, Texture2D.whiteTexture);
 
             GUI.color = new Color(accent.r, accent.g, accent.b, accent.a * Breathe(1.6f, 0.58f, 0.92f));
             GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, border), Texture2D.whiteTexture);
             GUI.DrawTexture(new Rect(rect.x, rect.yMax - border, rect.width, border), Texture2D.whiteTexture);
             GUI.DrawTexture(new Rect(rect.x, rect.y, border, rect.height), Texture2D.whiteTexture);
             GUI.DrawTexture(new Rect(rect.xMax - border, rect.y, border, rect.height), Texture2D.whiteTexture);
+            GUI.color = new Color(1f, 1f, 1f, 0.07f);
+            GUI.DrawTexture(new Rect(rect.x + 10f, rect.y + 10f, Mathf.Max(1f, rect.width - 20f), 1f), Texture2D.whiteTexture);
             GUI.color = previous;
         }
 
