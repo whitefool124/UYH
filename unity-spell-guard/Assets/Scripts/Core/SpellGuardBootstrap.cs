@@ -105,14 +105,11 @@ namespace SpellGuard.Core
             }
 
             var existing = sceneContext.GetComponent<SpellGuardAudioController>();
-            if (existing != null)
+            if (existing == null)
             {
-                SetPrivateField(sceneContext, "audioController", existing);
-                return;
+                existing = sceneContext.gameObject.AddComponent<SpellGuardAudioController>();
             }
-
-            var created = sceneContext.gameObject.AddComponent<SpellGuardAudioController>();
-            SetPrivateField(sceneContext, "audioController", created);
+            SetPrivateField(sceneContext, "audioController", existing);
         }
 
         private void EnsureGestureFeedbackHud()

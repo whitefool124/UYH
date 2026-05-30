@@ -15,15 +15,9 @@ namespace SpellGuard.UI.Canvas
         private GameHUDScreen hudScreen;
         private GameOverlayScreen overlayScreen;
         private SpellGuardScreen lastScreen;
-        private bool initialized;
 
         private void Start()
         {
-            var oldGestureHud = GetComponent<SpellGuard.UI.GestureFeedbackHud>();
-            if (oldGestureHud != null) oldGestureHud.enabled = false;
-            var oldDebugHud = GetComponent<SpellGuard.UI.DebugHud>();
-            if (oldDebugHud != null) oldDebugHud.enabled = false;
-
             uiManager = FindObjectOfType<UIManager>();
             if (uiManager == null)
             {
@@ -38,26 +32,24 @@ namespace SpellGuard.UI.Canvas
                 overlayScreen.ButtonClicked += HandleOverlayButton;
 
             lastScreen = SpellGuardScreen.Menu;
-            initialized = false;
-
-            uiManager.RegisterBridge(this);
+            RefreshUI();
         }
 
-        public void Tick()
+        private void Update()
         {
             if (flowController == null) return;
 
             var currentScreen = flowController.Screen;
-
-            if (!initialized || currentScreen != lastScreen)
+            if (currentScreen != lastScreen)
             {
-                initialized = true;
                 RefreshUI();
                 lastScreen = currentScreen;
             }
 
+            // Update HUD data every frame
             UpdateHUD();
 
+            // Keyboard shortcuts
             if (Input.GetKeyDown(KeyCode.Escape))
             {
                 if (currentScreen == SpellGuardScreen.Playing)

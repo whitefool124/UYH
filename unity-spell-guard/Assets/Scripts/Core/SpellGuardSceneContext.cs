@@ -85,33 +85,29 @@ namespace SpellGuard.Core
             {
                 inputProvider = inputRouter;
             }
+
+            // Auto-detect components on same GameObject if references are missing
+            if (audioController == null) audioController = GetComponent<SpellGuardAudioController>();
+            if (gameSettings == null) gameSettings = GetComponent<SpellGuardGameSettings>();
+            if (flowController == null) flowController = GetComponent<SpellGuardFlowController>();
+            if (enemySpawner == null) enemySpawner = GetComponent<EnemySpawner>();
+            if (gameFlowManager == null) gameFlowManager = GetComponent<GameFlowManager>();
         }
 
         public bool IsValid(out string reason)
         {
-            if (inputProvider == null)
-            {
-                reason = "InputProvider 未绑定";
-                return false;
-            }
-
-            if (playerRoot == null || cameraPivot == null || mainCamera == null)
-            {
-                reason = "玩家或相机引用不完整";
-                return false;
-            }
-
-            if (fpsMotor == null || spellCaster == null || playerHealth == null)
-            {
-                reason = "玩家组件引用不完整";
-                return false;
-            }
-
-            if (enemySpawner == null || gameFlowManager == null || menuOverlay == null || gameSettings == null || flowController == null || audioController == null)
-            {
-                reason = "流程、战斗、玩家 UI 或音频组件引用不完整";
-                return false;
-            }
+            if (inputProvider == null) { reason = "InputProvider 未绑定"; return false; }
+            if (playerRoot == null) { reason = "PlayerRoot 未绑定"; return false; }
+            if (cameraPivot == null) { reason = "CameraPivot 未绑定"; return false; }
+            if (mainCamera == null) { reason = "MainCamera 未绑定"; return false; }
+            if (fpsMotor == null) { reason = "FpsMotor 未绑定"; return false; }
+            if (spellCaster == null) { reason = "SpellCaster 未绑定"; return false; }
+            if (playerHealth == null) { reason = "PlayerHealth 未绑定"; return false; }
+            if (enemySpawner == null) { reason = "EnemySpawner 未绑定"; return false; }
+            if (gameFlowManager == null) { reason = "GameFlowManager 未绑定"; return false; }
+            if (gameSettings == null) { reason = "GameSettings 未绑定"; return false; }
+            if (flowController == null) { reason = "FlowController 未绑定"; return false; }
+            if (audioController == null) { reason = "AudioController 未绑定"; return false; }
 
             reason = string.Empty;
             return true;

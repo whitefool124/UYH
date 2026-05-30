@@ -23,6 +23,10 @@ namespace SpellGuard.UI.Canvas
 
         private void Start()
         {
+            // Disable old IMGUI menu to prevent duplicate rendering
+            var oldMenu = GetComponent<SpellGuard.Core.SpellGuardStartMenuController>();
+            if (oldMenu != null) oldMenu.enabled = false;
+
             uiManager = FindObjectOfType<UIManager>();
             if (uiManager == null)
             {
@@ -76,45 +80,75 @@ namespace SpellGuard.UI.Canvas
             var allowBack = currentScreen.ScreenId != "MainScreen";
             var action = inputRouter.GetMenuAction(allowBack);
 
-            if (!action.IsValid || action.IsTransient)
+            if (HandleTransientGestureAction(action))
+                return;
+
+            if (!action.IsValid)
             {
                 gestureHoldTimer = 0f;
                 lastIntent = GestureIntent.None;
                 return;
             }
 
-            if (action.TriggeredTime <= lastMotionTime) return;
-            lastMotionTime = action.TriggeredTime;
-
             switch (action.Intent)
             {
-                case GestureIntent.MenuPrevious:
-                    currentScreen.MoveSelection(-1);
-                    gestureHoldTimer = 0f;
-                    break;
-                case GestureIntent.MenuNext:
-                    currentScreen.MoveSelection(1);
-                    gestureHoldTimer = 0f;
-                    break;
                 case GestureIntent.MenuConfirm:
+                    if (lastIntent != GestureIntent.MenuConfirm)
+                        gestureHoldTimer = 0f;
+                    lastIntent = GestureIntent.MenuConfirm;
                     gestureHoldTimer += Time.unscaledDeltaTime;
                     if (gestureHoldTimer >= 0.45f)
                     {
                         currentScreen.ActivateSelected();
                         gestureHoldTimer = 0f;
+                        lastIntent = GestureIntent.None;
                     }
                     break;
                 case GestureIntent.MenuBack:
+                    if (lastIntent != GestureIntent.MenuBack)
+                        gestureHoldTimer = 0f;
+                    lastIntent = GestureIntent.MenuBack;
                     gestureHoldTimer += Time.unscaledDeltaTime;
                     if (gestureHoldTimer >= 0.45f)
                     {
                         ShowMain();
                         gestureHoldTimer = 0f;
+                        lastIntent = GestureIntent.None;
                     }
                     break;
                 default:
                     gestureHoldTimer = 0f;
+                    lastIntent = GestureIntent.None;
                     break;
+            }
+        }
+
+        private bool HandleTransientGestureAction(GestureAction action)
+        {
+            if (!action.IsValid || !action.IsTransient || action.TriggeredTime <= lastMotionTime)
+                return false;
+
+            lastMotionTime = action.TriggeredTime;
+            gestureHoldTimer = 0f;
+            lastIntent = GestureIntent.None;
+
+            switch (action.Intent)
+            {
+                case GestureIntent.MenuPrevious:
+                    currentScreen.MoveSelection(-1);
+                    return true;
+                case GestureIntent.MenuNext:
+                    currentScreen.MoveSelection(1);
+                    return true;
+                case GestureIntent.MenuConfirm:
+                    currentScreen.ActivateSelected();
+                    return true;
+                case GestureIntent.MenuBack:
+                    if (currentScreen.ScreenId != "MainScreen")
+                        ShowMain();
+                    return true;
+                default:
+                    return false;
             }
         }
 

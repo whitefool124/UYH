@@ -15,7 +15,6 @@ namespace SpellGuard.UI.Canvas
 
         private readonly Dictionary<Type, UIScreen> screenMap = new Dictionary<Type, UIScreen>();
         private readonly Dictionary<string, UIScreen> screenNameMap = new Dictionary<string, UIScreen>();
-        private readonly List<GameCanvasBridge> bridges = new List<GameCanvasBridge>();
         private UIScreen currentScreen;
         private TransState transState;
         private UIScreen pendingTarget;
@@ -57,10 +56,6 @@ namespace SpellGuard.UI.Canvas
 
         private void Update()
         {
-            // Tick all registered bridges
-            for (int i = 0; i < bridges.Count; i++)
-                bridges[i].Tick();
-
             // Handle screen transitions
             if (transState == TransState.None) return;
 
@@ -106,20 +101,17 @@ namespace SpellGuard.UI.Canvas
             if (transState != TransState.None || target == null || target == currentScreen)
                 return;
 
+            if (currentScreen == null)
+            {
+                currentScreen = target;
+                currentScreen.Open();
+                transState = TransState.OpeningTarget;
+                return;
+            }
+
             pendingTarget = target;
             transState = TransState.ClosingCurrent;
             currentScreen.Close();
-        }
-
-        public void RegisterBridge(GameCanvasBridge bridge)
-        {
-            if (bridge != null && !bridges.Contains(bridge))
-                bridges.Add(bridge);
-        }
-
-        public void UnregisterBridge(GameCanvasBridge bridge)
-        {
-            bridges.Remove(bridge);
         }
 
         public void RebuildScreenMap()

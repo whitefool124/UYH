@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -18,24 +19,6 @@ namespace SpellGuard.UI.Canvas
         [SerializeField] private Color healthColor = new Color(0.35f, 0.85f, 0.45f, 1f);
         [SerializeField] private Color healthLowColor = new Color(0.9f, 0.3f, 0.2f, 1f);
         [SerializeField] private Color hintColor = new Color(1f, 0.82f, 0.42f, 0.95f);
-        [SerializeField] private RectTransform topBar;
-
-        private Vector2 _topPos;
-        private Vector2 _topFrom;
-
-        protected override void OnOpenStart()
-        {
-            if (topBar == null) return;
-            _topPos = topBar.anchoredPosition;
-            _topFrom = _topPos + new Vector2(0f, 60f);
-            topBar.anchoredPosition = _topFrom;
-        }
-
-        protected override void OnOpenUpdate(float t)
-        {
-            if (topBar != null)
-                topBar.anchoredPosition = Vector2.Lerp(_topFrom, _topPos, UITransitions.EaseOutBack(t));
-        }
 
         public void SetScreenLabel(string label) { if (screenLabelText) screenLabelText.text = label; }
         public void SetScore(int score) { if (scoreText) scoreText.text = $"Score: {score}"; }

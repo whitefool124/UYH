@@ -89,7 +89,9 @@ namespace SpellGuard.UI
                 return;
             }
 
+            SpellGuardRuntimeSkin.EnsureLoaded();
             RebuildRegions();
+            DrawCinematicBackdrop();
             if (flowController.DeveloperToolsEnabled && flowController.Screen == SpellGuardScreen.Training)
             {
                 DrawDeveloperTools();
@@ -414,7 +416,7 @@ namespace SpellGuard.UI
             var viewData = flowController.GetViewData();
             var layout = GetOverlayLayout();
             EnsureOverlayStyles(layout.Scale);
-            DrawPanel(layout.Panel, new Color(0.06f, 0.08f, 0.13f, 0.94f), new Color(0.95f, 0.68f, 0.25f, 0.92f));
+            DrawPanel(layout.Panel, new Color(0.06f, 0.08f, 0.13f, 0.9f), new Color(0.95f, 0.68f, 0.25f, 0.92f));
             GUI.Label(layout.Title, "SPELL GUARD", overlayTitleStyle);
             GUI.Label(layout.Body, BuildMenuOverlayText(viewData), overlayBodyStyle);
             GUI.Label(layout.Hint, flowController.HintText, overlayHintStyle);
@@ -435,7 +437,7 @@ namespace SpellGuard.UI
         {
             var layout = GetOverlayLayout();
             EnsureOverlayStyles(layout.Scale);
-            DrawPanel(layout.Panel, new Color(0.07f, 0.09f, 0.14f, 0.95f), new Color(0.34f, 0.56f, 1f, 0.9f));
+            DrawPanel(layout.Panel, new Color(0.07f, 0.09f, 0.14f, 0.9f), new Color(0.34f, 0.56f, 1f, 0.9f));
             GUI.Label(layout.Title, "设置", overlayTitleStyle);
             GUI.Label(layout.Body, "键鼠教学关的输入、显示模式和音量。", overlayBodyStyle);
             DrawRegion("input-mode", $"输入模式：{flowController.InputModeLabel}", MakeButtonRect(layout, 0, 0, 4));
@@ -451,7 +453,7 @@ namespace SpellGuard.UI
         {
             var layout = GetOverlayLayout();
             EnsureOverlayStyles(layout.Scale);
-            DrawPanel(layout.Panel, new Color(0.06f, 0.08f, 0.13f, 0.95f), new Color(0.95f, 0.72f, 0.28f, 0.92f));
+            DrawPanel(layout.Panel, new Color(0.06f, 0.08f, 0.13f, 0.9f), new Color(0.95f, 0.72f, 0.28f, 0.92f));
             GUI.Label(layout.Title, "玩法说明", overlayTitleStyle);
             GUI.Label(layout.Body, "目标：在网格教学关击败 3 个敌人，再到蓝色出口格完成通关。\n\n移动：WASD 每次移动一格。\n施法：左键或 1 释放当前火焰，Q/R 切换火焰。\n流程：Esc 暂停，设置可调全屏和音量。", overlayBodyStyle);
             GUI.Label(layout.Hint, flowController.HintText, overlayHintStyle);
@@ -472,7 +474,7 @@ namespace SpellGuard.UI
             var viewData = flowController.GetViewData();
             var layout = GetOverlayLayout();
             EnsureOverlayStyles(layout.Scale);
-            DrawPanel(layout.Panel, new Color(0.05f, 0.08f, 0.13f, 0.94f), new Color(0.31f, 0.78f, 1f, 0.92f));
+            DrawPanel(layout.Panel, new Color(0.05f, 0.08f, 0.13f, 0.9f), new Color(0.31f, 0.78f, 1f, 0.92f));
             GUI.Label(layout.Title, flowController.DeveloperToolsEnabled ? "开发者实验室" : "训练场", overlayTitleStyle);
             GUI.Label(layout.Body, BuildTrainingOverlayText(viewData), overlayBodyStyle);
             GUI.Label(layout.Hint, viewData.HintText, overlayHintStyle);
@@ -484,7 +486,7 @@ namespace SpellGuard.UI
             var viewData = flowController.GetViewData();
             var layout = GetOverlayLayout();
             EnsureOverlayStyles(layout.Scale);
-            DrawPanel(layout.Panel, new Color(0.035f, 0.045f, 0.07f, 0.97f), new Color(0.25f, 0.88f, 1f, 0.96f));
+            DrawPanel(layout.Panel, new Color(0.035f, 0.045f, 0.07f, 0.92f), new Color(0.25f, 0.88f, 1f, 0.96f));
             GUI.Label(layout.Title, developerCustomGestureValidationPage ? "自定义手势验证" : developerCustomGesturePage ? "自定义手势录入" : "开发者实验室", overlayTitleStyle);
             if (developerCustomGestureValidationPage)
             {
@@ -890,7 +892,7 @@ namespace SpellGuard.UI
             var viewData = flowController.GetViewData();
             var layout = GetOverlayLayout();
             EnsureOverlayStyles(layout.Scale);
-            DrawPanel(layout.Panel, new Color(0.06f, 0.08f, 0.12f, 0.96f), new Color(0.4f, 0.82f, 1f, 0.94f));
+            DrawPanel(layout.Panel, new Color(0.06f, 0.08f, 0.12f, 0.92f), new Color(0.4f, 0.82f, 1f, 0.94f));
             GUI.Label(layout.Title, "战斗暂停", overlayTitleStyle);
             GUI.Label(layout.Body, BuildPausedOverlayText(viewData), overlayBodyStyle);
             GUI.Label(layout.Hint, flowController.HintText, overlayHintStyle);
@@ -904,7 +906,7 @@ namespace SpellGuard.UI
             var viewData = flowController.GetViewData();
             var layout = GetOverlayLayout();
             EnsureOverlayStyles(layout.Scale);
-            DrawPanel(layout.Panel, new Color(0.08f, 0.08f, 0.12f, 0.95f), new Color(1f, 0.48f, 0.24f, 0.92f));
+            DrawPanel(layout.Panel, new Color(0.08f, 0.08f, 0.12f, 0.9f), new Color(1f, 0.48f, 0.24f, 0.92f));
             GUI.Label(layout.Title, GetResultsTitle(viewData), overlayTitleStyle);
             GUI.Label(layout.Body, BuildResultsOverlayText(viewData), overlayBodyStyle);
             GUI.Label(layout.Hint, flowController.HintText, overlayHintStyle);
@@ -978,25 +980,60 @@ namespace SpellGuard.UI
             };
         }
 
+        private void DrawCinematicBackdrop()
+        {
+            var full = new Rect(0f, 0f, Screen.width, Screen.height);
+            var texture = flowController.Screen == SpellGuardScreen.Results
+                ? SpellGuardRuntimeSkin.ScreenResultsPanel
+                : SpellGuardRuntimeSkin.ScreenMenuGateway ?? SpellGuardRuntimeSkin.ScreenMainMenuBg;
+            if (texture != null)
+            {
+                GUI.color = new Color(1f, 1f, 1f, 0.32f);
+                GUI.DrawTexture(full, texture, ScaleMode.ScaleAndCrop, true);
+            }
+
+            GUI.color = new Color(0.01f, 0.015f, 0.025f, 0.56f);
+            GUI.DrawTexture(full, Texture2D.whiteTexture);
+            SpellGuardRuntimeSkin.DrawScanLines(full, Mathf.Clamp(Screen.height / 720f, 0.85f, 1.25f), new Color(0.35f, 0.88f, 1f, 0.16f));
+            GUI.color = Color.white;
+        }
+
         private void DrawRegion(string key, string label, Rect rect)
         {
             var isFocused = GetSelectedKey() == key;
             var text = isFocused ? $"▶ {label}" : $"   {label}";
+            var progress = 0f;
             if (IsRecentlyActivated(key))
             {
                 text = $"▶ {label}   已确认";
             }
             if (focusedKey == key && dwellKey == key)
             {
-                var progress = Mathf.Clamp01((Time.unscaledTime - dwellStartedAt) / GetRequiredHoldSeconds(key));
+                progress = Mathf.Clamp01((Time.unscaledTime - dwellStartedAt) / GetRequiredHoldSeconds(key));
                 text = $"▶ {label}   {Mathf.RoundToInt(progress * 100f)}%";
             }
 
-            var previousColor = GUI.color;
             var isHolding = focusedKey == key && dwellKey == key;
-            GUI.color = isHolding ? new Color(1f, 0.68f, 0.28f, 0.95f) : (isFocused ? new Color(0.38f, 0.58f, 1f, 0.95f) : new Color(0.18f, 0.22f, 0.3f, 0.92f));
-            GUI.Box(rect, GUIContent.none);
-            GUI.color = previousColor;
+            var accent = isHolding ? SpellGuardRuntimeSkin.Amber : isFocused ? SpellGuardRuntimeSkin.Cyan : new Color(0.42f, 0.52f, 0.66f, 0.76f);
+            var texture = isHolding ? SpellGuardRuntimeSkin.ButtonActive : isFocused ? SpellGuardRuntimeSkin.ButtonHover : SpellGuardRuntimeSkin.ButtonNormal;
+            if (texture == null)
+            {
+                texture = isFocused ? SpellGuardRuntimeSkin.ButtonPrimary : SpellGuardRuntimeSkin.ButtonSecondary;
+            }
+
+            var drawRect = rect;
+            if (isFocused)
+            {
+                var lift = Mathf.Sin(Time.unscaledTime * 5.2f) * 1.6f;
+                drawRect = new Rect(rect.x - 2f, rect.y + lift, rect.width + 4f, rect.height);
+            }
+
+            SpellGuardRuntimeSkin.DrawImagePanel(drawRect, texture, isFocused ? SpellGuardRuntimeSkin.GlassBright : SpellGuardRuntimeSkin.Glass, accent, isFocused ? 2f : 1f);
+            if (isHolding)
+            {
+                SpellGuardRuntimeSkin.DrawProgress(new Rect(drawRect.x + 12f, drawRect.yMax - 7f, drawRect.width - 24f, 3f), progress, SpellGuardRuntimeSkin.Amber);
+            }
+
             GUI.Label(new Rect(rect.x + 14f, rect.y + 9f, rect.width - 28f, rect.height - 18f), text, overlayButtonStyle);
 
             if (GUI.Button(rect, GUIContent.none, GUIStyle.none))
@@ -1094,12 +1131,12 @@ namespace SpellGuard.UI
 
         private void DrawPanel(Rect rect, Color fillColor, Color accentColor)
         {
-            var previousColor = GUI.color;
-            GUI.color = fillColor;
-            GUI.Box(rect, GUIContent.none, overlayPanelStyle ?? GUI.skin.box);
-            GUI.color = accentColor;
-            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, 3f), Texture2D.whiteTexture);
-            GUI.color = previousColor;
+            var texture = flowController != null && flowController.Screen == SpellGuardScreen.Training && flowController.DeveloperToolsEnabled
+                ? SpellGuardRuntimeSkin.PanelLarge
+                : SpellGuardRuntimeSkin.GeneratedPanel ?? SpellGuardRuntimeSkin.PanelLarge;
+            SpellGuardRuntimeSkin.DrawImagePanel(rect, texture, fillColor, accentColor, 2f);
+            var pulse = SpellGuardRuntimeSkin.Breathe(1.1f, 0.16f, 0.28f);
+            SpellGuardRuntimeSkin.DrawDivider(new Rect(rect.x + 22f, rect.y + 52f, rect.width - 44f, 2f), new Color(accentColor.r, accentColor.g, accentColor.b, pulse));
         }
 
         private Rect MakeButtonRect(OverlayLayout layout, int column, int row, int columns)

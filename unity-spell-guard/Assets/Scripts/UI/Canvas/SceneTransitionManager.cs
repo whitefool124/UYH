@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -8,6 +7,8 @@ namespace SpellGuard.UI.Canvas
 {
     public class SceneTransitionManager : MonoBehaviour
     {
+        private enum State { Idle, FadeIn, WaitLoad, SceneReady, FadeOut }
+
         [SerializeField] private UnityEngine.Canvas canvas;
         [SerializeField] private CanvasGroup fadeGroup;
         [SerializeField] private CanvasGroup loadingGroup;
@@ -16,6 +17,11 @@ namespace SpellGuard.UI.Canvas
         [SerializeField] private float minLoadDisplaySeconds = 0.5f;
 
         private static SceneTransitionManager instance;
+        private State state;
+        private float elapsed;
+        private float loadStartTime;
+        private string pendingScene;
+        private AsyncOperation asyncOp;
 
         public static SceneTransitionManager Instance
         {
@@ -32,7 +38,7 @@ namespace SpellGuard.UI.Canvas
             }
         }
 
-        public bool IsLoading { get; private set; }
+        public bool IsLoading => state != State.Idle;
 
         private void Awake()
         {
@@ -45,12 +51,119 @@ namespace SpellGuard.UI.Canvas
             DontDestroyOnLoad(gameObject);
         }
 
+        private void Update()
+        {
+            switch (state)
+            {
+                case State.FadeIn:
+                    elapsed += Time.unscaledDeltaTime;
+                    float t = Mathf.Clamp01(elapsed / fadeDuration);
+                    fadeGroup.alpha = Mathf.Lerp(0f, 1f, UITransitions.EaseOutCubic(t));
+                    if (t >= 1f)
+                    {
+                        fadeGroup.alpha = 1f;
+                        BeginLoad();
+                    }
+                    break;
+
+                case State.WaitLoad:
+                    if (asyncOp != null)
+                    {
+                        float fill = Mathf.Lerp(0.08f, 0.92f, Mathf.Clamp01(asyncOp.progress / 0.9f));
+                        loadingFillBar.rectTransform.anchorMax = new Vector2(fill, 0.32f);
+
+                        if (asyncOp.progress >= 0.9f)
+                        {
+                            loadingFillBar.rectTransform.anchorMax = new Vector2(0.92f, 0.32f);
+                            float loadElapsed = Time.unscaledTime - loadStartTime;
+                            if (loadElapsed >= minLoadDisplaySeconds)
+                            {
+                                asyncOp.allowSceneActivation = true;
+                                state = State.SceneReady;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        loadingGroup.alpha = 0f;
+                        loadingGroup.blocksRaycasts = false;
+                        state = State.FadeOut;
+                        elapsed = 0f;
+                    }
+                    break;
+
+                case State.SceneReady:
+                    if (asyncOp == null || asyncOp.isDone)
+                    {
+                        loadingGroup.alpha = 0f;
+                        loadingGroup.blocksRaycasts = false;
+                        state = State.FadeOut;
+                        elapsed = 0f;
+                    }
+                    break;
+
+                case State.FadeOut:
+                    elapsed += Time.unscaledDeltaTime;
+                    float ft = Mathf.Clamp01(elapsed / fadeDuration);
+                    fadeGroup.alpha = Mathf.Lerp(1f, 0f, UITransitions.EaseOutCubic(ft));
+                    if (ft >= 1f)
+                    {
+                        fadeGroup.alpha = 0f;
+                        Cleanup();
+                    }
+                    break;
+            }
+        }
+
+        public void LoadScene(string sceneName)
+        {
+            if (state != State.Idle) return;
+
+            pendingScene = sceneName;
+            canvas.enabled = true;
+            loadingFillBar.rectTransform.anchorMax = new Vector2(0.08f, 0.32f);
+
+            state = State.FadeIn;
+            elapsed = 0f;
+            fadeGroup.alpha = 0f;
+            loadingGroup.alpha = 0f;
+            loadingGroup.blocksRaycasts = false;
+        }
+
+        private void BeginLoad()
+        {
+            loadingGroup.alpha = 1f;
+            loadingGroup.blocksRaycasts = true;
+            loadStartTime = Time.unscaledTime;
+
+            asyncOp = SceneManager.LoadSceneAsync(pendingScene);
+            if (asyncOp == null)
+            {
+                loadingGroup.alpha = 0f;
+                loadingGroup.blocksRaycasts = false;
+                state = State.FadeOut;
+                elapsed = 0f;
+                return;
+            }
+
+            asyncOp.allowSceneActivation = false;
+            state = State.WaitLoad;
+        }
+
+        private void Cleanup()
+        {
+            canvas.enabled = false;
+            state = State.Idle;
+            asyncOp = null;
+            pendingScene = null;
+        }
+
         private void BuildDefaultUI()
         {
             canvas = gameObject.AddComponent<UnityEngine.Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 9999;
-            gameObject.AddComponent<UnityEngine.UI.CanvasScaler>();
+            gameObject.AddComponent<CanvasScaler>();
             gameObject.AddComponent<GraphicRaycaster>();
 
             var fadeGo = new GameObject("FadeOverlay");
@@ -67,7 +180,7 @@ namespace SpellGuard.UI.Canvas
             var loadRect = loadGo.AddComponent<RectTransform>();
             loadRect.anchorMin = new Vector2(0.5f, 0.5f);
             loadRect.anchorMax = new Vector2(0.5f, 0.5f);
-            loadRect.sizeDelta = new Vector2(320f, 80f);
+            loadRect.sizeDelta = new Vector2(400f, 100f);
             loadRect.anchoredPosition = Vector2.zero;
             loadingGroup = loadGo.AddComponent<CanvasGroup>();
 
@@ -79,35 +192,44 @@ namespace SpellGuard.UI.Canvas
             bgImage.rectTransform.anchorMax = Vector2.one;
             bgImage.rectTransform.sizeDelta = Vector2.zero;
 
+            var accent = new GameObject("Accent");
+            accent.transform.SetParent(loadGo.transform, false);
+            var accentImage = accent.AddComponent<Image>();
+            accentImage.color = new Color(0.96f, 0.64f, 0.22f, 1f);
+            var accentRect = accentImage.rectTransform;
+            accentRect.anchorMin = new Vector2(0f, 0.95f);
+            accentRect.anchorMax = new Vector2(1f, 1f);
+            accentRect.sizeDelta = Vector2.zero;
+
             var fillBg = new GameObject("FillBg");
             fillBg.transform.SetParent(loadGo.transform, false);
             var fillBgImage = fillBg.AddComponent<Image>();
             fillBgImage.color = new Color(0.08f, 0.09f, 0.18f, 1f);
             var fillBgRect = fillBgImage.rectTransform;
-            fillBgRect.anchorMin = new Vector2(0.05f, 0.15f);
-            fillBgRect.anchorMax = new Vector2(0.95f, 0.35f);
+            fillBgRect.anchorMin = new Vector2(0.08f, 0.12f);
+            fillBgRect.anchorMax = new Vector2(0.92f, 0.32f);
             fillBgRect.sizeDelta = Vector2.zero;
 
             var fill = new GameObject("FillBar");
             fill.transform.SetParent(loadGo.transform, false);
             loadingFillBar = fill.AddComponent<Image>();
-            loadingFillBar.color = new Color(0.95f, 0.62f, 0.24f, 1f);
+            loadingFillBar.color = new Color(0.96f, 0.64f, 0.22f, 1f);
             var fillRect = loadingFillBar.rectTransform;
-            fillRect.anchorMin = new Vector2(0.05f, 0.15f);
-            fillRect.anchorMax = new Vector2(0.05f, 0.35f);
+            fillRect.anchorMin = new Vector2(0.08f, 0.12f);
+            fillRect.anchorMax = new Vector2(0.08f, 0.32f);
             fillRect.pivot = new Vector2(0f, 0.5f);
             fillRect.sizeDelta = Vector2.zero;
 
             var labelGo = new GameObject("Label");
             labelGo.transform.SetParent(loadGo.transform, false);
             var label = labelGo.AddComponent<Text>();
-            label.text = "LOADING";
+            label.text = "LOADING...";
             label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            label.fontSize = 14;
+            label.fontSize = 16;
             label.alignment = TextAnchor.MiddleCenter;
             label.color = new Color(0.85f, 0.9f, 0.98f, 1f);
             var labelRect = label.rectTransform;
-            labelRect.anchorMin = new Vector2(0f, 0.5f);
+            labelRect.anchorMin = new Vector2(0f, 0.4f);
             labelRect.anchorMax = new Vector2(1f, 0.9f);
             labelRect.sizeDelta = Vector2.zero;
 
@@ -117,86 +239,6 @@ namespace SpellGuard.UI.Canvas
             loadingGroup.blocksRaycasts = false;
 
             canvas.enabled = false;
-        }
-
-        public void LoadScene(string sceneName)
-        {
-            if (IsLoading) return;
-            StartCoroutine(LoadRoutine(sceneName));
-        }
-
-        private IEnumerator LoadRoutine(string sceneName)
-        {
-            IsLoading = true;
-            canvas.enabled = true;
-            loadingFillBar.rectTransform.anchorMax = new Vector2(0.05f, 0.35f);
-
-            // Fade in
-            float elapsed = 0f;
-            while (elapsed < fadeDuration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                fadeGroup.alpha = Mathf.Lerp(0f, 1f, UITransitions.EaseOutCubic(elapsed / fadeDuration));
-                yield return null;
-            }
-            fadeGroup.alpha = 1f;
-
-            loadingGroup.alpha = 1f;
-            loadingGroup.blocksRaycasts = true;
-
-            var loadStart = Time.unscaledTime;
-            var asyncOp = SceneManager.LoadSceneAsync(sceneName);
-            if (asyncOp == null)
-            {
-                loadingGroup.alpha = 0f;
-                // Fade out
-                elapsed = 0f;
-                while (elapsed < fadeDuration)
-                {
-                    elapsed += Time.unscaledDeltaTime;
-                    fadeGroup.alpha = Mathf.Lerp(1f, 0f, UITransitions.EaseOutCubic(elapsed / fadeDuration));
-                    yield return null;
-                }
-                fadeGroup.alpha = 0f;
-                canvas.enabled = false;
-                IsLoading = false;
-                yield break;
-            }
-
-            asyncOp.allowSceneActivation = false;
-
-            while (asyncOp.progress < 0.9f)
-            {
-                var fill = Mathf.Lerp(0.05f, 0.95f, asyncOp.progress / 0.9f);
-                loadingFillBar.rectTransform.anchorMax = new Vector2(fill, 0.35f);
-                yield return null;
-            }
-
-            loadingFillBar.rectTransform.anchorMax = new Vector2(0.95f, 0.35f);
-
-            var loadElapsed = Time.unscaledTime - loadStart;
-            if (loadElapsed < minLoadDisplaySeconds)
-                yield return new WaitForSecondsRealtime(minLoadDisplaySeconds - loadElapsed);
-
-            asyncOp.allowSceneActivation = true;
-            while (!asyncOp.isDone)
-                yield return null;
-
-            loadingGroup.alpha = 0f;
-            loadingGroup.blocksRaycasts = false;
-
-            // Fade out
-            elapsed = 0f;
-            while (elapsed < fadeDuration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                fadeGroup.alpha = Mathf.Lerp(1f, 0f, UITransitions.EaseOutCubic(elapsed / fadeDuration));
-                yield return null;
-            }
-            fadeGroup.alpha = 0f;
-
-            canvas.enabled = false;
-            IsLoading = false;
         }
     }
 }

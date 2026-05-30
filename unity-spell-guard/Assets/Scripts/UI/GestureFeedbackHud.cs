@@ -84,6 +84,7 @@ namespace SpellGuard.UI
                 return;
             }
 
+            SpellGuardRuntimeSkin.EnsureLoaded();
             var scale = Mathf.Clamp(Mathf.Min(Screen.width / 1280f, Screen.height / 720f), 0.82f, 1.18f);
             EnsureStyles(scale);
 
@@ -101,14 +102,24 @@ namespace SpellGuard.UI
             var height = Mathf.Clamp(92f * scale, 82f, 110f);
             var rect = new Rect((Screen.width - width) * 0.5f, Mathf.Clamp(16f * scale, 12f, 24f), width, height);
             var pulse = GetRecentMotionPulse();
-            var border = Color.Lerp(new Color(0.28f, 0.72f, 1f, 0.85f), GetMotionColor(lastMotion), pulse);
-            DrawPanel(rect, new Color(0.035f, 0.045f, 0.07f, 0.88f), border);
+            var border = Color.Lerp(SpellGuardRuntimeSkin.Cyan, GetMotionColor(lastMotion), pulse);
+            DrawPanel(rect, new Color(0.035f, 0.045f, 0.07f, 0.82f), border);
+            SpellGuardRuntimeSkin.DrawScanLines(rect, scale, border);
 
             var left = new Rect(rect.x + 16f * scale, rect.y + 12f * scale, rect.width * 0.42f, rect.height - 24f * scale);
             var right = new Rect(rect.x + rect.width * 0.46f, rect.y + 12f * scale, rect.width * 0.5f, rect.height - 24f * scale);
 
             GUI.Label(new Rect(left.x, left.y, left.width, 22f * scale), "\u5f53\u524d\u624b\u52bf", smallStyle);
             GUI.Label(new Rect(left.x, left.y + 24f * scale, left.width, 42f * scale), snapshot.HandPresent ? snapshot.Gesture.ToChinese() : "\u672a\u68c0\u6d4b\u5230\u624b", bigSignalStyle);
+            var handTexture = SpellGuardRuntimeSkin.GetHandTexture(snapshot.HandPresent ? snapshot.Gesture.ToChinese() : string.Empty);
+            if (handTexture != null)
+            {
+                var iconSize = 50f * scale;
+                var iconRect = new Rect(left.xMax - iconSize - 8f * scale, left.y + 8f * scale, iconSize, iconSize);
+                GUI.color = new Color(1f, 1f, 1f, 0.86f);
+                GUI.DrawTexture(iconRect, handTexture, ScaleMode.ScaleToFit, true);
+                GUI.color = Color.white;
+            }
 
             GUI.Label(new Rect(right.x, right.y, right.width, 22f * scale), "\u52a8\u6001\u8f68\u8ff9", smallStyle);
             var motionLabel = Time.time - lastMotionAt <= 1.1f ? FormatMotion(lastMotion) : "\u7b49\u5f85\u52a8\u4f5c";
@@ -254,9 +265,10 @@ namespace SpellGuard.UI
             var width = Mathf.Clamp(Screen.width * 0.68f, 720f, 980f);
             var height = Mathf.Clamp(132f * scale, 118f, 150f);
             var rect = new Rect((Screen.width - width) * 0.5f, Screen.height - height - Mathf.Clamp(18f * scale, 12f, 26f), width, height);
-            DrawPanel(rect, new Color(0.04f, 0.045f, 0.065f, 0.9f), new Color(0.95f, 0.68f, 0.25f, 0.8f));
+            DrawPanel(rect, new Color(0.04f, 0.045f, 0.065f, 0.86f), new Color(0.95f, 0.68f, 0.25f, 0.82f));
 
             var padding = 14f * scale;
+            SpellGuardRuntimeSkin.DrawDivider(new Rect(rect.x + padding, rect.y + 60f * scale, rect.width - padding * 2f, 2f * scale), new Color(0.35f, 0.88f, 1f, 0.34f));
             var status = spellCaster != null ? spellCaster.StatusText : "\u7b49\u5f85\u65bd\u6cd5";
             var prompt = spellCaster != null ? spellCaster.SpellPromptText : "\u672a\u7ed1\u5b9a\u65bd\u6cd5\u5668";
             GUI.Label(new Rect(rect.x + padding, rect.y + 9f * scale, rect.width - padding * 2f, 24f * scale), status, titleStyle);
@@ -267,6 +279,7 @@ namespace SpellGuard.UI
             DrawChip(new Rect(rect.x + padding + 160f * scale, chipY, 150f * scale, 22f * scale), "\u51b0\u971c", IsRecentIce() ? new Color(0.36f, 0.82f, 1f) : new Color(0.22f, 0.24f, 0.28f));
             DrawChip(new Rect(rect.x + padding + 320f * scale, chipY, 170f * scale, 22f * scale), "\u62a4\u76fe\u53cd\u51fb", IsRecentShieldCounter() ? new Color(0.45f, 0.72f, 1f) : new Color(0.22f, 0.24f, 0.28f));
 
+            DrawStatusIcon(new Rect(rect.xMax - 306f * scale, chipY - 2f * scale, 24f * scale, 24f * scale), SpellGuardRuntimeSkin.IconHealth, playerHealth != null && playerHealth.CurrentHealth > 0 ? SpellGuardRuntimeSkin.Mint : SpellGuardRuntimeSkin.Red);
             var rightText = BuildRuntimeText(snapshot);
             GUI.Label(new Rect(rect.xMax - 260f * scale, chipY - 1f * scale, 250f * scale, 24f * scale), rightText, smallStyle);
             DrawCooldownStrip(new Rect(rect.x + padding, rect.yMax - 38f * scale, rect.width - padding * 2f, 30f * scale), scale);
@@ -287,14 +300,11 @@ namespace SpellGuard.UI
         {
             progress = Mathf.Clamp01(progress);
             var ready = progress >= 0.999f;
-            var fill = ready ? new Color(color.r, color.g, color.b, 0.20f) : new Color(0.04f, 0.045f, 0.065f, 0.92f);
+            var fill = ready ? new Color(color.r, color.g, color.b, 0.16f) : new Color(0.04f, 0.045f, 0.065f, 0.88f);
             DrawPanel(rect, fill, ready ? new Color(color.r, color.g, color.b, 0.82f) : new Color(1f, 1f, 1f, 0.18f));
 
             var bar = new Rect(rect.x + 6f * scale, rect.yMax - 8f * scale, rect.width - 12f * scale, 4f * scale);
-            GUI.color = new Color(1f, 1f, 1f, 0.12f);
-            GUI.DrawTexture(bar, Texture2D.whiteTexture);
-            GUI.color = new Color(color.r, color.g, color.b, ready ? 0.96f : 0.78f);
-            GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * progress, bar.height), Texture2D.whiteTexture);
+            SpellGuardRuntimeSkin.DrawProgress(bar, progress, color);
             GUI.color = ready ? Color.white : new Color(0.78f, 0.82f, 0.9f, 0.82f);
             GUI.Label(new Rect(rect.x + 6f * scale, rect.y + 3f * scale, rect.width - 12f * scale, 18f * scale), ready ? $"{label} OK" : $"{label} {Mathf.RoundToInt(progress * 100f)}%", smallStyle);
             GUI.color = Color.white;
@@ -320,7 +330,7 @@ namespace SpellGuard.UI
 
             var summary = performanceMonitor.CurrentSummary;
             var border = performanceMonitor.IsRecording ? new Color(1f, 0.68f, 0.22f, 0.9f) : new Color(0.42f, 0.52f, 0.66f, 0.72f);
-            DrawPanel(rect, new Color(0.035f, 0.04f, 0.06f, 0.88f), border);
+            DrawPanel(rect, new Color(0.035f, 0.04f, 0.06f, 0.84f), border);
 
             var padding = 8f * scale;
             var status = performanceMonitor.IsRecording ? "\u6027\u80fd\u91c7\u96c6\u4e2d" : "\u6027\u80fd\u672a\u91c7\u96c6";
@@ -443,7 +453,7 @@ namespace SpellGuard.UI
                 var size = Mathf.Lerp(92f, 180f, 1f - motionPulse) * scale;
                 var rect = new Rect((Screen.width - size) * 0.5f, Screen.height * 0.34f - size * 0.5f, size, size);
                 GUI.color = new Color(GetMotionColor(lastMotion).r, GetMotionColor(lastMotion).g, GetMotionColor(lastMotion).b, 0.16f * motionPulse);
-                GUI.DrawTexture(rect, Texture2D.whiteTexture);
+                GUI.DrawTexture(rect, SpellGuardRuntimeSkin.IconEnergy != null ? SpellGuardRuntimeSkin.IconEnergy : Texture2D.whiteTexture, ScaleMode.ScaleToFit, true);
                 GUI.color = Color.white;
             }
 
@@ -545,11 +555,7 @@ namespace SpellGuard.UI
 
         private void DrawConfidenceBar(Rect rect, float confidence, float scale)
         {
-            GUI.color = new Color(1f, 1f, 1f, 0.16f);
-            GUI.DrawTexture(rect, Texture2D.whiteTexture);
-            GUI.color = new Color(0.35f, 0.95f, 0.72f, 0.95f);
-            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width * Mathf.Clamp01(confidence), rect.height), Texture2D.whiteTexture);
-            GUI.color = Color.white;
+            SpellGuardRuntimeSkin.DrawProgress(rect, confidence, SpellGuardRuntimeSkin.Mint);
         }
 
         private void DrawChip(Rect rect, string text, Color color)
@@ -560,14 +566,20 @@ namespace SpellGuard.UI
 
         private void DrawPanel(Rect rect, Color fill, Color border)
         {
-            GUI.color = fill;
-            GUI.DrawTexture(rect, Texture2D.whiteTexture);
-            GUI.color = border;
-            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, 2f), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(rect.x, rect.yMax - 2f, rect.width, 2f), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(rect.x, rect.y, 2f, rect.height), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(rect.xMax - 2f, rect.y, 2f, rect.height), Texture2D.whiteTexture);
-            GUI.color = Color.white;
+            SpellGuardRuntimeSkin.DrawImagePanel(rect, SpellGuardRuntimeSkin.HudFrame ?? SpellGuardRuntimeSkin.PanelSmall, fill, border, 1.5f);
+        }
+
+        private static void DrawStatusIcon(Rect rect, Texture2D texture, Color tint)
+        {
+            if (texture == null)
+            {
+                return;
+            }
+
+            var previous = GUI.color;
+            GUI.color = new Color(tint.r, tint.g, tint.b, 0.9f);
+            GUI.DrawTexture(rect, texture, ScaleMode.ScaleToFit, true);
+            GUI.color = previous;
         }
 
         private void EnsureStyles(float scale)
@@ -582,19 +594,19 @@ namespace SpellGuard.UI
             {
                 fontSize = Mathf.RoundToInt(18f * scale),
                 fontStyle = FontStyle.Bold,
-                normal = { textColor = new Color(1f, 0.86f, 0.42f) },
+                normal = { textColor = SpellGuardRuntimeSkin.Text },
                 clipping = TextClipping.Clip
             };
             labelStyle = new GUIStyle(GUI.skin.label)
             {
                 fontSize = Mathf.RoundToInt(13f * scale),
-                normal = { textColor = new Color(0.88f, 0.92f, 1f) },
+                normal = { textColor = SpellGuardRuntimeSkin.Text },
                 clipping = TextClipping.Clip
             };
             smallStyle = new GUIStyle(GUI.skin.label)
             {
                 fontSize = Mathf.RoundToInt(11f * scale),
-                normal = { textColor = new Color(0.66f, 0.76f, 0.88f) },
+                normal = { textColor = SpellGuardRuntimeSkin.MutedText },
                 clipping = TextClipping.Clip
             };
             chipStyle = new GUIStyle(GUI.skin.label)
