@@ -53,6 +53,9 @@ namespace SpellGuard.UI.Canvas
         }
 
         private Vector2 _heroFrom, _heroTo, _navFrom, _navTo;
+        private RectTransform[] _buttonRects;
+        private const float ButtonStagger = 0.06f;
+        private const float ButtonAnimFraction = 0.6f;
 
         protected override void OnOpenStart()
         {
@@ -63,6 +66,22 @@ namespace SpellGuard.UI.Canvas
 
             if (heroPanel != null) heroPanel.anchoredPosition = _heroFrom;
             if (navPanel != null) navPanel.anchoredPosition = _navFrom;
+
+            // Collect button transforms for cascade animation
+            if (buttons != null && navPanel != null)
+            {
+                _buttonRects = new RectTransform[buttons.Length];
+                for (int i = 0; i < buttons.Length; i++)
+                {
+                    if (buttons[i].Go != null)
+                    {
+                        _buttonRects[i] = buttons[i].Go.GetComponent<RectTransform>();
+                        if (_buttonRects[i] != null)
+                            _buttonRects[i].localScale = Vector3.zero;
+                    }
+                }
+            }
+            else _buttonRects = null;
         }
 
         protected override void OnOpenUpdate(float t)
@@ -71,12 +90,31 @@ namespace SpellGuard.UI.Canvas
                 heroPanel.anchoredPosition = Vector2.Lerp(_heroFrom, _heroTo, UITransitions.EaseOutBack(t));
             if (navPanel != null)
                 navPanel.anchoredPosition = Vector2.Lerp(_navFrom, _navTo, UITransitions.EaseOutBack(t));
+
+            // Button cascade: each button scales in with stagger
+            if (_buttonRects != null)
+            {
+                float btnWindow = ButtonAnimFraction / _buttonRects.Length;
+                for (int i = 0; i < _buttonRects.Length; i++)
+                {
+                    if (_buttonRects[i] == null) continue;
+                    float btnStart = i * ButtonStagger;
+                    float btnT = Mathf.Clamp01((t - btnStart) / btnWindow);
+                    float s = UITransitions.EaseOutBack(btnT);
+                    _buttonRects[i].localScale = new Vector3(s, s, 1f);
+                }
+            }
         }
 
         protected override void OnOpenComplete()
         {
             if (heroPanel != null) heroPanel.anchoredPosition = _heroTo;
             if (navPanel != null) navPanel.anchoredPosition = _navTo;
+            if (_buttonRects != null)
+            {
+                for (int i = 0; i < _buttonRects.Length; i++)
+                    if (_buttonRects[i] != null) _buttonRects[i].localScale = Vector3.one;
+            }
         }
 
         public void MoveSelection(int delta)

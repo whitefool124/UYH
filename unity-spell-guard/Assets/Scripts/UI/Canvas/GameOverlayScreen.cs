@@ -29,6 +29,9 @@ namespace SpellGuard.UI.Canvas
         private int selectedIndex;
         private GameButton[] buttons;
         private Image panelBg;
+        private RectTransform[] _buttonRects;
+        private const float ButtonStagger = 0.06f;
+        private const float ButtonAnimFraction = 0.55f;
 
         private struct GameButton
         {
@@ -49,6 +52,22 @@ namespace SpellGuard.UI.Canvas
         protected override void OnOpenStart()
         {
             if (panel != null) panel.localScale = new Vector3(0.92f, 0.92f, 1f);
+
+            // Collect button transforms for cascade
+            if (buttons != null)
+            {
+                _buttonRects = new RectTransform[buttons.Length];
+                for (int i = 0; i < buttons.Length; i++)
+                {
+                    if (buttons[i].Go != null)
+                    {
+                        _buttonRects[i] = buttons[i].Go.GetComponent<RectTransform>();
+                        if (_buttonRects[i] != null)
+                            _buttonRects[i].localScale = Vector3.zero;
+                    }
+                }
+            }
+            else _buttonRects = null;
         }
 
         protected override void OnOpenUpdate(float t)
@@ -58,11 +77,30 @@ namespace SpellGuard.UI.Canvas
                 float s = Mathf.Lerp(0.92f, 1f, UITransitions.EaseOutBack(t));
                 panel.localScale = new Vector3(s, s, 1f);
             }
+
+            // Button cascade
+            if (_buttonRects != null)
+            {
+                float btnWindow = ButtonAnimFraction / Mathf.Max(1, _buttonRects.Length);
+                for (int i = 0; i < _buttonRects.Length; i++)
+                {
+                    if (_buttonRects[i] == null) continue;
+                    float btnStart = i * ButtonStagger;
+                    float btnT = Mathf.Clamp01((t - btnStart) / btnWindow);
+                    float s = UITransitions.EaseOutBack(btnT);
+                    _buttonRects[i].localScale = new Vector3(s, s, 1f);
+                }
+            }
         }
 
         protected override void OnOpenComplete()
         {
             if (panel != null) panel.localScale = Vector3.one;
+            if (_buttonRects != null)
+            {
+                for (int i = 0; i < _buttonRects.Length; i++)
+                    if (_buttonRects[i] != null) _buttonRects[i].localScale = Vector3.one;
+            }
         }
 
         public void Configure(Mode mode, string title, string subtitle, string body, string hint,
