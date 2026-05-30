@@ -14,6 +14,7 @@ namespace SpellGuard.UI.Canvas
         [SerializeField] private float transitionInDuration = 0.35f;
 
         private readonly Dictionary<Type, UIScreen> screenMap = new Dictionary<Type, UIScreen>();
+        private readonly Dictionary<string, UIScreen> screenNameMap = new Dictionary<string, UIScreen>();
         private UIScreen currentScreen;
         private bool isTransitioning;
 
@@ -35,6 +36,7 @@ namespace SpellGuard.UI.Canvas
             {
                 if (screen == null) continue;
                 screenMap[screen.GetType()] = screen;
+                screenNameMap[screen.ScreenId] = screen;
                 screen.gameObject.SetActive(false);
             }
 
@@ -54,6 +56,12 @@ namespace SpellGuard.UI.Canvas
         public T GetScreen<T>() where T : UIScreen
         {
             screenMap.TryGetValue(typeof(T), out var screen);
+            return screen as T;
+        }
+
+        public T GetScreen<T>(string screenId) where T : UIScreen
+        {
+            screenNameMap.TryGetValue(screenId, out var screen);
             return screen as T;
         }
 
@@ -94,10 +102,12 @@ namespace SpellGuard.UI.Canvas
         public void RebuildScreenMap()
         {
             screenMap.Clear();
+            screenNameMap.Clear();
             foreach (var screen in screens)
             {
                 if (screen == null) continue;
                 screenMap[screen.GetType()] = screen;
+                screenNameMap[screen.ScreenId] = screen;
             }
             if (defaultScreen != null && !defaultScreen.IsOpen)
             {

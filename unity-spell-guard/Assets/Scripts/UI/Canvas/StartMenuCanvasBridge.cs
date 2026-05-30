@@ -178,7 +178,7 @@ namespace SpellGuard.UI.Canvas
 
         private void ShowMain()
         {
-            var screen = uiManager.GetScreen<StartMenuScreen>();
+            var screen = uiManager.GetScreen<StartMenuScreen>("MainScreen");
             if (screen == null) return;
             uiManager.ShowScreen(screen);
             screen.Configure(StartMenuScreen.Mode.Main);
@@ -187,10 +187,7 @@ namespace SpellGuard.UI.Canvas
 
         private void ShowGuide()
         {
-            var screens = FindObjectsOfType<StartMenuScreen>(true);
-            StartMenuScreen guideScreen = null;
-            foreach (var s in screens)
-                if (s.ScreenId == "GuideScreen") { guideScreen = s; break; }
+            var guideScreen = uiManager.GetScreen<StartMenuScreen>("GuideScreen");
             if (guideScreen == null) return;
 
             uiManager.ShowScreen(guideScreen);
@@ -200,10 +197,7 @@ namespace SpellGuard.UI.Canvas
 
         private void ShowSettings()
         {
-            var screens = FindObjectsOfType<StartMenuScreen>(true);
-            StartMenuScreen settingsScreen = null;
-            foreach (var s in screens)
-                if (s.ScreenId == "SettingsScreen") { settingsScreen = s; break; }
+            var settingsScreen = uiManager.GetScreen<StartMenuScreen>("SettingsScreen");
             if (settingsScreen == null) return;
 
             uiManager.ShowScreen(settingsScreen);
@@ -214,10 +208,7 @@ namespace SpellGuard.UI.Canvas
 
         private void ShowCalibration()
         {
-            var screens = FindObjectsOfType<StartMenuScreen>(true);
-            StartMenuScreen calScreen = null;
-            foreach (var s in screens)
-                if (s.ScreenId == "CalibrationScreen") { calScreen = s; break; }
+            var calScreen = uiManager.GetScreen<StartMenuScreen>("CalibrationScreen");
             if (calScreen == null) return;
 
             uiManager.ShowScreen(calScreen);
@@ -229,17 +220,9 @@ namespace SpellGuard.UI.Canvas
 
         private void UpdateSettingsLabels()
         {
-            var screens = FindObjectsOfType<StartMenuScreen>(true);
-            foreach (var s in screens)
-            {
-                if (s.ScreenId == "SettingsScreen")
-                {
-                    s.Configure(StartMenuScreen.Mode.Settings);
-                    // Rebuild buttons with current labels
-                    // The Configure method rebuilds the screen; we just need to call it
-                    UpdateSettingsButtonLabels(s);
-                }
-            }
+            var settingsScreen = uiManager.GetScreen<StartMenuScreen>("SettingsScreen");
+            if (settingsScreen != null)
+                UpdateSettingsButtonLabels(settingsScreen);
         }
 
         private void UpdateSettingsButtonLabels(StartMenuScreen screen)
