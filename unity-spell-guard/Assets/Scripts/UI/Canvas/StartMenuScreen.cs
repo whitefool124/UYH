@@ -326,7 +326,7 @@ namespace SpellGuard.UI.Canvas
                 var go = existing != null ? existing.gameObject : new GameObject("RuntimeGestureCapturePanel");
                 go.transform.SetParent(parent, false);
                 go.transform.SetAsLastSibling();
-                gesturePanel = go.GetComponent<RectTransform>();
+                gesturePanel = EnsureRectTransform(go);
                 gesturePanel.anchorMin = new Vector2(0.06f, 0.025f);
                 gesturePanel.anchorMax = new Vector2(0.36f, 0.12f);
                 gesturePanel.offsetMin = Vector2.zero;
@@ -347,7 +347,7 @@ namespace SpellGuard.UI.Canvas
                 var existing = gesturePanel.Find("CapturePoints");
                 var go = existing != null ? existing.gameObject : new GameObject("CapturePoints");
                 go.transform.SetParent(gesturePanel, false);
-                gesturePointsRoot = go.GetComponent<RectTransform>();
+                gesturePointsRoot = EnsureRectTransform(go);
                 gesturePointsRoot.anchorMin = new Vector2(0.44f, 0.44f);
                 gesturePointsRoot.anchorMax = new Vector2(0.96f, 0.92f);
                 gesturePointsRoot.offsetMin = Vector2.zero;
@@ -417,6 +417,12 @@ namespace SpellGuard.UI.Canvas
             rect.offsetMax = Vector2.zero;
             ApplyText(text, size, style, color, alignment);
             return text;
+        }
+
+        private static RectTransform EnsureRectTransform(GameObject go)
+        {
+            var rect = go.GetComponent<RectTransform>();
+            return rect != null ? rect : go.AddComponent<RectTransform>();
         }
 
         private static void ApplyPanel(RectTransform panel, ref Image image, Color color)
