@@ -125,6 +125,7 @@ namespace SpellGuard.UI.Canvas
             {
                 var go = Instantiate(navButtonPrefab, navPanel);
                 go.name = $"Btn_{items[i].key}";
+                go.SetActive(true);
 
                 var labelText = go.GetComponentInChildren<Text>();
                 if (labelText == null)
