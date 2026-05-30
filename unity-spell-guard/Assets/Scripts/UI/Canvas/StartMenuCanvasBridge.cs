@@ -48,6 +48,7 @@ namespace SpellGuard.UI.Canvas
         {
             HandleKeyboardNavigation();
             HandleGestureNavigation();
+            UpdateGestureCapturePanel();
 
             // Live update calibration info when on calibration screen
             if (currentScreen != null && currentScreen.ScreenId == "CalibrationScreen")
@@ -150,6 +151,12 @@ namespace SpellGuard.UI.Canvas
                 default:
                     return false;
             }
+        }
+
+        private void UpdateGestureCapturePanel()
+        {
+            if (currentScreen == null || inputRouter == null) return;
+            currentScreen.UpdateGestureCapture(inputRouter.CurrentGestureFrame, inputRouter.CurrentSnapshot);
         }
 
         private void HandleButtonClick(string key)
@@ -313,7 +320,7 @@ namespace SpellGuard.UI.Canvas
 
             var cameraReady = webcamFeed != null && webcamFeed.HasReadyFrame;
             var inputMode = GetInputModeLabel();
-            var snapshot = nativeMediapipeProvider != null ? nativeMediapipeProvider.CurrentSnapshot : GestureSnapshot.Missing;
+            var snapshot = inputRouter != null ? inputRouter.CurrentSnapshot : GestureSnapshot.Missing;
             var gestureState = snapshot.HandPresent ? snapshot.Gesture.ToChinese() : "未检测到手";
 
             bodyText.text = $"摄像头：{(cameraReady ? "可用" : "未就绪")}\n输入模式：{inputMode}\n识别：{gestureState}";
