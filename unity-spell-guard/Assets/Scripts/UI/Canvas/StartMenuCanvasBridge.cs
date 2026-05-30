@@ -13,7 +13,6 @@ namespace SpellGuard.UI.Canvas
     /// </summary>
     public class StartMenuCanvasBridge : MonoBehaviour
     {
-        [SerializeField] private SpellGuardStartMenuController menuController;
         [SerializeField] private SpellGuardGameSettings settings;
         [SerializeField] private GestureInputRouter inputRouter;
         [SerializeField] private NativeMediapipeGestureProvider nativeMediapipeProvider;

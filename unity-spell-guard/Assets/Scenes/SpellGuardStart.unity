@@ -696,8 +696,8 @@ RectTransform:
   - {fileID: 1336813227}
   m_Father: {fileID: 1853805722}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 1, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 48}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -859,8 +859,8 @@ RectTransform:
   - {fileID: 1087554675}
   m_Father: {fileID: 1853805722}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 1, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 48}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -1043,7 +1043,6 @@ GameObject:
   - component: {fileID: 572744973}
   - component: {fileID: 572744972}
   - component: {fileID: 572744971}
-  - component: {fileID: 572744970}
   - component: {fileID: 572744984}
   m_Layer: 0
   m_Name: StartRuntime
@@ -1052,28 +1051,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &572744970
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 572744969}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ddc5eb86c7dac9540a8e6e1db0176e62, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  inputProvider: {fileID: 572744974}
-  inputRouter: {fileID: 572744974}
-  webcamFeed: {fileID: 572744982}
-  nativeMediapipeProvider: {fileID: 572744980}
-  settings: {fileID: 572744973}
-  gameplaySceneName: SpellGuardPrototype
-  developerToolsSceneName: SpellGuardDeveloperTools
-  confirmHoldSeconds: 0.45
-  backHoldSeconds: 0.45
-  debugLogs: 0
 --- !u!114 &572744971
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1372,7 +1349,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9807cd9504bff20438514e9aa105c94d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  menuController: {fileID: 572744970}
+  menuController: {fileID: 0}
   settings: {fileID: 572744973}
   inputRouter: {fileID: 572744974}
   nativeMediapipeProvider: {fileID: 572744980}
@@ -2180,8 +2157,8 @@ RectTransform:
   - {fileID: 342335956}
   m_Father: {fileID: 1853805722}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 1, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 48}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -3971,8 +3948,8 @@ RectTransform:
   - {fileID: 2012236882}
   m_Father: {fileID: 1853805722}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 1, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 48}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -5613,8 +5590,8 @@ RectTransform:
   - {fileID: 1800962949}
   m_Father: {fileID: 1853805722}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 1, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 48}
   m_Pivot: {x: 0.5, y: 0.5}
