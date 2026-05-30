@@ -1,0 +1,191 @@
+﻿[
+    {
+        "name":  "ui_panel_main",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_panel_main.png",
+        "source":  "gpt-image-2-2026-05-30T13-44-09-329Z-73487116.png",
+        "expectedWidth":  512,
+        "expectedHeight":  512,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  "24"
+    },
+    {
+        "name":  "ui_btn_primary_normal",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_btn_primary_normal.png",
+        "source":  "gpt-image-2-2026-05-30T13-45-06-433Z-853393d6.png",
+        "expectedWidth":  256,
+        "expectedHeight":  64,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  "16"
+    },
+    {
+        "name":  "ui_btn_primary_hover",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_btn_primary_hover.png",
+        "source":  "gpt-image-2-2026-05-30T13-46-42-510Z-3c311ebb.png",
+        "expectedWidth":  256,
+        "expectedHeight":  64,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  "16"
+    },
+    {
+        "name":  "ui_btn_primary_active",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_btn_primary_active.png",
+        "source":  "gpt-image-2-2026-05-30T13-47-48-001Z-0023cbe7.png",
+        "expectedWidth":  256,
+        "expectedHeight":  64,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  "16"
+    },
+    {
+        "name":  "ui_btn_secondary_normal",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_btn_secondary_normal.png",
+        "source":  "gpt-image-2-2026-05-30T13-48-48-082Z-4c384113.png",
+        "expectedWidth":  200,
+        "expectedHeight":  48,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  "12"
+    },
+    {
+        "name":  "ui_btn_secondary_hover",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_btn_secondary_hover.png",
+        "source":  "gpt-image-2-2026-05-30T13-49-56-553Z-feb5756d.png",
+        "expectedWidth":  200,
+        "expectedHeight":  48,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  "12"
+    },
+    {
+        "name":  "ui_screen_bg_main_menu",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\Screens\\ui_screen_bg_main_menu.png",
+        "source":  "gpt-image-2-2026-05-30T13-51-00-897Z-74ac110e.png",
+        "expectedWidth":  1920,
+        "expectedHeight":  1080,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  ""
+    },
+    {
+        "name":  "ui_icon_fire",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_icon_fire.png",
+        "source":  "gpt-image-2-2026-05-30T13-51-39-951Z-f19fdae7.png",
+        "expectedWidth":  64,
+        "expectedHeight":  64,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  ""
+    },
+    {
+        "name":  "ui_icon_ice",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_icon_ice.png",
+        "source":  "gpt-image-2-2026-05-30T13-52-59-652Z-284063ca.png",
+        "expectedWidth":  64,
+        "expectedHeight":  64,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  ""
+    },
+    {
+        "name":  "ui_icon_shield",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_icon_shield.png",
+        "source":  "gpt-image-2-2026-05-30T13-54-07-861Z-c5243c71.png",
+        "expectedWidth":  64,
+        "expectedHeight":  64,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  ""
+    },
+    {
+        "name":  "ui_icon_health",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_icon_health.png",
+        "source":  "gpt-image-2-2026-05-30T13-55-26-526Z-0dd8ace1.png",
+        "expectedWidth":  48,
+        "expectedHeight":  48,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  ""
+    },
+    {
+        "name":  "ui_progress_bar_bg",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_progress_bar_bg.png",
+        "source":  "gpt-image-2-2026-05-30T13-56-30-110Z-962cd3b9.png",
+        "expectedWidth":  256,
+        "expectedHeight":  24,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  "4"
+    },
+    {
+        "name":  "ui_progress_bar_fill",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_progress_bar_fill.png",
+        "source":  "gpt-image-2-2026-05-30T13-57-28-221Z-35e6db25.png",
+        "expectedWidth":  256,
+        "expectedHeight":  24,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  "4"
+    },
+    {
+        "name":  "vfx_fire_projectile",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\VFX\\SpellGuard\\GeneratedCore\\vfx_fire_projectile.png",
+        "source":  "gpt-image-2-2026-05-30T13-58-27-579Z-05c2e4e3.png",
+        "expectedWidth":  64,
+        "expectedHeight":  64,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  ""
+    },
+    {
+        "name":  "vfx_fire_impact",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\VFX\\SpellGuard\\GeneratedCore\\vfx_fire_impact.png",
+        "source":  "gpt-image-2-2026-05-30T14-00-18-936Z-f2b213c8.png",
+        "expectedWidth":  128,
+        "expectedHeight":  128,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  ""
+    },
+    {
+        "name":  "vfx_shield_hex",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\VFX\\SpellGuard\\GeneratedCore\\vfx_shield_hex.png",
+        "source":  "gpt-image-2-2026-05-30T14-01-43-515Z-17e397ab.png",
+        "expectedWidth":  256,
+        "expectedHeight":  256,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  ""
+    },
+    {
+        "name":  "env_floor_grid",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\Environment\\SpellGuard\\GeneratedCore\\env_floor_grid.png",
+        "source":  "gpt-image-2-2026-05-30T14-03-35-034Z-994399d0.png",
+        "expectedWidth":  1024,
+        "expectedHeight":  1024,
+        "import":  "Default, Repeat, Bilinear",
+        "border":  ""
+    },
+    {
+        "name":  "hand_sprite_point",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\Hands\\hand_sprite_point.png",
+        "source":  "gpt-image-2-2026-05-30T14-05-06-267Z-b3616345.png",
+        "expectedWidth":  256,
+        "expectedHeight":  256,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  ""
+    },
+    {
+        "name":  "hand_sprite_fist",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\Hands\\hand_sprite_fist.png",
+        "source":  "gpt-image-2-2026-05-30T14-06-11-288Z-4580d4cf.png",
+        "expectedWidth":  256,
+        "expectedHeight":  256,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  ""
+    },
+    {
+        "name":  "hand_sprite_vsign",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\Hands\\hand_sprite_vsign.png",
+        "source":  "gpt-image-2-2026-05-30T14-07-20-575Z-99bfcb74.png",
+        "expectedWidth":  256,
+        "expectedHeight":  256,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  ""
+    },
+    {
+        "name":  "hand_sprite_openpalm",
+        "target":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\Hands\\hand_sprite_openpalm.png",
+        "source":  "gpt-image-2-2026-05-30T14-08-31-344Z-d6ffd572.png",
+        "expectedWidth":  256,
+        "expectedHeight":  256,
+        "import":  "Sprite (2D and UI), Clamp, Bilinear",
+        "border":  ""
+    }
+]
