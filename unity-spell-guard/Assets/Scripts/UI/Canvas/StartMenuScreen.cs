@@ -1,4 +1,5 @@
 using System;
+using SpellGuard.UI;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -30,8 +31,18 @@ namespace SpellGuard.UI.Canvas
         private Mode currentMode;
         private int selectedIndex;
         private NavButton[] buttons;
+        private RawImage backgroundImage;
+        private Image backgroundScrim;
         private Image heroBgImage;
         private Image navBgImage;
+        private Vector2 heroFrom;
+        private Vector2 heroTo;
+        private Vector2 navFrom;
+        private Vector2 navTo;
+        private RectTransform[] buttonRects;
+
+        private const float ButtonStagger = 0.12f;
+        private const float ButtonAnimFraction = 0.9f;
 
         private struct NavButton
         {
@@ -53,68 +64,73 @@ namespace SpellGuard.UI.Canvas
             UpdateSelection();
         }
 
-        private Vector2 _heroFrom, _heroTo, _navFrom, _navTo;
-        private RectTransform[] _buttonRects;
-        private const float ButtonStagger = 0.06f;
-        private const float ButtonAnimFraction = 0.6f;
-
         protected override void OnOpenStart()
         {
-            _heroFrom = new Vector2(-80f, 0f);
-            _navFrom = new Vector2(80f, 0f);
-            _heroTo = heroPanel != null ? heroPanel.anchoredPosition : Vector2.zero;
-            _navTo = navPanel != null ? navPanel.anchoredPosition : Vector2.zero;
+            heroFrom = new Vector2(-120f, 0f);
+            navFrom = new Vector2(120f, 0f);
+            heroTo = heroPanel != null ? heroPanel.anchoredPosition : Vector2.zero;
+            navTo = navPanel != null ? navPanel.anchoredPosition : Vector2.zero;
 
-            if (heroPanel != null) heroPanel.anchoredPosition = _heroFrom;
-            if (navPanel != null) navPanel.anchoredPosition = _navFrom;
+            if (heroPanel != null) heroPanel.anchoredPosition = heroFrom;
+            if (navPanel != null) navPanel.anchoredPosition = navFrom;
 
-            // Collect button transforms for cascade animation
-            if (buttons != null && navPanel != null)
+            if (buttons != null)
             {
-                _buttonRects = new RectTransform[buttons.Length];
-                for (int i = 0; i < buttons.Length; i++)
+                buttonRects = new RectTransform[buttons.Length];
+                for (var i = 0; i < buttons.Length; i++)
                 {
-                    if (buttons[i].Go != null)
+                    if (buttons[i].Go == null) continue;
+                    buttonRects[i] = buttons[i].Go.GetComponent<RectTransform>();
+                    if (buttonRects[i] != null)
                     {
-                        _buttonRects[i] = buttons[i].Go.GetComponent<RectTransform>();
-                        if (_buttonRects[i] != null)
-                            _buttonRects[i].localScale = Vector3.zero;
+                        buttonRects[i].localScale = Vector3.zero;
                     }
                 }
             }
-            else _buttonRects = null;
+            else
+            {
+                buttonRects = null;
+            }
         }
 
         protected override void OnOpenUpdate(float t)
         {
+            var eased = UITransitions.EaseOutCubic(t);
             if (heroPanel != null)
-                heroPanel.anchoredPosition = Vector2.Lerp(_heroFrom, _heroTo, UITransitions.EaseOutBack(t));
-            if (navPanel != null)
-                navPanel.anchoredPosition = Vector2.Lerp(_navFrom, _navTo, UITransitions.EaseOutBack(t));
-
-            // Button cascade: each button scales in with stagger
-            if (_buttonRects != null)
             {
-                float btnWindow = ButtonAnimFraction / _buttonRects.Length;
-                for (int i = 0; i < _buttonRects.Length; i++)
-                {
-                    if (_buttonRects[i] == null) continue;
-                    float btnStart = i * ButtonStagger;
-                    float btnT = Mathf.Clamp01((t - btnStart) / btnWindow);
-                    float s = UITransitions.EaseOutBack(btnT);
-                    _buttonRects[i].localScale = new Vector3(s, s, 1f);
-                }
+                heroPanel.anchoredPosition = Vector2.Lerp(heroFrom, heroTo, eased);
+            }
+
+            if (navPanel != null)
+            {
+                navPanel.anchoredPosition = Vector2.Lerp(navFrom, navTo, eased);
+            }
+
+            if (buttonRects == null || buttonRects.Length == 0) return;
+
+            var btnWindow = ButtonAnimFraction / buttonRects.Length;
+            for (var i = 0; i < buttonRects.Length; i++)
+            {
+                if (buttonRects[i] == null) continue;
+                var btnStart = i * ButtonStagger;
+                var btnT = Mathf.Clamp01((t - btnStart) / btnWindow);
+                var scale = UITransitions.EaseOutBack(btnT);
+                buttonRects[i].localScale = new Vector3(scale, scale, 1f);
             }
         }
 
         protected override void OnOpenComplete()
         {
-            if (heroPanel != null) heroPanel.anchoredPosition = _heroTo;
-            if (navPanel != null) navPanel.anchoredPosition = _navTo;
-            if (_buttonRects != null)
+            if (heroPanel != null) heroPanel.anchoredPosition = heroTo;
+            if (navPanel != null) navPanel.anchoredPosition = navTo;
+            if (buttonRects == null) return;
+
+            for (var i = 0; i < buttonRects.Length; i++)
             {
-                for (int i = 0; i < _buttonRects.Length; i++)
-                    if (_buttonRects[i] != null) _buttonRects[i].localScale = Vector3.one;
+                if (buttonRects[i] != null)
+                {
+                    buttonRects[i].localScale = Vector3.one;
+                }
             }
         }
 
@@ -133,7 +149,8 @@ namespace SpellGuard.UI.Canvas
         }
 
         public string SelectedKey => buttons != null && selectedIndex >= 0 && selectedIndex < buttons.Length
-            ? buttons[selectedIndex].Key : null;
+            ? buttons[selectedIndex].Key
+            : null;
 
         private void BuildScreen()
         {
@@ -143,7 +160,7 @@ namespace SpellGuard.UI.Canvas
             {
                 case Mode.Main:
                     SetHero("SPELL GUARD", "体感施法守卫",
-                        "欢迎进入符印守卫。\n\n推荐流程：玩法说明 → 摄像头校准 → 开始守卫。",
+                        "欢迎进入符印守卫。\n\n推荐流程：玩法说明 -> 摄像头校准 -> 开始守卫。",
                         "挥动切换，握拳确认，张掌返回。");
                     AddButtons(("start", "开始守卫"), ("guide", "玩法说明"),
                         ("calibration", "摄像头校准"), ("settings", "设置"),
@@ -152,7 +169,7 @@ namespace SpellGuard.UI.Canvas
 
                 case Mode.Guide:
                     SetHero("玩法说明", "守住仪式核心",
-                        "目标：阻止敌人突破通道，达到目标分数即胜利。\n\n战斗：握拳=火焰，V手势=冰霜，张掌=护盾。\n\n移动：左右/上下挥动进行换位。\n\n菜单：挥动切换，握拳确认，张掌返回。",
+                        "目标：阻止敌人突破通道，达到目标分数即可胜利。\n\n战斗：握拳=火焰，V 手势=冰霜，张掌=护盾。\n\n移动：左右/上下挥动进行换位。\n\n菜单：挥动切换，握拳确认，张掌返回。",
                         "准备好后直接开始守卫。");
                     AddButtons(("start", "开始守卫"), ("back", "返回主菜单"));
                     break;
@@ -168,7 +185,7 @@ namespace SpellGuard.UI.Canvas
 
                 case Mode.Calibration:
                     SetHero("摄像头校准", "确认摄像头是否可用",
-                        "摄像头：检测中...\n输入模式：--\n识别：未检测到手",
+                        "摄像头：检测中...\n输入模式：-\n识别：未检测到手",
                         "无画面时先切换到 Native MediaPipe，再尝试切换摄像头。");
                     AddButtons(("input-mode", "输入模式"), ("camera-device", "切换摄像头"),
                         ("back", "返回主菜单"));
@@ -186,6 +203,10 @@ namespace SpellGuard.UI.Canvas
 
         private void ApplyVisualStyle()
         {
+            openDuration = 0.9f;
+            closeDuration = 0.28f;
+
+            EnsureBackground();
             ApplyPanel(heroPanel, ref heroBgImage, new Color(0.025f, 0.035f, 0.058f, 0.96f));
             ApplyPanel(navPanel, ref navBgImage, new Color(0f, 0f, 0f, 0f));
             ApplyText(titleText, 42, FontStyle.Bold, new Color(1f, 0.72f, 0.26f, 1f), TextAnchor.UpperLeft);
@@ -208,6 +229,51 @@ namespace SpellGuard.UI.Canvas
                 navPanel.offsetMin = Vector2.zero;
                 navPanel.offsetMax = Vector2.zero;
             }
+        }
+
+        private void EnsureBackground()
+        {
+            var parent = heroPanel != null ? heroPanel.parent as RectTransform : transform as RectTransform;
+            if (parent == null) return;
+
+            if (backgroundImage == null)
+            {
+                var existing = parent.Find("RuntimeCleanSciFiBackground");
+                var bgGo = existing != null ? existing.gameObject : new GameObject("RuntimeCleanSciFiBackground");
+                bgGo.transform.SetParent(parent, false);
+                bgGo.transform.SetAsFirstSibling();
+                backgroundImage = bgGo.GetComponent<RawImage>();
+                if (backgroundImage == null) backgroundImage = bgGo.AddComponent<RawImage>();
+                backgroundImage.raycastTarget = false;
+
+                var rect = bgGo.GetComponent<RectTransform>();
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.offsetMin = Vector2.zero;
+                rect.offsetMax = Vector2.zero;
+            }
+
+            backgroundImage.texture = SpellGuardRuntimeSkin.StartMenuBackdrop ?? SpellGuardRuntimeSkin.ScreenMenuGateway;
+            backgroundImage.color = new Color(0.88f, 0.94f, 1f, 0.62f);
+
+            if (backgroundScrim == null)
+            {
+                var existing = parent.Find("RuntimeBackgroundReadabilityScrim");
+                var scrimGo = existing != null ? existing.gameObject : new GameObject("RuntimeBackgroundReadabilityScrim");
+                scrimGo.transform.SetParent(parent, false);
+                scrimGo.transform.SetSiblingIndex(Mathf.Min(1, parent.childCount - 1));
+                backgroundScrim = scrimGo.GetComponent<Image>();
+                if (backgroundScrim == null) backgroundScrim = scrimGo.AddComponent<Image>();
+                backgroundScrim.raycastTarget = false;
+
+                var rect = scrimGo.GetComponent<RectTransform>();
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.offsetMin = Vector2.zero;
+                rect.offsetMax = Vector2.zero;
+            }
+
+            backgroundScrim.color = new Color(0.01f, 0.014f, 0.028f, 0.42f);
         }
 
         private static void ApplyPanel(RectTransform panel, ref Image image, Color color)
@@ -235,7 +301,7 @@ namespace SpellGuard.UI.Canvas
         private void AddButtons(params (string key, string label)[] items)
         {
             buttons = new NavButton[items.Length];
-            for (int i = 0; i < items.Length; i++)
+            for (var i = 0; i < items.Length; i++)
             {
                 var go = Instantiate(navButtonPrefab, navPanel);
                 go.name = $"Btn_{items[i].key}";
@@ -283,6 +349,7 @@ namespace SpellGuard.UI.Canvas
                 cb.selectedColor = buttonSelectedColor;
                 cb.fadeDuration = 0.12f;
                 btn.colors = cb;
+
                 var key = items[i].key;
                 btn.onClick.RemoveAllListeners();
                 btn.onClick.AddListener(() => ButtonClicked?.Invoke(key));
@@ -309,12 +376,15 @@ namespace SpellGuard.UI.Canvas
                     if (b.Go != null) Destroy(b.Go);
                 }
             }
-            // Also destroy any orphaned children (e.g. from Edit Mode Configure)
+
             if (navPanel != null)
             {
-                for (int i = navPanel.childCount - 1; i >= 0; i--)
+                for (var i = navPanel.childCount - 1; i >= 0; i--)
+                {
                     Destroy(navPanel.GetChild(i).gameObject);
+                }
             }
+
             buttons = null;
             selectedIndex = 0;
         }
@@ -322,13 +392,13 @@ namespace SpellGuard.UI.Canvas
         private void UpdateSelection()
         {
             if (buttons == null) return;
-            for (int i = 0; i < buttons.Length; i++)
+            for (var i = 0; i < buttons.Length; i++)
             {
                 var selected = i == selectedIndex;
                 buttons[i].BgImage.color = selected ? new Color(0.22f, 0.36f, 0.54f, 0.98f) : buttonNormalColor;
                 buttons[i].LabelText.color = selected ? Color.white : new Color(0.78f, 0.86f, 0.96f, 1f);
                 buttons[i].LabelText.text = selected
-                    ? $"▶ {buttons[i].Label}"
+                    ? $"▶  {buttons[i].Label}"
                     : $"   {buttons[i].Label}";
             }
         }

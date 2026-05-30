@@ -36,6 +36,7 @@ namespace SpellGuard.UI
         private static Texture2D screenMenuGateway;
         private static Texture2D screenResultsPanel;
         private static Texture2D screenMainMenuBg;
+        private static Texture2D startMenuBackdrop;
         private static bool loaded;
 
         public static Texture2D PanelLarge => Load(ref panelLarge, "Sprites/ui_panel_large");
@@ -65,6 +66,7 @@ namespace SpellGuard.UI
         public static Texture2D ScreenMenuGateway => Load(ref screenMenuGateway, "Screens/screen_menu_gateway");
         public static Texture2D ScreenResultsPanel => Load(ref screenResultsPanel, "Screens/screen_results_panel");
         public static Texture2D ScreenMainMenuBg => Load(ref screenMainMenuBg, "Screens/ui_screen_bg_main_menu");
+        public static Texture2D StartMenuBackdrop => Load(ref startMenuBackdrop, "Screens/start_menu_bg_clean_scifi");
 
         public static readonly Color SpaceInk = new Color(0.025f, 0.035f, 0.055f, 0.92f);
         public static readonly Color Glass = new Color(0.075f, 0.095f, 0.14f, 0.76f);
