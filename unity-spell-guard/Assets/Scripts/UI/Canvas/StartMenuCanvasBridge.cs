@@ -45,6 +45,10 @@ namespace SpellGuard.UI.Canvas
         {
             HandleKeyboardNavigation();
             HandleGestureNavigation();
+
+            // Live update calibration info when on calibration screen
+            if (currentScreen != null && currentScreen.ScreenId == "CalibrationScreen")
+                UpdateCalibrationInfo(currentScreen);
         }
 
         private void HandleKeyboardNavigation()
@@ -62,13 +66,57 @@ namespace SpellGuard.UI.Canvas
             }
         }
 
+        private float gestureHoldTimer;
+        private GestureIntent lastIntent;
+        private float lastMotionTime;
+
         private void HandleGestureNavigation()
         {
-            if (currentScreen == null) return;
+            if (currentScreen == null || inputRouter == null) return;
 
-            // Use the existing input provider via MenuController's pattern
-            // For now, keyboard is the primary fallback; gesture integration 
-            // will be added via the existing GestureInputProvider on StartRuntime
+            var allowBack = currentScreen.ScreenId != "MainScreen";
+            var action = inputRouter.GetMenuAction(allowBack);
+
+            if (!action.IsValid || action.IsTransient)
+            {
+                gestureHoldTimer = 0f;
+                lastIntent = GestureIntent.None;
+                return;
+            }
+
+            if (action.TriggeredTime <= lastMotionTime) return;
+            lastMotionTime = action.TriggeredTime;
+
+            switch (action.Intent)
+            {
+                case GestureIntent.MenuPrevious:
+                    currentScreen.MoveSelection(-1);
+                    gestureHoldTimer = 0f;
+                    break;
+                case GestureIntent.MenuNext:
+                    currentScreen.MoveSelection(1);
+                    gestureHoldTimer = 0f;
+                    break;
+                case GestureIntent.MenuConfirm:
+                    gestureHoldTimer += Time.unscaledDeltaTime;
+                    if (gestureHoldTimer >= 0.45f)
+                    {
+                        currentScreen.ActivateSelected();
+                        gestureHoldTimer = 0f;
+                    }
+                    break;
+                case GestureIntent.MenuBack:
+                    gestureHoldTimer += Time.unscaledDeltaTime;
+                    if (gestureHoldTimer >= 0.45f)
+                    {
+                        ShowMain();
+                        gestureHoldTimer = 0f;
+                    }
+                    break;
+                default:
+                    gestureHoldTimer = 0f;
+                    break;
+            }
         }
 
         private void HandleButtonClick(string key)
@@ -238,6 +286,15 @@ namespace SpellGuard.UI.Canvas
             var bodyText = (Text)bodyField.GetValue(screen);
             if (bodyText == null) return;
 
+            // Wire camera preview texture
+            var camField = typeof(StartMenuScreen).GetField("cameraPreview", flags);
+            if (camField != null && webcamFeed != null && webcamFeed.HasTexture)
+            {
+                var camPreview = camField.GetValue(screen) as RawImage;
+                if (camPreview != null && camPreview.texture == null)
+                    camPreview.texture = webcamFeed.Texture;
+            }
+
             var cameraReady = webcamFeed != null && webcamFeed.HasReadyFrame;
             var inputMode = GetInputModeLabel();
             var snapshot = nativeMediapipeProvider != null ? nativeMediapipeProvider.CurrentSnapshot : GestureSnapshot.Missing;
@@ -282,14 +339,7 @@ namespace SpellGuard.UI.Canvas
 
         private void LaunchGameplay()
         {
-            var menuController = FindObjectOfType<SpellGuardStartMenuController>();
-            if (menuController != null)
-            {
-                menuController.LaunchCombat();
-                return;
-            }
-
-            // Fallback
+            inputRouter?.ClearTransientInputs();
             SpellGuardStartSceneLaunch.Request(SpellGuardStartSceneLaunchMode.Combat);
             SceneTransitionManager.Instance.LoadScene("SpellGuardPrototype");
         }

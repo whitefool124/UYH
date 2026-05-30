@@ -1,0 +1,170 @@
+﻿[
+    {
+        "Name":  "ui_panel_main",
+        "Size":  "512x512",
+        "Expected":  "512x512",
+        "OK":  true,
+        "Bytes":  375109,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_panel_main.png"
+    },
+    {
+        "Name":  "ui_btn_primary_normal",
+        "Size":  "256x64",
+        "Expected":  "256x64",
+        "OK":  true,
+        "Bytes":  25962,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_btn_primary_normal.png"
+    },
+    {
+        "Name":  "ui_btn_primary_hover",
+        "Size":  "256x64",
+        "Expected":  "256x64",
+        "OK":  true,
+        "Bytes":  45823,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_btn_primary_hover.png"
+    },
+    {
+        "Name":  "ui_btn_primary_active",
+        "Size":  "256x64",
+        "Expected":  "256x64",
+        "OK":  true,
+        "Bytes":  33614,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_btn_primary_active.png"
+    },
+    {
+        "Name":  "ui_btn_secondary_normal",
+        "Size":  "200x48",
+        "Expected":  "200x48",
+        "OK":  true,
+        "Bytes":  10494,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_btn_secondary_normal.png"
+    },
+    {
+        "Name":  "ui_btn_secondary_hover",
+        "Size":  "200x48",
+        "Expected":  "200x48",
+        "OK":  true,
+        "Bytes":  24050,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_btn_secondary_hover.png"
+    },
+    {
+        "Name":  "ui_screen_bg_main_menu",
+        "Size":  "1920x1080",
+        "Expected":  "1920x1080",
+        "OK":  true,
+        "Bytes":  3796680,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\Screens\\ui_screen_bg_main_menu.png"
+    },
+    {
+        "Name":  "ui_icon_fire",
+        "Size":  "64x64",
+        "Expected":  "64x64",
+        "OK":  true,
+        "Bytes":  7390,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_icon_fire.png"
+    },
+    {
+        "Name":  "ui_icon_ice",
+        "Size":  "64x64",
+        "Expected":  "64x64",
+        "OK":  true,
+        "Bytes":  8960,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_icon_ice.png"
+    },
+    {
+        "Name":  "ui_icon_shield",
+        "Size":  "64x64",
+        "Expected":  "64x64",
+        "OK":  true,
+        "Bytes":  5357,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_icon_shield.png"
+    },
+    {
+        "Name":  "ui_icon_health",
+        "Size":  "48x48",
+        "Expected":  "48x48",
+        "OK":  true,
+        "Bytes":  3682,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_icon_health.png"
+    },
+    {
+        "Name":  "ui_progress_bar_bg",
+        "Size":  "256x24",
+        "Expected":  "256x24",
+        "OK":  true,
+        "Bytes":  9775,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_progress_bar_bg.png"
+    },
+    {
+        "Name":  "ui_progress_bar_fill",
+        "Size":  "256x24",
+        "Expected":  "256x24",
+        "OK":  true,
+        "Bytes":  12052,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\GeneratedCore\\ui_progress_bar_fill.png"
+    },
+    {
+        "Name":  "vfx_fire_projectile",
+        "Size":  "64x64",
+        "Expected":  "64x64",
+        "OK":  true,
+        "Bytes":  7935,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\VFX\\SpellGuard\\GeneratedCore\\vfx_fire_projectile.png"
+    },
+    {
+        "Name":  "vfx_fire_impact",
+        "Size":  "128x128",
+        "Expected":  "128x128",
+        "OK":  true,
+        "Bytes":  24014,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\VFX\\SpellGuard\\GeneratedCore\\vfx_fire_impact.png"
+    },
+    {
+        "Name":  "vfx_shield_hex",
+        "Size":  "256x256",
+        "Expected":  "256x256",
+        "OK":  true,
+        "Bytes":  127849,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\VFX\\SpellGuard\\GeneratedCore\\vfx_shield_hex.png"
+    },
+    {
+        "Name":  "env_floor_grid",
+        "Size":  "1024x1024",
+        "Expected":  "1024x1024",
+        "OK":  true,
+        "Bytes":  1774478,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\Environment\\SpellGuard\\GeneratedCore\\env_floor_grid.png"
+    },
+    {
+        "Name":  "hand_sprite_point",
+        "Size":  "256x256",
+        "Expected":  "256x256",
+        "OK":  true,
+        "Bytes":  124314,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\Hands\\hand_sprite_point.png"
+    },
+    {
+        "Name":  "hand_sprite_fist",
+        "Size":  "256x256",
+        "Expected":  "256x256",
+        "OK":  true,
+        "Bytes":  57173,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\Hands\\hand_sprite_fist.png"
+    },
+    {
+        "Name":  "hand_sprite_vsign",
+        "Size":  "256x256",
+        "Expected":  "256x256",
+        "OK":  true,
+        "Bytes":  59392,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\Hands\\hand_sprite_vsign.png"
+    },
+    {
+        "Name":  "hand_sprite_openpalm",
+        "Size":  "256x256",
+        "Expected":  "256x256",
+        "OK":  true,
+        "Bytes":  104535,
+        "Path":  "E:\\bishe\\gesture-game\\unity-spell-guard\\Assets\\Art\\UI\\SpellGuard\\Hands\\hand_sprite_openpalm.png"
+    }
+]
